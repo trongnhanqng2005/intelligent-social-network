@@ -2,7 +2,7 @@ const nodeEnvironments = ['development', 'test', 'production'] as const;
 
 export type NodeEnvironment = (typeof nodeEnvironments)[number];
 
-export interface EnvironmentConfig {
+export interface Neo4jEnvironmentConfig {
   NODE_ENV: NodeEnvironment;
   PORT: number;
   HOST: string;
@@ -12,9 +12,19 @@ export interface EnvironmentConfig {
   NEO4J_DATABASE: string;
 }
 
-export function validateEnvironment(
+export interface EnvironmentConfig extends Neo4jEnvironmentConfig {
+  AUTH_PRIVATE_KEY_PATH: string;
+  AUTH_PUBLIC_KEY_PATH: string;
+  AUTH_CSRF_SECRET_PATH: string;
+  AUTH_KEY_ID: string;
+  AUTH_ISSUER: string;
+  AUTH_AUDIENCE: string;
+  AUTH_WEB_ORIGIN: string;
+}
+
+export function validateNeo4jEnvironment(
   config: Record<string, unknown>,
-): EnvironmentConfig {
+): Neo4jEnvironmentConfig {
   const nodeEnv = config.NODE_ENV ?? 'development';
   if (
     typeof nodeEnv !== 'string' ||
@@ -94,5 +104,60 @@ export function validateEnvironment(
     NEO4J_USERNAME: neo4jUsername.trim(),
     NEO4J_PASSWORD: neo4jPassword,
     NEO4J_DATABASE: database,
+  };
+}
+
+export function validateEnvironment(config: Record<string, unknown>): EnvironmentConfig {
+  const databaseConfig = validateNeo4jEnvironment(config);
+  const nodeEnv = databaseConfig.NODE_ENV;
+  const authConfig = Object.fromEntries([
+    'AUTH_PRIVATE_KEY_PATH', 'AUTH_PUBLIC_KEY_PATH', 'AUTH_CSRF_SECRET_PATH',
+    'AUTH_KEY_ID', 'AUTH_ISSUER', 'AUTH_AUDIENCE',
+  ].map((key) => {
+    const value = config[key];
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`${key} must be configured`);
+    }
+    return [key, value.trim()];
+  })) as Pick<EnvironmentConfig,
+    'AUTH_PRIVATE_KEY_PATH' | 'AUTH_PUBLIC_KEY_PATH' | 'AUTH_CSRF_SECRET_PATH' |
+    'AUTH_KEY_ID' | 'AUTH_ISSUER' | 'AUTH_AUDIENCE'>;
+
+  if (!/^[a-zA-Z0-9._-]{1,128}$/.test(authConfig.AUTH_KEY_ID)) {
+    throw new Error('AUTH_KEY_ID must use 1-128 URL-safe identifier characters');
+  }
+  if (authConfig.AUTH_AUDIENCE.length > 256) throw new Error('AUTH_AUDIENCE must be at most 256 characters');
+  let issuerUrl: URL;
+  try {
+    issuerUrl = new URL(authConfig.AUTH_ISSUER);
+  } catch {
+    throw new Error('AUTH_ISSUER must be an absolute HTTP(S) URL');
+  }
+  if (!['http:', 'https:'].includes(issuerUrl.protocol) || issuerUrl.username || issuerUrl.password ||
+      (nodeEnv === 'production' && issuerUrl.protocol !== 'https:')) {
+    throw new Error(nodeEnv === 'production'
+      ? 'AUTH_ISSUER must be an HTTPS URL in production'
+      : 'AUTH_ISSUER must be a valid HTTP(S) URL');
+  }
+
+  const webOrigin = config.AUTH_WEB_ORIGIN;
+  if (typeof webOrigin !== 'string') throw new Error('AUTH_WEB_ORIGIN must be configured');
+  let parsedOrigin: URL;
+  try {
+    parsedOrigin = new URL(webOrigin);
+  } catch {
+    throw new Error('AUTH_WEB_ORIGIN must be a valid origin');
+  }
+  if (parsedOrigin.origin !== webOrigin ||
+      (nodeEnv === 'production' ? parsedOrigin.protocol !== 'https:' : !['http:', 'https:'].includes(parsedOrigin.protocol))) {
+    throw new Error(nodeEnv === 'production'
+      ? 'AUTH_WEB_ORIGIN must be a valid HTTPS origin in production'
+      : 'AUTH_WEB_ORIGIN must be a valid HTTP(S) origin');
+  }
+
+  return {
+    ...databaseConfig,
+    ...authConfig,
+    AUTH_WEB_ORIGIN: parsedOrigin.origin,
   };
 }

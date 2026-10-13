@@ -6,7 +6,7 @@ export interface ApiHealthResponse {
 
 export class HealthResponseError extends Error {
   constructor() {
-    super('The API returned an unexpected health response.');
+    super('Dịch vụ trả về trạng thái không mong đợi.');
     this.name = 'HealthResponseError';
   }
 }

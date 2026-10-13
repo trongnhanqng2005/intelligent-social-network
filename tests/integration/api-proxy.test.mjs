@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
@@ -78,6 +80,21 @@ async function stop(handle) {
 
 test('the running Vite development proxy returns the API health contract', async (t) => {
   const apiPort = await availablePort();
+  await mkdir(path.join(root, '.artifacts'), { recursive: true });
+  const authKeyDirectory = await mkdtemp(path.join(root, '.artifacts', 'api-proxy-auth-keys-'));
+  const keyPair = generateKeyPairSync('rsa', {
+    modulusLength: 3072,
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  const privateKeyPath = path.join(authKeyDirectory, 'private.pem');
+  const publicKeyPath = path.join(authKeyDirectory, 'public.pem');
+  const csrfSecretPath = path.join(authKeyDirectory, 'csrf.secret');
+  await Promise.all([
+    writeFile(privateKeyPath, keyPair.privateKey, { mode: 0o600 }),
+    writeFile(publicKeyPath, keyPair.publicKey, { mode: 0o600 }),
+    writeFile(csrfSecretPath, randomBytes(32), { mode: 0o600 }),
+  ]);
   const api = start(node, ['dist/main.js'], {
     cwd: apiDirectory,
     env: {
@@ -89,6 +106,13 @@ test('the running Vite development proxy returns the API health contract', async
       NEO4J_TEST_USERNAME: 'api-proxy-test',
       NEO4J_TEST_PASSWORD: 'not-a-real-credential',
       NEO4J_DATABASE: 'isn-test',
+      AUTH_PRIVATE_KEY_PATH: privateKeyPath,
+      AUTH_PUBLIC_KEY_PATH: publicKeyPath,
+      AUTH_CSRF_SECRET_PATH: csrfSecretPath,
+      AUTH_KEY_ID: 'api-proxy-test-key',
+      AUTH_ISSUER: `http://127.0.0.1:${apiPort}`,
+      AUTH_AUDIENCE: 'intelligent-social-network-web',
+      AUTH_WEB_ORIGIN: 'http://127.0.0.1:5173',
     },
   });
   const web = start(
@@ -115,6 +139,7 @@ test('the running Vite development proxy returns the API health contract', async
   t.after(async () => {
     await stop(web);
     await stop(api);
+    await rm(authKeyDirectory, { recursive: true, force: true });
   });
 
   const response = await waitForResponse(

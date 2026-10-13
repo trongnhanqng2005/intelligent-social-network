@@ -16,15 +16,15 @@ function describeApiFailure(error: unknown): string {
 
   if (error instanceof HttpClientError) {
     if (error.kind === 'network') {
-      return 'The API could not be reached. Check that the backend is running.';
+      return 'Không thể kết nối đến dịch vụ. Hãy kiểm tra máy chủ API.';
     }
     if (error.kind === 'http' && error.status !== undefined) {
-      return `The API returned HTTP ${error.status}.`;
+      return `Dịch vụ trả về lỗi HTTP ${error.status}.`;
     }
-    return 'The API returned invalid JSON.';
+    return 'Dịch vụ trả về dữ liệu không hợp lệ.';
   }
 
-  return 'The API connection could not be verified. Try again.';
+  return 'Không thể xác minh kết nối API. Vui lòng thử lại.';
 }
 
 export function useApiHealth(): {
@@ -60,7 +60,7 @@ export function useApiHealth(): {
         setState({
           status: 'error',
           message: timedOut
-            ? 'The API request timed out after 5 seconds.'
+            ? 'Yêu cầu API đã hết thời gian chờ sau 5 giây.'
             : describeApiFailure(error),
         });
       })

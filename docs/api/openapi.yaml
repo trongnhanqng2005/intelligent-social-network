@@ -1,0 +1,296 @@
+openapi: 3.1.0
+info:
+  title: Intelligent Social Network API
+  version: 0.1.0
+  description: Implemented liveness, readiness, and browser authentication contracts.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local API; the Vite development proxy adds and strips /api.
+tags:
+  - name: Health
+  - name: Authentication
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Dependency-independent liveness check
+      responses:
+        '200':
+          description: API process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: ok }
+  /ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Neo4j identity and migration readiness
+      responses:
+        '200':
+          description: Configured database is reachable and current at schema V2.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database, schemaVersion]
+                properties:
+                  status: { const: ready }
+                  database: { type: string, example: isn-dev }
+                  schemaVersion: { const: 2 }
+        '503':
+          description: Configured database unavailable, identity mismatch, or schema not ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database, reason]
+                properties:
+                  status: { const: not_ready }
+                  database: { type: string }
+                  reason:
+                    type: string
+                    enum: [DATABASE_UNAVAILABLE, DATABASE_IDENTITY_MISMATCH, SCHEMA_INSPECTION_FAILED, SCHEMA_UNINITIALIZED, SCHEMA_DRIFT, SCHEMA_VERSION_MISMATCH, SCHEMA_MIGRATION_INCOMPLETE]
+                  expectedSchemaVersion: { type: integer }
+                  actualSchemaVersion: { type: integer }
+  /auth/csrf:
+    get:
+      tags: [Authentication]
+      operationId: getCsrfToken
+      summary: Bootstrap an anonymous or session-bound CSRF token
+      responses:
+        '200':
+          description: Token issued; HttpOnly CSRF cookies are set.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+            Set-Cookie:
+              description: HttpOnly SameSite=Lax CSRF cookies; Secure in production.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [csrfToken]
+                properties:
+                  csrfToken: { type: string }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/register:
+    post:
+      tags: [Authentication]
+      operationId: register
+      summary: Create an email/password account
+      security:
+        - csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '201':
+          description: Account created; no session is issued.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/CsrfFailed' }
+        '409':
+          description: Duplicate email or caller already authenticated.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Authenticate and issue a fixed 24-hour browser session
+      security:
+        - csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '200':
+          description: Authenticated; session and rotated CSRF state are set.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+            Set-Cookie:
+              description: HttpOnly SameSite=Lax session cookie; Secure in production.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, session, csrfToken]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  session: { $ref: '#/components/schemas/Session' }
+                  csrfToken: { type: string }
+        '401':
+          description: Invalid credentials; response is generic.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '403': { $ref: '#/components/responses/CsrfFailed' }
+        '409':
+          description: Caller already authenticated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/session:
+    get:
+      tags: [Authentication]
+      operationId: restoreSession
+      summary: Restore the current session using its HttpOnly cookie
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Session is active and durably present in Neo4j.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, session]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  session: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke the current durable session and rotate CSRF state
+      description: Idempotent after Origin/CSRF validation. Missing, invalid, expired, or revoked sessions return 204; a stale CSRF token returns 403.
+      security:
+        - csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Active session revoked at most once; cookies cleared/rotated even when no valid session exists.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+            Set-Cookie:
+              description: "Clears session cookie and rotates CSRF context."
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/CsrfFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+components:
+  securitySchemes:
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Signed double-submit token returned by GET /auth/csrf.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: isn_session
+      description: HttpOnly signed session cookie; production name is __Host-isn_session.
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      schema: { type: string, format: uri }
+      description: Must exactly match configured AUTH_WEB_ORIGIN.
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string }
+  schemas:
+    Credentials:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password:
+          type: string
+          minLength: 15
+          maxLength: 512
+          description: Service enforces 15–128 Unicode code points and at most 512 UTF-8 bytes.
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+    Session:
+      type: object
+      additionalProperties: false
+      required: [expiresAt]
+      properties:
+        expiresAt: { type: string, format: date-time }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/ApiError' }
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        fieldErrors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+  responses:
+    CsrfFailed:
+      description: Origin, cross-site, or CSRF validation failed.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Unauthenticated:
+      description: No valid current session.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    ValidationFailed:
+      description: Request fields failed validation.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    RateLimited:
+      description: In-memory per-process limit exceeded; Retry-After is seconds.
+      headers:
+        Retry-After: { schema: { type: integer, minimum: 1 } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    ServiceUnavailable:
+      description: Required service is unavailable.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    PayloadTooLarge:
+      description: Request body exceeds the 8 KiB JSON limit.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    UnsupportedMediaType:
+      description: Register and login require application/json.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }

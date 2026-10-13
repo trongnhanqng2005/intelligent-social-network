@@ -18,7 +18,10 @@ const expectedPrivileges = [
   'DENY ACCESS ON DATABASE `isn-dev` TO `isn_test_runner_role`',
   'GRANT CREATE CONSTRAINT ON DATABASE `isn-test` TO `isn_test_runner_role`',
   'GRANT SHOW CONSTRAINT ON DATABASE `isn-test` TO `isn_test_runner_role`',
+  'GRANT CREATE INDEX ON DATABASE `isn-test` TO `isn_test_runner_role`',
+  'GRANT SHOW INDEX ON DATABASE `isn-test` TO `isn_test_runner_role`',
   'GRANT CREATE NEW NODE LABEL ON DATABASE `isn-test` TO `isn_test_runner_role`',
+  'GRANT CREATE NEW RELATIONSHIP TYPE ON DATABASE `isn-test` TO `isn_test_runner_role`',
   'GRANT CREATE NEW PROPERTY NAME ON DATABASE `isn-test` TO `isn_test_runner_role`',
   'GRANT MATCH {*} ON GRAPH `isn-test` NODE ISNSchema TO `isn_test_runner_role`',
   'GRANT MATCH {*} ON GRAPH `isn-test` NODE ISNSchemaMigration TO `isn_test_runner_role`',
@@ -30,6 +33,46 @@ const expectedPrivileges = [
   'GRANT MERGE {status} ON GRAPH `isn-test` NODE ISNSchemaMigration TO `isn_test_runner_role`',
   'GRANT MERGE {appliedAt} ON GRAPH `isn-test` NODE ISNSchemaMigration TO `isn_test_runner_role`',
   'GRANT MERGE {verifiedAt} ON GRAPH `isn-test` NODE ISNSchemaMigration TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` RELATIONSHIP HAS_AUTH_SESSION TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` RELATIONSHIP PERFORMED_AUTH_EVENT TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` RELATIONSHIP HAS_AUTH_SESSION TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` RELATIONSHIP PERFORMED_AUTH_EVENT TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {createdAt} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {expiresAt} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {id} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {jti} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {revokedAt} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {createdAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {email} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {id} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {passwordHash} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {updatedAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {eventId} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {eventType} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {schemaVersion} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {sessionId} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {source} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {timestamp} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {userId} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` RELATIONSHIP HAS_AUTH_SESSION TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` RELATIONSHIP PERFORMED_AUTH_EVENT TO `isn_test_runner_role`',
+];
+
+const schemaLabels = ['ISNSchema', 'ISNSchemaMigration', 'User', 'AuthSession', 'AuthActivityEvent'];
+const schemaRelationshipTypes = ['HAS_AUTH_SESSION', 'PERFORMED_AUTH_EVENT'];
+const schemaPropertyNames = [
+  'key', 'version', 'name', 'checksum', 'status', 'appliedAt', 'verifiedAt',
+  'id', 'email', 'passwordHash', 'createdAt', 'updatedAt', 'jti', 'expiresAt', 'revokedAt',
+  'eventId', 'schemaVersion', 'eventType', 'timestamp', 'source', 'userId', 'sessionId',
 ];
 
 const driver = neo4j.driver(uri, neo4j.auth.basic(adminUsername, adminPassword));
@@ -37,6 +80,24 @@ let generatedFile = false;
 let userCreated = false;
 try {
   await driver.verifyConnectivity();
+  const testDatabase = driver.session({ database: 'isn-test' });
+  try {
+    const identity = await testDatabase.run('CALL db.info() YIELD name RETURN name');
+    if (identity.records[0]?.get('name') !== 'isn-test') {
+      throw new Error('Test database identity verification failed; provisioning stopped');
+    }
+    for (const label of schemaLabels) {
+      await testDatabase.run('CALL db.createLabel($name)', { name: label });
+    }
+    for (const relationshipType of schemaRelationshipTypes) {
+      await testDatabase.run('CALL db.createRelationshipType($name)', { name: relationshipType });
+    }
+    for (const propertyName of schemaPropertyNames) {
+      await testDatabase.run('CALL db.createProperty($name)', { name: propertyName });
+    }
+  } finally {
+    await testDatabase.close();
+  }
   const system = driver.session({ database: 'system' });
   try {
     const dbms = await system.run('CALL dbms.components() YIELD versions, edition RETURN versions[0] AS version, edition');
@@ -51,6 +112,15 @@ try {
     const existingUser = users.records[0];
     const roles = await system.run('SHOW ROLES YIELD role, immutable WHERE role = $role RETURN role, immutable', { role });
     const existingRole = roles.records[0];
+    if (existingRole?.get('immutable')) throw new Error('Expected role name is occupied by an immutable role; provisioning stopped');
+    const rolePrivileges = existingRole
+      ? await system.run('SHOW ROLE $role PRIVILEGES AS COMMANDS', { role })
+      : null;
+    const existingCommands = rolePrivileges?.records.map((record) => String(record.get('command'))) ?? [];
+    if (existingCommands.some((command) => !expectedPrivileges.includes(command))) {
+      console.error(JSON.stringify({ unexpectedPrivileges: existingCommands.filter((command) => !expectedPrivileges.includes(command)) }));
+      throw new Error('Existing test role has unexpected privileges; no changes made');
+    }
 
     if (existingUser) {
       const assigned = [...existingUser.get('roles')].sort();
@@ -71,7 +141,6 @@ try {
         } finally { await session.close(); }
       } finally { await check.close(); }
     } else {
-      if (existingRole?.get('immutable')) throw new Error('Expected role name is occupied by an immutable role; provisioning stopped');
       let existingCredentials = '';
       try { existingCredentials = await readFile(credentialsPath, 'utf8'); } catch {}
       if (existingCredentials) throw new Error('Credential file exists while test user is absent; inspect local state before provisioning');
@@ -83,17 +152,16 @@ try {
       await chmod(credentialsPath, 0o600).catch(() => undefined);
       generatedFile = true;
       if (!existingRole) await system.run('CREATE ROLE isn_test_runner_role');
-      const grants = existingRole ? await system.run('SHOW ROLE $role PRIVILEGES AS COMMANDS', { role }) : null;
-      if (grants?.records.length) throw new Error('Existing custom role is not empty; inspect manually before provisioning');
-      for (const command of expectedPrivileges) {
-        await system.run(command);
-      }
       await system.run(
         'CREATE USER $username SET PASSWORD $password CHANGE NOT REQUIRED SET HOME DATABASE $home',
         { username, password, home: 'isn-test' },
       );
       userCreated = true;
       await system.run('GRANT ROLE isn_test_runner_role TO USER isn_test_runner');
+    }
+
+    for (const command of expectedPrivileges) {
+      if (!existingCommands.includes(command)) await system.run(command);
     }
 
     const finalUser = await system.run(
@@ -107,6 +175,12 @@ try {
     if (roleAssignment?.get('home') !== 'isn-test' ||
         JSON.stringify(assigned) !== JSON.stringify(['PUBLIC', role]) ||
         JSON.stringify([...commands].sort()) !== JSON.stringify([...expectedPrivileges].sort())) {
+      console.error(JSON.stringify({
+        homeDatabaseMatches: roleAssignment?.get('home') === 'isn-test',
+        assignedRolesMatch: JSON.stringify(assigned) === JSON.stringify(['PUBLIC', role]),
+        missingPrivileges: expectedPrivileges.filter((command) => !commands.includes(command)),
+        unexpectedPrivileges: commands.filter((command) => !expectedPrivileges.includes(command)),
+      }));
       throw new Error('Provisioned user or effective role grants did not match the approved least-privilege set');
     }
   } finally {

@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../app.module.js';
+import { Neo4jOperationsModule } from './neo4j-operations.module.js';
 import { Neo4jSchemaService } from './neo4j-schema.service.js';
 
 async function initializeSchema(): Promise<void> {
-  const app = await NestFactory.createApplicationContext(AppModule, {
+  const app = await NestFactory.createApplicationContext(Neo4jOperationsModule, {
     logger: false,
   });
   try {

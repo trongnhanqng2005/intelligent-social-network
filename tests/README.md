@@ -19,6 +19,7 @@ Current root tests:
 
 - `integration/api-proxy.test.mjs`: real API + Vite HTTP proxy contract, without browser automation.
 - `e2e/playwright.config.ts` and `e2e/specs/foundation.spec.ts`: real Chromium browser journeys across desktop and emulated mobile projects.
+- `e2e/auth.playwright.config.ts` and `e2e/specs/authentication.spec.ts`: real registration/session journeys against restricted `isn-test`; excluded from ordinary dummy-database browser QA.
 
 Use **unit** for isolated behavior, **integration** for a real boundary between components/services, and **E2E** for observable user/system behavior across the running application. A browser test is E2E, not an integration test. Do not create empty category directories or placeholder tests.
 
@@ -38,6 +39,7 @@ Use **unit** for isolated behavior, **integration** for a real boundary between 
 ```sh
 npm run test:integration       # HTTP boundary test
 npm run test:e2e               # Headless Playwright desktop + mobile suite
+npm run test:e2e:auth          # Real auth journey against restricted isn-test
 npm run test:e2e:headed        # Visible browser runs
 npm run test:e2e:ui             # Playwright UI mode
 npm run test:e2e:report         # Open the latest local HTML report

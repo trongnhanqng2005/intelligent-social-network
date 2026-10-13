@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { ManagedTransaction } from 'neo4j-driver';
 import { Neo4jService } from './neo4j.service.js';
 
-const migrationDefinitions = [
+export const migrationDefinitions = [
   {
     version: 1,
     name: 'foundation-schema-marker',
@@ -12,6 +12,26 @@ const migrationDefinitions = [
        FOR (schema:ISNSchema) REQUIRE schema.key IS UNIQUE`,
       `CREATE CONSTRAINT isn_schema_migration_version IF NOT EXISTS
        FOR (migration:ISNSchemaMigration) REQUIRE migration.version IS UNIQUE`,
+    ],
+  },
+  {
+    version: 2,
+    name: 'authentication-schema',
+    statements: [
+      `CREATE CONSTRAINT isn_user_id IF NOT EXISTS
+       FOR (user:User) REQUIRE user.id IS UNIQUE`,
+      `CREATE CONSTRAINT isn_user_email IF NOT EXISTS
+       FOR (user:User) REQUIRE user.email IS UNIQUE`,
+      `CREATE CONSTRAINT isn_auth_session_id IF NOT EXISTS
+       FOR (session:AuthSession) REQUIRE session.id IS UNIQUE`,
+      `CREATE CONSTRAINT isn_auth_session_jti IF NOT EXISTS
+       FOR (session:AuthSession) REQUIRE session.jti IS UNIQUE`,
+      `CREATE CONSTRAINT isn_auth_event_id IF NOT EXISTS
+       FOR (event:AuthActivityEvent) REQUIRE event.eventId IS UNIQUE`,
+      `CREATE RANGE INDEX isn_auth_session_expires_at IF NOT EXISTS
+       FOR (session:AuthSession) ON (session.expiresAt)`,
+      `CREATE RANGE INDEX isn_auth_event_timestamp IF NOT EXISTS
+       FOR (event:AuthActivityEvent) ON (event.timestamp)`,
     ],
   },
 ] as const;
@@ -31,6 +51,19 @@ const requiredConstraints = [
     labelsOrTypes: ['ISNSchemaMigration'],
     properties: ['version'],
   },
+] as const;
+
+const authenticationConstraints = [
+  { name: 'isn_user_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['User'], properties: ['id'] },
+  { name: 'isn_user_email', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['User'], properties: ['email'] },
+  { name: 'isn_auth_session_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['AuthSession'], properties: ['id'] },
+  { name: 'isn_auth_session_jti', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['AuthSession'], properties: ['jti'] },
+  { name: 'isn_auth_event_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['AuthActivityEvent'], properties: ['eventId'] },
+] as const;
+
+const authenticationIndexes = [
+  { name: 'isn_auth_session_expires_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['AuthSession'], properties: ['expiresAt'] },
+  { name: 'isn_auth_event_timestamp', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['AuthActivityEvent'], properties: ['timestamp'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -71,7 +104,7 @@ export class Neo4jMigrationService {
 
     const drift = inspection.history.some((record) => {
       const definition = migrationDefinitions.find((item) => item.version === record.version);
-      return !definition || record.checksum !== checksumMigration(definition);
+      return !definition || record.name !== definition.name || record.checksum !== checksumMigration(definition);
     });
     if (drift) return this.toStatus('drift', inspection.history);
 
@@ -84,7 +117,7 @@ export class Neo4jMigrationService {
         record.status === 'VERIFIED' &&
         record.checksum === checksumMigration(definition),
       ),
-    ) && inspection.constraintsValid && inspection.markerVersion === migrationDefinitions.at(-1)?.version;
+    ) && inspection.schemaValid && inspection.markerVersion === migrationDefinitions.at(-1)?.version;
 
     const resultStatus = current
       ? 'current'
@@ -92,7 +125,9 @@ export class Neo4jMigrationService {
         ? 'incomplete'
         : inspection.history.length === 0
           ? 'empty'
-          : 'drift';
+          : inspection.markerVersion < (migrationDefinitions.at(-1)?.version ?? 0)
+            ? 'incomplete'
+            : 'drift';
     return this.toStatus(resultStatus, inspection.history);
   }
 
@@ -149,7 +184,7 @@ export class Neo4jMigrationService {
         const inspection = await this.neo4jService.executeRead((transaction) =>
           this.inspect(transaction),
         );
-        if (inspection.database !== this.neo4jService.database || !inspection.constraintsValid) {
+        if (inspection.database !== this.neo4jService.database || !inspection.schemaValid) {
           throw new Error('Post-migration schema verification failed');
         }
         await this.neo4jService.executeWrite((transaction) => transaction.run(
@@ -244,6 +279,12 @@ export class Neo4jMigrationService {
     const constraintRows = constraints.records.map((record) => Object.fromEntries(
       ['name', 'type', 'entityType', 'labelsOrTypes', 'properties'].map((key) => [key, record.get(key)]),
     ));
+    const indexes = await transaction.run(
+      'SHOW INDEXES YIELD name, type, entityType, labelsOrTypes, properties, state RETURN name, type, entityType, labelsOrTypes, properties, state',
+    );
+    const indexRows = indexes.records.map((record) => Object.fromEntries(
+      ['name', 'type', 'entityType', 'labelsOrTypes', 'properties', 'state'].map((key) => [key, record.get(key)]),
+    ));
     const historyRecords = history.records.map((record) => ({
       version: asNumber(record.get('version')),
       name: String(record.get('name') ?? ''),
@@ -252,14 +293,23 @@ export class Neo4jMigrationService {
       appliedAt: typeof record.get('appliedAt') === 'string' ? record.get('appliedAt') as string : null,
       verifiedAt: typeof record.get('verifiedAt') === 'string' ? record.get('verifiedAt') as string : null,
     }));
+    const markerVersion = asNumber(marker.records[0]?.get('version'));
+    const expectedConstraints = markerVersion >= 2
+      ? [...requiredConstraints, ...authenticationConstraints]
+      : markerVersion >= 1 ? requiredConstraints : [];
+    const constraintsValid = expectedConstraints.every((expected) => {
+      const actual = constraintRows.find((constraint) => constraint.name === expected.name);
+      return actual !== undefined && matchesConstraint(actual, expected);
+    });
+    const indexesValid = markerVersion < 2 || authenticationIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     return {
       database: identity.records[0]?.get('database'),
-      markerVersion: asNumber(marker.records[0]?.get('version')),
+      markerVersion,
       history: historyRecords,
-      constraintsValid: requiredConstraints.every((expected) => {
-        const actual = constraintRows.find((constraint) => constraint.name === expected.name);
-        return actual !== undefined && matchesConstraint(actual, expected);
-      }),
+      schemaValid: constraintsValid && indexesValid,
     };
   }
 
@@ -271,6 +321,12 @@ export class Neo4jMigrationService {
       migrations: history.map((record) => ({ ...record })),
     };
   }
+}
+
+function matchesIndex(actual: Record<string, unknown>, expected: typeof authenticationIndexes[number]): boolean {
+  return actual.type === expected.type && actual.entityType === expected.entityType &&
+    actual.state === 'ONLINE' && sameList(actual.labelsOrTypes, expected.labelsOrTypes) &&
+    sameList(actual.properties, expected.properties);
 }
 
 interface HistoryRecord {
@@ -290,7 +346,9 @@ function asNumber(value: unknown): number {
   return 0;
 }
 
-function matchesConstraint(actual: Record<string, unknown>, expected: (typeof requiredConstraints)[number]): boolean {
+function matchesConstraint(actual: Record<string, unknown>, expected: {
+  name: string; type: string; entityType: string; labelsOrTypes: readonly string[]; properties: readonly string[];
+}): boolean {
   return actual.type === expected.type &&
     actual.entityType === expected.entityType &&
     sameList(actual.labelsOrTypes, expected.labelsOrTypes) &&

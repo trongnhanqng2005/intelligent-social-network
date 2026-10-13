@@ -34,6 +34,6 @@ import { Neo4jMigrationService } from './neo4j-migrations.js';
     Neo4jMigrationService,
     Neo4jSchemaService,
   ],
-  exports: [Neo4jService, Neo4jSchemaService],
+  exports: [Neo4jService, Neo4jSchemaService, Neo4jMigrationService],
 })
 export class Neo4jModule {}

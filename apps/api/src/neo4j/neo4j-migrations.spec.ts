@@ -1,5 +1,5 @@
 import type { ManagedTransaction } from 'neo4j-driver';
-import { Neo4jMigrationService, checksumMigration } from './neo4j-migrations.js';
+import { Neo4jMigrationService, checksumMigration, migrationDefinitions } from './neo4j-migrations.js';
 import { Neo4jService } from './neo4j.service.js';
 
 function record(values: Record<string, unknown>) {
@@ -37,6 +37,13 @@ describe('Neo4jMigrationService', () => {
       .toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
     expect(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 2'] }))
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
+  });
+
+  it('preserves the verified V1 checksum and appends Authentication as V2', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2]);
+    expect(checksumMigration(migrationDefinitions[0])).toBe(
+      'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
+    );
   });
 
   it('reports checksum drift for an already recorded migration', async () => {
@@ -84,7 +91,7 @@ describe('Neo4jMigrationService', () => {
     transaction.run
       .mockResolvedValueOnce({ records: [record({ database: 'isn-test' })] } as never)
       .mockResolvedValueOnce({ records: [] } as never)
-      .mockResolvedValueOnce({ records: [record({ version: 1, checksum, status: 'APPLYING' })] } as never)
+      .mockResolvedValueOnce({ records: [record({ version: 1, name: 'foundation-schema-marker', checksum, status: 'APPLYING' })] } as never)
       .mockResolvedValueOnce({ records: [] } as never)
       .mockResolvedValueOnce({ records: [] } as never);
 
