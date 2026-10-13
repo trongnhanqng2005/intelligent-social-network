@@ -85,6 +85,10 @@ test('the running Vite development proxy returns the API health contract', async
       NODE_ENV: 'test',
       HOST: '127.0.0.1',
       PORT: String(apiPort),
+      NEO4J_URI: 'neo4j://127.0.0.1:1',
+      NEO4J_TEST_USERNAME: 'api-proxy-test',
+      NEO4J_TEST_PASSWORD: 'not-a-real-credential',
+      NEO4J_DATABASE: 'isn-test',
     },
   });
   const web = start(

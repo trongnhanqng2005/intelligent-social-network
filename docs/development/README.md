@@ -1,6 +1,7 @@
 # Development
 
 - [Environment and setup](setup.md)
+- [Neo4j local operations](neo4j-operations.md)
 - [Testing strategy and commands](testing.md)
 - [Workflow and documentation Definition of Done](workflow.md)
 
