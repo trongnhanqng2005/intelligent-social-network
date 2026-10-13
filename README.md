@@ -1,15 +1,15 @@
 # Intelligent Social Network
 
-A university Big Data project foundation for an intelligent social network. The planned product combines core social features with graph-based friend recommendations and activity anomaly detection; only the minimal application foundation and live API health integration are implemented today.
+A university Big Data project foundation for an intelligent social network. The planned product combines core social features with graph-based friend recommendations and activity anomaly detection; the implemented foundation includes the NestJS API, React status page, and initial Neo4j connectivity/schema/readiness infrastructure.
 
 ## Status
 
-**Foundation verified; business features and all Big Data/ML components are planned, not implemented.** The current app is a NestJS API exposing `GET /health` and a React status page that calls it through Vite's development proxy. There is no authentication, social feed, database, data pipeline, trained model, or production deployment configuration.
+**Neo4j foundation migrations, authenticated dev/test isolation, and live readiness are verified. Business features and all Big Data/ML components remain planned.** The current app is a NestJS API exposing `GET /health` and migration-aware `GET /ready`, plus a React status page that calls health through Vite's development proxy. There is no authentication, social feed, data pipeline, trained model, or production deployment configuration.
 
 ## Stack and architecture
 
 - npm workspaces: `apps/api` (NestJS 12, TypeScript) and `apps/web` (React 19, TypeScript, Vite 8, React Router 7).
-- API: lightweight NestJS Modular Monolith; current root module composes configuration and `HealthModule`.
+- API: NestJS Modular Monolith; root composition includes validated configuration, Neo4j foundation, and `HealthModule`.
 - Web: Feature-Based organization with one router, a home page and shared HTTP/config boundaries.
 - Planned direction: Neo4j for social graph/application data, PySpark batch processing over Parquet Bronze/Silver/Gold layers, and Python/scikit-learn models for friend recommendation and anomaly detection. These are requirements and proposals, not existing services.
 

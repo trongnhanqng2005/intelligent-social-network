@@ -27,3 +27,31 @@ describe('GET /health', () => {
       .expect({ status: 'ok' });
   });
 });
+
+describe('GET /ready', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('returns a sanitized unavailable response when Neo4j cannot be reached', async () => {
+    await request(app.getHttpServer())
+      .get('/ready')
+      .expect(503)
+      .expect({
+        status: 'not_ready',
+        database: 'isn-test',
+        reason: 'DATABASE_UNAVAILABLE',
+      });
+  });
+});

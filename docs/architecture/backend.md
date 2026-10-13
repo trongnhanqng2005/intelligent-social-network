@@ -6,15 +6,17 @@
 apps/api/src/
 ├── main.ts                    # Nest bootstrap, validated host/port, shutdown hooks
 ├── app.module.ts              # Root composition
-├── config/env.validation.ts   # NODE_ENV, PORT and HOST parsing/validation
+├── config/env.validation.ts   # API and Neo4j configuration validation
+├── neo4j/                     # App-scoped driver, explicit sessions, schema and readiness
 └── modules/health/
     ├── health.module.ts
-    └── health.controller.ts   # GET /health -> { status: "ok" }
+    ├── health.controller.ts   # GET /health -> { status: "ok" }
+    └── readiness.controller.ts # GET /ready -> database/schema readiness
 ```
 
-`AppModule` imports global `ConfigModule` and `HealthModule`. `GET /health` returns exactly `{ "status": "ok" }`, with HTTP 200 and JSON content type. It is process liveness; it does not check a database. There is no global `/api` API prefix, business service, repository, common layer or infrastructure layer.
+`AppModule` imports global `ConfigModule` and `HealthModule`. `GET /health` returns exactly `{ "status": "ok" }`, with HTTP 200 and JSON content type; it remains process liveness and does not check Neo4j. `GET /ready` checks driver connectivity, confirms the explicitly selected database identity and validates the foundation schema marker/constraint; it returns 503 with a sanitized reason when unavailable or out of date. `Neo4jModule` owns one application-scoped official driver, closes it on shutdown, selects the configured database for every session, and exposes managed read/write transaction helpers. The only initial schema is a uniqueness constraint and a version marker; initialization is explicit and repeatable, never a reset or seed. There is no global `/api` prefix, business service, repository, common layer or general-purpose infrastructure layer.
 
-Configuration accepts `NODE_ENV` values `development`, `test`, `production`; `PORT` must be an integer 1–65535; `HOST` must be non-empty. Defaults are development, port 3000 and loopback `127.0.0.1`. Tests are API-local Jest; the HTTP contract uses API-local Supertest E2E.
+Configuration accepts `NODE_ENV` values `development`, `test`, `production`; `PORT` must be an integer 1–65535; `HOST` and Neo4j connection settings must be non-empty/valid. Development is pinned to `isn-dev`; test mode requires `isn-test` and separate test credentials. Defaults remain port 3000 and loopback `127.0.0.1`. Tests are API-local Jest; HTTP contracts use API-local Supertest E2E. See [Neo4j operations](../development/neo4j-operations.md) for schema and environment procedures.
 
 ## Extension guidance
 

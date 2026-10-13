@@ -11,6 +11,7 @@
 | React component, hook, route behavior | `apps/web/src/**` beside source | Vitest + RTL; `npm run test:web` |
 | Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*.test.mjs` (only when justified) | Node `node:test`; no separate root unit scenario currently |
 | Real component/service boundary without a browser | `tests/integration/<boundary-or-feature>/*.test.mjs` | Node `node:test`; `npm run test:integration` |
+| Real Neo4j foundation integration | `tests/integration/neo4j/*.test.mjs` | Node `node:test`; `npm run test:neo4j`, dedicated `isn-test` credentials required |
 | Complete user/system flow in a real browser | `tests/e2e/specs/<feature-or-journey>.spec.ts` | Playwright Test; `npm run test:e2e` |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
 
@@ -41,6 +42,11 @@ npm run test:e2e:headed        # Visible browser runs
 npm run test:e2e:ui             # Playwright UI mode
 npm run test:e2e:report         # Open the latest local HTML report
 npm run test:root              # Root integration + browser QA
+npm run neo4j:provision-test   # Explicit local admin provisioning, once/repeat-safe
+npm run neo4j:migrate:dev      # Explicit dev schema migrations
+npm run neo4j:migrate:test     # Explicit test schema migrations
+npm run neo4j:status:test     # Read-only migration verification
+npm run test:neo4j             # Real Neo4j integration; requires ignored test env file
 npm test                       # Existing app-local API and Web tests
 ```
 

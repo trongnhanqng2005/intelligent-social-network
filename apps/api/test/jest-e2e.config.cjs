@@ -9,5 +9,6 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test/jest-e2e.setup.cjs'],
   clearMocks: true,
 };

@@ -10,12 +10,13 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 |---|---|
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
+| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, versioned foundation migration and `GET /ready` | Implemented and verified against both local databases |
 | Browser-to-API health request through Vite `/api` development proxy | Implemented and verified |
 | Authentication, profiles, posts, interactions, friendships, admin | Approved proposal requirements; not implemented |
-| Neo4j, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
+| Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
-The initial foundation verification recorded API 18 unit tests + 1 API E2E, Web 30 tests, successful typechecks/builds and live browser proxy verification. Root QA now includes a Node HTTP proxy integration check and Playwright desktop/mobile browser scenarios; see [testing](development/testing.md) for commands and results.
+Current Neo4j Foundation verification includes 39 API unit tests, 30 Web tests, 2 API E2E tests, 1 root HTTP integration, 12 desktop/mobile Playwright tests, and a real isolated Neo4j migration integration; typecheck and builds pass. See [testing](development/testing.md) for commands and results.
 
 ## Technology
 

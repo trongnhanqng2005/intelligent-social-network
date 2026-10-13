@@ -43,7 +43,15 @@ export default defineConfig({
       url: 'http://127.0.0.1:3301/health',
       timeout: 120_000,
       reuseExistingServer: false,
-      env: { NODE_ENV: 'test', HOST: '127.0.0.1', PORT: '3301' },
+      env: {
+        NODE_ENV: 'test',
+        HOST: '127.0.0.1',
+        PORT: '3301',
+        NEO4J_URI: 'neo4j://127.0.0.1:1',
+        NEO4J_TEST_USERNAME: 'api-e2e-test',
+        NEO4J_TEST_PASSWORD: 'not-a-real-credential',
+        NEO4J_DATABASE: 'isn-test',
+      },
     },
     {
       name: 'Web',

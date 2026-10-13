@@ -2,7 +2,7 @@
 
 ## Implemented runtime
 
-The repository contains two npm workspaces and no persistence or external data services. The NestJS API composes validated global configuration and a single `HealthModule`. Its controller returns a static liveness response. The React app owns one `BrowserRouter`, a home route, not-found route, shared JSON HTTP transport and page-scoped health state. The health contract is validated at runtime before the UI reports success.
+The repository contains two npm workspaces. The NestJS API composes validated global configuration, an application-scoped Neo4j driver/schema provider, and `HealthModule`. `/health` is static process liveness; `/ready` checks the configured Neo4j database and foundation schema. The React app owns one `BrowserRouter`, a home route, not-found route, shared JSON HTTP transport and page-scoped health state. The UI's existing health contract remains unchanged.
 
 ```mermaid
 flowchart LR
@@ -15,10 +15,15 @@ flowchart LR
   Nest --> Root[AppModule]
   Root --> Config[ConfigModule + environment validation]
   Root --> HealthModule[HealthModule]
+  HealthModule --> Neo4jModule[Neo4jModule: driver + explicit DB sessions]
+  Neo4jModule --> Neo4j[(Configured Neo4j database)]
   HealthModule --> Controller[HealthController: GET /health]
+  HealthModule --> Ready[ReadinessController: GET /ready]
+  Ready --> Schema[Schema version/readiness service]
+  Schema --> Neo4jModule
 ```
 
-This is not a future-state data architecture. There is no login, user domain, Neo4j, event log, ETL, model, or production proxy in the current runtime.
+This is not a future-state data architecture. The Neo4j foundation has no login, user domain, event log, ETL, model, or production proxy. Database runtime/privilege verification must be recorded separately from source implementation and builds.
 
 ## Dependency direction
 

@@ -2,11 +2,19 @@
 
 ## Task flow
 
-1. Use an approved feature/task scope and preserve documented constraints; inspect current code before proposing changes.
-2. Implement in narrow slices and put each test at its established owner: app-local test for single-app behavior, `tests/integration/` for root non-browser component boundaries, and `tests/e2e/` for Playwright browser journeys.
-3. For UI features, identify the user-facing browser scenario or document why an existing scenario covers it. Verify navigation, responsive behavior, keyboard/accessibility, and API/UI states where the change affects them. Use risk-based scope: a minor CSS-only adjustment does not automatically require the full desktop/mobile E2E matrix.
-4. Run relevant focused tests, broader affected suites, typechecks/builds, and live system checks where required by the change. Record exact commands and outcomes in the task handoff.
-5. Review changed docs against actual code and user-visible behavior before marking work complete.
+Use this as the default for substantial development, not a mandatory eight-stage
+process for every change. The delivery unit is one independently testable,
+reviewable and mergeable task on its own branch. Milestones organize backlog and
+shared architecture/dependencies; their full scope is not a single task Plan or
+long-lived feature branch. Related small fixes may stay in the active task, and
+clear typo/config fixes need no repository plan files or separate branch by default.
+
+1. Inspect the existing state and select the task scope. For a new substantial task, verify the `main` baseline and use a dedicated branch only with Git authorization; do not switch, update or discard a working tree with unrelated edits to satisfy the convention. No automatic fetch, pull, branch rename or publishing.
+2. Use Plan for substantial or ambiguous work. Define only the selected task's scope, dependencies, acceptance criteria and verification; obtain Owner approval and an explicit Build implementation request. Persist `task/<slug>/plan.md` and `todo.md` for substantial/multi-session work when needed, in that same authorized Build turn.
+3. Build the approved task scope in agent-selected increments, including in-scope fixes and docs. Increments are verification checkpoints, not mandatory approval stops. A task may span sessions; preserve scope, progress, blockers and evidence in its handoff. Ask for material scope/architecture changes or unapproved risky actions; pause for missing credentials, environment or business decisions rather than expanding scope or claiming completion.
+4. Choose QA by risk and acceptance criteria: focused tests, affected suites, typechecks/builds and live checks where relevant. Keep app-local tests with their app, root component-boundary tests in `tests/integration/`, and browser journeys in `tests/e2e/`. Documentation-only changes may use consistency/link checks without application builds; record why checks are applicable or not.
+5. For UI work, use the existing UI/UX skills and Playwright MCP to inspect relevant interactions, states, accessibility and desktop/mobile behavior. Save critical journeys in Playwright Test; interactive evidence does not replace regression tests. Fix observed failures and recheck against acceptance criteria, not unbounded aesthetic preferences. Minor changes do not require every suite or viewport; report unavailable checks as pending.
+6. Self-review is part of Build. Formal read-only Plan review applies when requested or before merge, with fixes and reverification as needed. Completion requires the applicable checks and docs to agree, not just code written or tests run once. Commit, push, PR and merge remain explicitly authorized actions; after merge, the next substantial task starts from a verified updated `main` baseline.
 
 ## Mandatory documentation maintenance policy
 
@@ -18,7 +26,7 @@ For **every future development task**:
 4. Verify the changed documentation matches actual source/configuration and that its links and commands are valid before declaring the task complete.
 5. If no documentation update is warranted, record that conclusion briefly in the task handoff and why.
 
-This is part of the project Definition of Done, not optional cleanup. Keep future capabilities labeled planned until source and verification evidence support implemented status. Do not recreate `AGENTS.md`; it is reserved for the final project-completion stage.
+This is part of the project Definition of Done, not optional cleanup. Keep future capabilities labeled planned until source and verification evidence support implemented status. Maintain the existing root `AGENTS.md` as the project changes; do not recreate or overwrite it wholesale without an explicit Owner request, and do not add nested `AGENTS.md` files.
 
 ## Completion handoff
 
