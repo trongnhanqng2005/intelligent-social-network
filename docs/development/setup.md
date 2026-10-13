@@ -8,6 +8,16 @@
 
 ## Install and run
 
+### Windows one-click development launcher
+
+Install the required Node.js/npm versions and dependencies first (`npm ci` from the repository root). Configure the Git-ignored `apps/api/.env` and generate local authentication keys once with `npm run auth:keys` if they do not already exist. Start Neo4j Desktop separately, start the existing `isn-dev` database, and ensure its required schema is already ready. The launcher never starts Neo4j, creates schema, or changes database data.
+
+Double-click `scripts/start-dev.cmd` in Explorer. It checks configuration, authentication key files, dependencies, and local ports; starts the API and frontend; waits for API `/ready` and the Vite `/api/ready` proxy; then opens the application in the default browser. The default URL is `http://127.0.0.1:5173`; login and registration are at `/dang-nhap` and `/dang-ky`. Configured API/web ports must agree with `API_PROXY_TARGET` and `AUTH_WEB_ORIGIN`. Keep the launcher console open while developing; it shows startup and application output. Double-click `scripts/stop-dev.cmd` to stop only this launcher's application processes. Neo4j Desktop and the browser remain open.
+
+Timestamped launcher, API, and frontend logs are retained under `.artifacts/local-dev-launcher/`. If startup fails, read the console error and the named log. Common causes are missing local settings/keys, an occupied API or web port (the launcher will not terminate the owning process), unavailable Neo4j, a database other than `isn-dev`, or an unready schema. Correct the local setup or close the conflicting application yourself, then retry; migrations remain an explicit operator action.
+
+### Manual alternative
+
 From the repository root:
 
 ```sh
