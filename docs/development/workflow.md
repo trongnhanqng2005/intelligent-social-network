@@ -2,19 +2,45 @@
 
 ## Task flow
 
-Use this as the default for substantial development, not a mandatory eight-stage
-process for every change. The delivery unit is one independently testable,
-reviewable and mergeable task on its own branch. Milestones organize backlog and
-shared architecture/dependencies; their full scope is not a single task Plan or
-long-lived feature branch. Related small fixes may stay in the active task, and
-clear typo/config fixes need no repository plan files or separate branch by default.
+For Owner-approved development tasks, follow this seven-step sequence. The
+delivery unit is one independently testable, reviewable and mergeable task on
+its own branch. Milestones organize backlog and shared architecture/dependencies;
+their full scope is not one task Plan or long-lived feature branch. Related small
+fixes may stay in the active task; avoid unnecessary task fragmentation or
+repeated reviews.
 
-1. Inspect the existing state and select the task scope. For a new substantial task, verify the `main` baseline and use a dedicated branch only with Git authorization; do not switch, update or discard a working tree with unrelated edits to satisfy the convention. No automatic fetch, pull, branch rename or publishing.
-2. Use Plan for substantial or ambiguous work. Define only the selected task's scope, dependencies, acceptance criteria and verification; obtain Owner approval and an explicit Build implementation request. Persist `task/<slug>/plan.md` and `todo.md` for substantial/multi-session work when needed, in that same authorized Build turn.
-3. Build the approved task scope in agent-selected increments, including in-scope fixes and docs. Increments are verification checkpoints, not mandatory approval stops. A task may span sessions; preserve scope, progress, blockers and evidence in its handoff. Ask for material scope/architecture changes or unapproved risky actions; pause for missing credentials, environment or business decisions rather than expanding scope or claiming completion.
-4. Choose QA by risk and acceptance criteria: focused tests, affected suites, typechecks/builds and live checks where relevant. Keep app-local tests with their app, root component-boundary tests in `tests/integration/`, and browser journeys in `tests/e2e/`. Documentation-only changes may use consistency/link checks without application builds; record why checks are applicable or not.
-5. For UI work, use the existing UI/UX skills and Playwright MCP to inspect relevant interactions, states, accessibility and desktop/mobile behavior. Save critical journeys in Playwright Test; interactive evidence does not replace regression tests. Fix observed failures and recheck against acceptance criteria, not unbounded aesthetic preferences. Minor changes do not require every suite or viewport; report unavailable checks as pending.
-6. Self-review is part of Build. Formal read-only Plan review applies when requested or before merge, with fixes and reverification as needed. Completion requires the applicable checks and docs to agree, not just code written or tests run once. Commit, push, PR and merge remain explicitly authorized actions; after merge, the next substantial task starts from a verified updated `main` baseline.
+1. **Branch (Build):** Create a clean feature branch from verified `main`, one
+   task per branch. Branch creation and other Git mutations require Owner
+   authorization; preserve unrelated work and never reset, clean, stash, or
+   discard it to satisfy the convention.
+2. **Plan:** OpenCode prepares a focused task plan. The technical adviser reviews
+   it, then the Project Owner explicitly approves it. Plan only the selected task,
+   its dependencies, acceptance criteria, risks, and verification.
+3. **Save Plan (Build):** Save the approved plan and checklist in
+   `task/<slug>/plan.md` and `task/<slug>/todo.md`. Preserve other task records
+   and update progress with actual evidence.
+4. **Implementation (Build):** Implement the complete approved task using TDD;
+   update code, todo, and affected documentation. UI work requires the existing
+   UI UX Pro Max skill and iterative Playwright MCP inspection. TDD and Build
+   smoke checks do not replace Scenario Testing.
+5. **Scenario Testing (Plan → Build):** Prepare a separate acceptance-test plan,
+   especially real E2E scenarios. Obtain technical review and explicit Owner
+   approval before implementing or executing that scenario plan. Fix failures
+   during Build and reverify; do not infer authorization from a passing report.
+6. **Independent Code Review:** Review architecture, implementation, security,
+   and tests independently of Build. Fix confirmed issues and reverify affected
+   behavior. A review result does not authorize the next phase.
+7. **Git Publication:** Only with explicit Owner authorization, commit, push,
+   create a PR, and merge within the approved scope.
+
+The Project Owner has final approval authority. No phase transition is inferred
+from a passing agent report. The technical adviser must not write an OpenCode
+prompt without the Owner's explicit request or approval. Build increments are
+internal verification checkpoints, not additional approval stops. Keep applicable
+tests with their app; root component-boundary tests in `tests/integration/`, and
+browser journeys in `tests/e2e/`. Choose QA proportional to risk and report
+unavailable prerequisites instead of claiming success. Documentation-only work
+may use consistency/link checks without application builds; record why.
 
 ## Mandatory documentation maintenance policy
 
