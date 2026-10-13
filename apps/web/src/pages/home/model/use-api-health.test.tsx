@@ -42,7 +42,7 @@ describe('useApiHealth', () => {
     await waitFor(() => expect(result.current.state.status).toBe('error'));
     expect(result.current.state).toEqual({
       status: 'error',
-      message: 'The API could not be reached. Check that the backend is running.',
+      message: 'Không thể kết nối đến dịch vụ. Hãy kiểm tra máy chủ API.',
     });
   });
 
@@ -58,7 +58,7 @@ describe('useApiHealth', () => {
     await waitFor(() => expect(result.current.state.status).toBe('error'));
     expect(result.current.state).toEqual({
       status: 'error',
-      message: 'The API returned HTTP 503.',
+      message: 'Dịch vụ trả về lỗi HTTP 503.',
     });
   });
 
@@ -74,7 +74,7 @@ describe('useApiHealth', () => {
     await waitFor(() => expect(result.current.state.status).toBe('error'));
     expect(result.current.state).toEqual({
       status: 'error',
-      message: 'The API returned invalid JSON.',
+      message: 'Dịch vụ trả về dữ liệu không hợp lệ.',
     });
   });
 
@@ -86,7 +86,7 @@ describe('useApiHealth', () => {
     await waitFor(() => expect(result.current.state.status).toBe('error'));
     expect(result.current.state).toEqual({
       status: 'error',
-      message: 'The API returned an unexpected health response.',
+      message: 'Dịch vụ trả về trạng thái không mong đợi.',
     });
   });
 
@@ -125,7 +125,7 @@ describe('useApiHealth', () => {
 
     expect(result.current.state).toEqual({
       status: 'error',
-      message: 'The API request timed out after 5 seconds.',
+      message: 'Yêu cầu API đã hết thời gian chờ sau 5 giây.',
     });
   });
 

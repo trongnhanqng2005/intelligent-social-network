@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('restricted test credentials target isn-test and can initialize its schema', async () => {
+test('restricted test credentials target isn-test and verify cumulative V1/V2 schema', async () => {
   if (process.env.NODE_ENV !== 'test') {
     assert.fail('Set NODE_ENV=test before running real Neo4j integration tests');
   }
@@ -71,11 +71,11 @@ test('restricted test credentials target isn-test and can initialize its schema'
   assert.equal(devDatabaseWasReachable, false, 'test identity must not access isn-dev');
 
   const { NestFactory } = await import('@nestjs/core');
-  const { AppModule } = await import('../../../apps/api/dist/app.module.js');
+  const { Neo4jOperationsModule } = await import('../../../apps/api/dist/neo4j/neo4j-operations.module.js');
   const { Neo4jSchemaService } = await import(
     '../../../apps/api/dist/neo4j/neo4j-schema.service.js'
   );
-  const app = await NestFactory.createApplicationContext(AppModule, {
+  const app = await NestFactory.createApplicationContext(Neo4jOperationsModule, {
     logger: false,
   });
 
@@ -92,23 +92,26 @@ test('restricted test credentials target isn-test and can initialize its schema'
     }, {
       database: 'isn-test',
       status: 'current',
-      version: 1,
+      version: 2,
     });
     assert.deepEqual(repeatInitialization, initialization);
     assert.equal(initialization.migrations[0].status, 'VERIFIED');
+    assert.equal(initialization.migrations[0].checksum, 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2');
+    assert.equal(initialization.migrations[1].status, 'VERIFIED');
     assert.match(initialization.migrations[0].checksum, /^[a-f0-9]{64}$/);
     assert.equal(typeof initialization.migrations[0].appliedAt, 'string');
     assert.equal(typeof initialization.migrations[0].verifiedAt, 'string');
 
     const schemaService = app.get(Neo4jSchemaService);
     assert.deepEqual(await schemaService.checkReadiness(), {
-      status: 'ready', database: 'isn-test', schemaVersion: 1,
+      status: 'ready', database: 'isn-test', schemaVersion: 2,
     });
 
     console.log(
       JSON.stringify({
         database: initialization.database,
         schemaVersion: initialization.version,
+        migrationVersions: initialization.migrations.map(({ version }) => version),
         migrationChecksumPresent: true,
         testIdentityRolesVerified: true,
         devDatabaseAccess: 'denied',

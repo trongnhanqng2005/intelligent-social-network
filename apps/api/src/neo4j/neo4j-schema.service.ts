@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FOUNDATION_SCHEMA_VERSION } from './neo4j.constants.js';
+import { APPLICATION_SCHEMA_VERSION } from './neo4j.constants.js';
 import { Neo4jMigrationService } from './neo4j-migrations.js';
 import type { MigrationStatus } from './neo4j-migrations.js';
 import { Neo4jService } from './neo4j.service.js';
@@ -49,31 +49,31 @@ export class Neo4jSchemaService {
     if (migrationStatus.status === 'drift') {
       return {
         status: 'not_ready', database: this.neo4jService.database,
-        reason: 'SCHEMA_DRIFT', expectedSchemaVersion: FOUNDATION_SCHEMA_VERSION,
+        reason: 'SCHEMA_DRIFT', expectedSchemaVersion: APPLICATION_SCHEMA_VERSION,
         actualSchemaVersion: migrationStatus.version,
       };
     }
     if (migrationStatus.status === 'incomplete') {
       return {
         status: 'not_ready', database: this.neo4jService.database,
-        reason: 'SCHEMA_MIGRATION_INCOMPLETE', expectedSchemaVersion: FOUNDATION_SCHEMA_VERSION,
+        reason: 'SCHEMA_MIGRATION_INCOMPLETE', expectedSchemaVersion: APPLICATION_SCHEMA_VERSION,
         actualSchemaVersion: migrationStatus.version,
       };
     }
     if (migrationStatus.status === 'empty') {
       return {
         status: 'not_ready', database: this.neo4jService.database,
-        reason: 'SCHEMA_UNINITIALIZED', expectedSchemaVersion: FOUNDATION_SCHEMA_VERSION,
+        reason: 'SCHEMA_UNINITIALIZED', expectedSchemaVersion: APPLICATION_SCHEMA_VERSION,
       };
     }
-    if (migrationStatus.version !== FOUNDATION_SCHEMA_VERSION) {
+    if (migrationStatus.version !== APPLICATION_SCHEMA_VERSION) {
       return {
         status: 'not_ready', database: this.neo4jService.database,
-        reason: 'SCHEMA_VERSION_MISMATCH', expectedSchemaVersion: FOUNDATION_SCHEMA_VERSION,
+        reason: 'SCHEMA_VERSION_MISMATCH', expectedSchemaVersion: APPLICATION_SCHEMA_VERSION,
         actualSchemaVersion: migrationStatus.version,
       };
     }
-    return { status: 'ready', database: this.neo4jService.database, schemaVersion: FOUNDATION_SCHEMA_VERSION };
+    return { status: 'ready', database: this.neo4jService.database, schemaVersion: APPLICATION_SCHEMA_VERSION };
   }
 
   async initializeSchema(): Promise<ReadinessResult> {

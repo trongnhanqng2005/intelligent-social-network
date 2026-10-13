@@ -10,13 +10,14 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 |---|---|
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
-| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, versioned foundation migration and `GET /ready` | Implemented and verified against both local databases |
+| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, V1 foundation migration and `GET /ready` | Implemented and verified against both local databases; authentication V2 is verified on `isn-test` |
 | Browser-to-API health request through Vite `/api` development proxy | Implemented and verified |
-| Authentication, profiles, posts, interactions, friendships, admin | Approved proposal requirements; not implemented |
+| Email/password registration, RS256-backed 24-hour Neo4j sessions, CSRF/origin defense, restoration and logout/revocation | Implemented and verified; event retention policy remains pending |
+| Profiles, posts, interactions, friendships, admin, account recovery | Planned; not implemented |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
-Current Neo4j Foundation verification includes 39 API unit tests, 30 Web tests, 2 API E2E tests, 1 root HTTP integration, 12 desktop/mobile Playwright tests, and a real isolated Neo4j migration integration; typecheck and builds pass. See [testing](development/testing.md) for commands and results.
+The current authentication and foundation verification commands and results are recorded in [testing](development/testing.md). Real Neo4j auth tests use synthetic owned fixtures and prove test-database isolation; Playwright auth QA is separate from mock-backed HTTP contracts.
 
 ## Technology
 

@@ -1,4 +1,4 @@
-import { FOUNDATION_SCHEMA_VERSION } from './neo4j.constants.js';
+import { APPLICATION_SCHEMA_VERSION } from './neo4j.constants.js';
 import { Neo4jMigrationService } from './neo4j-migrations.js';
 import { Neo4jSchemaService } from './neo4j-schema.service.js';
 import { Neo4jService } from './neo4j.service.js';
@@ -14,15 +14,15 @@ describe('Neo4jSchemaService', () => {
       verifyConnectivity: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<Neo4jService>;
     migrations = {
-      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 1, migrations: [] }),
-      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 1, migrations: [] }),
+      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 2, migrations: [] }),
+      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 2, migrations: [] }),
     } as unknown as jest.Mocked<Neo4jMigrationService>;
     service = new Neo4jSchemaService(neo4j, migrations);
   });
 
   it('reports ready only for the verified migration history', async () => {
     await expect(service.checkReadiness()).resolves.toEqual({
-      status: 'ready', database: 'isn-dev', schemaVersion: FOUNDATION_SCHEMA_VERSION,
+      status: 'ready', database: 'isn-dev', schemaVersion: APPLICATION_SCHEMA_VERSION,
     });
   });
 

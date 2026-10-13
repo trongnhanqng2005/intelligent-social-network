@@ -7,9 +7,9 @@ async function run(): Promise<void> {
   }
   process.env.NODE_ENV ??= 'development';
   const { NestFactory } = await import('@nestjs/core');
-  const { AppModule } = await import('../app.module.js');
+  const { Neo4jOperationsModule } = await import('./neo4j-operations.module.js');
   const { Neo4jMigrationService } = await import('./neo4j-migrations.js');
-  const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  const app = await NestFactory.createApplicationContext(Neo4jOperationsModule, { logger: false });
   try {
     const migrations = app.get(Neo4jMigrationService);
     const result = mode === 'apply' ? await migrations.migrate() : await migrations.getStatus();

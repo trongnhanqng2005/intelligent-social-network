@@ -10,5 +10,7 @@ module.exports = {
   },
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/test/jest-e2e.setup.cjs'],
+  globalSetup: '<rootDir>/test/jest-e2e.global-setup.cjs',
+  globalTeardown: '<rootDir>/test/jest-e2e.teardown.cjs',
   clearMocks: true,
 };

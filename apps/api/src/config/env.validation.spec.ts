@@ -5,6 +5,13 @@ const developmentDatabaseConfig = {
   NEO4J_USERNAME: 'local-user',
   NEO4J_PASSWORD: 'local-password',
   NEO4J_DATABASE: 'isn-dev',
+  AUTH_PRIVATE_KEY_PATH: 'private.pem',
+  AUTH_PUBLIC_KEY_PATH: 'public.pem',
+  AUTH_CSRF_SECRET_PATH: 'csrf.secret',
+  AUTH_KEY_ID: 'local-key-1',
+  AUTH_ISSUER: 'http://127.0.0.1:3000',
+  AUTH_AUDIENCE: 'intelligent-social-network-web',
+  AUTH_WEB_ORIGIN: 'http://127.0.0.1:5173',
 };
 
 describe('validateEnvironment', () => {
@@ -37,6 +44,7 @@ describe('validateEnvironment', () => {
       NODE_ENV: 'test',
       PORT: 4310,
       HOST: '0.0.0.0',
+      ...Object.fromEntries(Object.entries(developmentDatabaseConfig).filter(([key]) => key.startsWith('AUTH_'))),
     });
   });
 
@@ -55,6 +63,9 @@ describe('validateEnvironment', () => {
         validateEnvironment({
           ...developmentDatabaseConfig,
           ...database,
+          ...(nodeEnv === 'production'
+            ? { AUTH_WEB_ORIGIN: 'https://social.example.test', AUTH_ISSUER: 'https://social.example.test' }
+            : {}),
           NODE_ENV: nodeEnv,
         }).NODE_ENV,
       ).toBe(nodeEnv);
@@ -128,5 +139,25 @@ describe('validateEnvironment', () => {
         NEO4J_URI: 'https://127.0.0.1:7687',
       }),
     ).toThrow('NEO4J_URI must use a supported Neo4j driver scheme');
+  });
+
+  it('requires HTTPS for the production web origin', () => {
+    expect(() => validateEnvironment({
+      ...developmentDatabaseConfig,
+      NODE_ENV: 'production',
+      AUTH_ISSUER: 'https://social.example.test',
+      AUTH_WEB_ORIGIN: 'http://social.example.test',
+    })).toThrow('AUTH_WEB_ORIGIN must be a valid HTTPS origin in production');
+  });
+
+  it('rejects weak key identifiers and malformed production issuers', () => {
+    expect(() => validateEnvironment({ ...developmentDatabaseConfig, AUTH_KEY_ID: 'bad key' }))
+      .toThrow('AUTH_KEY_ID must use 1-128 URL-safe identifier characters');
+    expect(() => validateEnvironment({
+      ...developmentDatabaseConfig,
+      NODE_ENV: 'production',
+      AUTH_ISSUER: 'http://social.example.test',
+      AUTH_WEB_ORIGIN: 'https://social.example.test',
+    })).toThrow('AUTH_ISSUER must be an HTTPS URL in production');
   });
 });

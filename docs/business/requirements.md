@@ -12,17 +12,17 @@
 
 | Area | Intended capability | Current status |
 |---|---|---|
-| Authentication (AUTH) | Register, sign in/out, validate session/JWT | Not implemented |
+| Authentication (AUTH) | Register, sign in/out, validate session/JWT | Email/password registration, login, 24-hour Neo4j-backed browser session, CSRF defense and logout/revocation implemented; account recovery remains unimplemented |
 | User profile (USER) | View/edit display name, avatar and bio | Not implemented |
 | Posts (POST) | Create/edit/delete/read posts and a simple feed | Not implemented |
 | Interaction (INT) | Like/unlike and comment on posts | Not implemented |
 | Friendships (FRIEND) | Send/cancel/accept/reject requests; list friends | Not implemented |
 | Recommendations (REC) | Show Top-K candidates and allow request initiation | Not implemented |
-| Activity (EVENT) | Record events such as logins, requests, posts and comments | Not implemented |
+| Activity (EVENT) | Record events such as logins, requests, posts and comments | Authentication events are recorded transactionally; other event families are not implemented and retention remains undecided |
 | Administration (ADMIN) | View aggregate statistics/alerts and mark reviewed | Not implemented |
 | Data processing (PIPE) | Ingest, clean, aggregate features, update batch predictions | Not implemented |
 
-The only implemented HTTP capability is the non-business process-liveness endpoint `GET /health`; see [API integration](../architecture/integration.md).
+Implemented HTTP contracts include process liveness/readiness and the authentication foundation; see [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Other proposal capabilities remain planned.
 
 ## Core proposal rules
 

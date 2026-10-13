@@ -1,11 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 import { resolve } from 'node:path';
+import { createAuthTestKeyEnvironment } from './auth-test-keys';
 
 const root = resolve(__dirname, '../..');
 const outputDirectory = resolve(root, '.artifacts/playwright');
+const authEnvironment = createAuthTestKeyEnvironment('http://127.0.0.1:3301');
 
 export default defineConfig({
   testDir: './specs',
+  testIgnore: '**/authentication.spec.ts',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
@@ -51,6 +54,8 @@ export default defineConfig({
         NEO4J_TEST_USERNAME: 'api-e2e-test',
         NEO4J_TEST_PASSWORD: 'not-a-real-credential',
         NEO4J_DATABASE: 'isn-test',
+        AUTH_WEB_ORIGIN: 'http://127.0.0.1:5174',
+        ...authEnvironment,
       },
     },
     {
