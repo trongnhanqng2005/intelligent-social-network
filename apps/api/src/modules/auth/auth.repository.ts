@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Neo4jError } from 'neo4j-driver';
 import { Neo4jService } from '../../neo4j/neo4j.service.js';
+import { createDefaultProfile } from '../../domain/user-profile.js';
 
 export interface AuthUser {
   id: string;
@@ -18,12 +19,16 @@ export class AuthRepository {
   async register(input: {
     id: string; email: string; passwordHash: string; eventId: string; now: string;
   }): Promise<AuthUser> {
+    const profile = createDefaultProfile(input.id, input.now);
     try {
       return await this.neo4j.executeWrite(async (tx) => {
         const result = await tx.run(
           `CREATE (user:User {
              id: $id, email: $email, passwordHash: $passwordHash,
-             createdAt: datetime($now), updatedAt: datetime($now)
+             createdAt: datetime($now), updatedAt: datetime($now),
+             displayName: $displayName, displayNameSearch: $displayNameSearch,
+             profileCreatedAt: datetime($profileCreatedAt),
+             profileUpdatedAt: datetime($profileUpdatedAt), profileVersion: $profileVersion
            })
            CREATE (event:AuthActivityEvent {
              eventId: $eventId, schemaVersion: 1, eventType: 'AUTH_REGISTERED',
@@ -31,7 +36,7 @@ export class AuthRepository {
            })
            CREATE (user)-[:PERFORMED_AUTH_EVENT]->(event)
            RETURN user.id AS id, user.email AS email`,
-          input,
+          { ...input, ...profile },
         );
         const record = result.records[0];
         if (!record) throw new Error('Registration persistence returned no user');

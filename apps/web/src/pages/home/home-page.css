@@ -6,6 +6,8 @@
 .home-nav,.account-nav { display: flex; align-items: center; gap: 1.5rem; }
 .home-nav { justify-content: center; }
 .account-nav { justify-content: flex-end; }
+.home-member-link { min-height: 44px; display: inline-flex; align-items: center; gap: .35rem; color: var(--color-ink); text-decoration: none; font-size: .86rem; font-weight: 600; white-space: nowrap; }
+.home-member-link:hover { color: var(--color-accent); }
 .home-nav a,.login-link,.site-footer nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--color-ink); text-decoration: none; font-size: .92rem; font-weight: 550; }
 .home-nav a:hover,.login-link:hover,.site-footer nav a:hover { color: var(--color-accent); }
 .header-cta { white-space: nowrap; }
@@ -69,7 +71,8 @@
 @media (max-width: 650px) {
   .page-container,.site-header { width: min(100% - 2rem, var(--content-width)); }
   .site-header { min-height: 4.5rem; column-gap: .5rem; }
-  .account-nav { gap: .5rem; }
+  .account-nav { flex-wrap: wrap; gap: .35rem; }
+  .home-member-link { font-size: .76rem; }
   .login-link { white-space: nowrap; font-size: .78rem; }
   .home-nav { gap: 1rem; }
   .home-nav a { font-size: .84rem; }

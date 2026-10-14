@@ -10,18 +10,31 @@ Content-Type: application/json
 {"status":"ok"}
 ```
 
-The browser auth base path defaults to `/api`; Vite's **development server** forwards `/api/health` to the server-only `API_PROXY_TARGET` (default `http://127.0.0.1:3000`) after removing `/api`. The actual API route remains `/health`. Browser code must not receive the proxy target as a `VITE_*` variable.
+The browser API base path defaults to `/api`; Vite's **development server** forwards `/api/*` to the server-only `API_PROXY_TARGET` (default `http://127.0.0.1:3000`) after removing `/api`. Browser code must not receive the proxy target as a `VITE_*` variable. The public homepage does not make a health request; the root proxy test validates the infrastructure boundary independently.
 
 The Weylume public homepage does not call `/health` or display service
-connectivity. The root API-through-Vite test validates the proxy boundary
-independently of the homepage; liveness/readiness endpoints remain backend
-operational contracts.
+connectivity. Liveness/readiness endpoints remain backend operational contracts.
+
+### Authenticated User API
+
+The browser calls `/api/users/*`; Vite strips `/api` and forwards to the
+NestJS Users routes. `/users/me/profile` reads/updates only the current
+principal's profile; `/users` browses/searches authenticated members with
+bounded UUID keyset pagination; `/users/{id}/profile` returns only the approved
+member-visible projection. All User responses are `Cache-Control: no-store`.
+PATCH uses the existing Origin/CSRF protection and expected-version conflict
+handling. See the [User Profile & Discovery API](../api/user-profile-discovery.md)
+and [OpenAPI contract](../api/openapi.yaml).
 
 ## Boundaries and future API
 
 The Vite proxy is not a production deployment rule. Production use of relative `/api` requires an independently configured same-origin reverse proxy; cross-origin configuration would need separately approved CORS policy. No production endpoint is configured or verified.
 
-Other business API contracts (profiles, posts, friendships, and similar social capabilities) are not implemented. Before adding cross-component features, document request/response schemas, errors, auth, ownership/authorization, event effects, persistence semantics and test locations in the relevant approved feature task. Do not use the health endpoint as a business API template beyond its deliberately minimal contract.
+Posts, interactions, friendships, recommendations, and other social business
+contracts remain unimplemented. Document request/response schemas, errors, auth,
+ownership, persistence semantics and test locations in each approved feature
+task. Do not use the health endpoint as a business API template beyond its
+deliberately minimal contract.
 
 ## Authentication browser contract
 

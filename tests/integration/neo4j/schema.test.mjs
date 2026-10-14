@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('restricted test credentials target isn-test and verify cumulative V1/V2 schema', async () => {
+test('restricted test credentials target isn-test and verify cumulative V1/V2/V3 schema', async () => {
   if (process.env.NODE_ENV !== 'test') {
     assert.fail('Set NODE_ENV=test before running real Neo4j integration tests');
   }
@@ -92,7 +92,7 @@ test('restricted test credentials target isn-test and verify cumulative V1/V2 sc
     }, {
       database: 'isn-test',
       status: 'current',
-      version: 2,
+      version: 3,
     });
     assert.deepEqual(repeatInitialization, initialization);
     assert.equal(initialization.migrations[0].status, 'VERIFIED');
@@ -104,7 +104,7 @@ test('restricted test credentials target isn-test and verify cumulative V1/V2 sc
 
     const schemaService = app.get(Neo4jSchemaService);
     assert.deepEqual(await schemaService.checkReadiness(), {
-      status: 'ready', database: 'isn-test', schemaVersion: 2,
+      status: 'ready', database: 'isn-test', schemaVersion: 3,
     });
 
     console.log(

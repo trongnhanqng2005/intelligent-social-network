@@ -3,6 +3,12 @@ import { Injectable } from '@nestjs/common';
 import type { ManagedTransaction } from 'neo4j-driver';
 import { Neo4jService } from './neo4j.service.js';
 
+export const profileUserIdPreflight = `
+  MATCH (user:User)
+  WHERE user.id IS NOT :: STRING NOT NULL OR
+        NOT (user.id =~ '(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+  RETURN count(user) AS invalidUserIds`;
+
 export const migrationDefinitions = [
   {
     version: 1,
@@ -33,6 +39,44 @@ export const migrationDefinitions = [
       `CREATE RANGE INDEX isn_auth_event_timestamp IF NOT EXISTS
        FOR (event:AuthActivityEvent) ON (event.timestamp)`,
     ],
+  },
+  {
+    version: 3,
+    name: 'user-profile-discovery',
+    statements: [
+      `CREATE TEXT INDEX isn_user_display_name_search IF NOT EXISTS
+       FOR (user:User) ON (user.displayNameSearch)`,
+    ],
+    preflight: `
+      MATCH (user:User)
+      WHERE (user.displayName IS NOT NULL OR user.bio IS NOT NULL OR user.location IS NOT NULL OR
+             user.profileCreatedAt IS NOT NULL OR user.profileUpdatedAt IS NOT NULL OR
+             user.profileVersion IS NOT NULL OR user.displayNameSearch IS NOT NULL)
+        AND NOT (user.displayName = 'Thành viên ' + substring(user.id, 0, 8) AND
+                 user.bio IS NULL AND user.location IS NULL AND
+                 user.profileCreatedAt IS NOT NULL AND user.profileUpdatedAt IS NOT NULL AND
+                 user.profileVersion = 0 AND
+                 user.displayNameSearch = 'thanh vien ' + toLower(substring(user.id, 0, 8)))
+      RETURN count(user) AS conflicts`,
+    dataStatements: [
+      `MATCH (user:User)
+       WHERE user.displayName IS NULL AND user.bio IS NULL AND user.location IS NULL AND
+             user.profileCreatedAt IS NULL AND user.profileUpdatedAt IS NULL AND
+             user.profileVersion IS NULL AND user.displayNameSearch IS NULL
+       WITH user, datetime() AS initializedAt
+       SET user.displayName = 'Thành viên ' + substring(user.id, 0, 8),
+           user.displayNameSearch = 'thanh vien ' + toLower(substring(user.id, 0, 8)),
+           user.profileCreatedAt = initializedAt,
+           user.profileUpdatedAt = initializedAt,
+           user.profileVersion = 0
+       RETURN count(user) AS initialized`,
+    ],
+    verification: `
+      MATCH (user:User)
+      WHERE user.displayName IS NULL OR size(user.displayName) < 2 OR size(user.displayName) > 80 OR
+            user.displayNameSearch IS NULL OR user.profileCreatedAt IS NULL OR
+            user.profileUpdatedAt IS NULL OR user.profileVersion IS NULL OR user.profileVersion < 0
+      RETURN count(user) AS invalidProfiles`,
   },
 ] as const;
 
@@ -66,6 +110,10 @@ const authenticationIndexes = [
   { name: 'isn_auth_event_timestamp', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['AuthActivityEvent'], properties: ['timestamp'] },
 ] as const;
 
+const profileIndexes = [
+  { name: 'isn_user_display_name_search', type: 'TEXT', entityType: 'NODE', labelsOrTypes: ['User'], properties: ['displayNameSearch'] },
+] as const;
+
 export type MigrationStatus = {
   database: string;
   status: 'empty' | 'current' | 'incomplete' | 'drift' | 'database-mismatch';
@@ -84,6 +132,9 @@ export function checksumMigration(migration: {
   version: number;
   name: string;
   statements: readonly string[];
+  preflight?: string;
+  dataStatements?: readonly string[];
+  verification?: string;
 }): string {
   return createHash('sha256')
     .update(JSON.stringify(migration))
@@ -162,6 +213,24 @@ export class Neo4jMigrationService {
       }
       if (existing?.status === 'VERIFIED') continue;
 
+      if ('preflight' in migration && migration.preflight) {
+        const preflight = await this.neo4jService.executeRead((transaction) =>
+          transaction.run(migration.preflight!),
+        );
+        if (asNumber(preflight.records[0]?.get('conflicts')) !== 0) {
+          throw new Error('Profile migration found existing profile data that requires manual review; no V3 writes were made');
+        }
+      }
+
+      if (migration.version === 3) {
+        const usersWithoutId = await this.neo4jService.executeRead((transaction) =>
+          transaction.run(profileUserIdPreflight),
+        );
+        if (!isProfileUserIdPreflightValid(usersWithoutId.records)) {
+          throw new Error('Profile migration requires every existing User ID to be a UUID; no V3 writes were made');
+        }
+      }
+
       await this.neo4jService.executeWrite((transaction) => transaction.run(
         `MERGE (migration:ISNSchemaMigration {version: $version})
          ON CREATE SET migration.name = $name,
@@ -174,6 +243,19 @@ export class Neo4jMigrationService {
       try {
         for (const statement of migration.statements) {
           await this.neo4jService.runSchemaStatement(statement);
+        }
+        for (const statement of 'dataStatements' in migration ? migration.dataStatements : []) {
+          await this.neo4jService.executeWrite(async (transaction) => {
+            await transaction.run(statement);
+          });
+        }
+        if ('verification' in migration && migration.verification) {
+          const verification = await this.neo4jService.executeRead((transaction) =>
+            transaction.run(migration.verification!),
+          );
+          if (asNumber(verification.records[0]?.get('invalidProfiles')) !== 0) {
+            throw new Error('Profile backfill verification failed');
+          }
         }
         await this.neo4jService.executeWrite((transaction) => transaction.run(
           `MERGE (schema:ISNSchema {key: $key})
@@ -305,11 +387,20 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const profileIndexesValid = markerVersion < 3 || profileIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
+    const profileVerification = markerVersion < 3
+      ? undefined
+      : await transaction.run(migrationDefinitions[2].verification);
+    const profilesValid = markerVersion < 3 ||
+      isProfileVerificationValid(profileVerification?.records ?? []);
     return {
       database: identity.records[0]?.get('database'),
       markerVersion,
       history: historyRecords,
-      schemaValid: constraintsValid && indexesValid,
+      schemaValid: constraintsValid && indexesValid && profileIndexesValid && profilesValid,
     };
   }
 
@@ -323,7 +414,9 @@ export class Neo4jMigrationService {
   }
 }
 
-function matchesIndex(actual: Record<string, unknown>, expected: typeof authenticationIndexes[number]): boolean {
+function matchesIndex(actual: Record<string, unknown>, expected: {
+  name: string; type: string; entityType: string; labelsOrTypes: readonly string[]; properties: readonly string[];
+}): boolean {
   return actual.type === expected.type && actual.entityType === expected.entityType &&
     actual.state === 'ONLINE' && sameList(actual.labelsOrTypes, expected.labelsOrTypes) &&
     sameList(actual.properties, expected.properties);
@@ -343,7 +436,17 @@ function asNumber(value: unknown): number {
   if (typeof value === 'object' && value !== null && 'toNumber' in value && typeof value.toNumber === 'function') {
     return value.toNumber();
   }
-  return 0;
+  return Number.NaN;
+}
+
+export function isProfileVerificationValid(records: readonly { get(key: string): unknown }[]): boolean {
+  const record = records[0];
+  return records.length === 1 && record !== undefined && asNumber(record.get('invalidProfiles')) === 0;
+}
+
+export function isProfileUserIdPreflightValid(records: readonly { get(key: string): unknown }[]): boolean {
+  const record = records[0];
+  return records.length === 1 && record !== undefined && asNumber(record.get('invalidUserIds')) === 0;
 }
 
 function matchesConstraint(actual: Record<string, unknown>, expected: {

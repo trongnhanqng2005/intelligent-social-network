@@ -80,6 +80,7 @@ async function stop(handle) {
 
 test('the running Vite development proxy returns the API health contract', async (t) => {
   const apiPort = await availablePort();
+  const webPort = await availablePort();
   await mkdir(path.join(root, '.artifacts'), { recursive: true });
   const authKeyDirectory = await mkdtemp(path.join(root, '.artifacts', 'api-proxy-auth-keys-'));
   const keyPair = generateKeyPairSync('rsa', {
@@ -112,7 +113,7 @@ test('the running Vite development proxy returns the API health contract', async
       AUTH_KEY_ID: 'api-proxy-test-key',
       AUTH_ISSUER: `http://127.0.0.1:${apiPort}`,
       AUTH_AUDIENCE: 'intelligent-social-network-web',
-      AUTH_WEB_ORIGIN: 'http://127.0.0.1:5173',
+      AUTH_WEB_ORIGIN: `http://127.0.0.1:${webPort}`,
     },
   });
   const web = start(
@@ -122,7 +123,7 @@ test('the running Vite development proxy returns the API health contract', async
       '--host',
       '127.0.0.1',
       '--port',
-      '5173',
+      String(webPort),
       '--strictPort',
     ],
     {
@@ -143,7 +144,7 @@ test('the running Vite development proxy returns the API health contract', async
   });
 
   const response = await waitForResponse(
-    'http://127.0.0.1:5173/api/health',
+    `http://127.0.0.1:${webPort}/api/health`,
     [api, web],
   );
   assert.equal(response.status, 200);

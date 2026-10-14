@@ -10,15 +10,16 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 |---|---|
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
-| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, V1 foundation migration and `GET /ready` | Implemented and verified against both local databases; authentication V2 is verified on `isn-test` |
+| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, cumulative V1–V3 migrations and `GET /ready` | Implemented and verified against both local databases; V3 profile index is ONLINE and test access remains isolated |
 | Vite `/api` development proxy forwarding the API health contract | Implemented and verified independently of the public homepage |
 | Email/password registration, RS256-backed 24-hour Neo4j sessions, CSRF/origin defense, restoration and logout/revocation | Implemented and verified; event retention policy remains pending |
-| Weylume public homepage, authentication presentation and not-found screen | Implemented; social capabilities remain planned |
-| Profiles, posts, interactions, friendships, admin, account recovery | Planned; not implemented |
+| Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
+| Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented; remaining social capabilities remain planned |
+| Posts, interactions, friendships, recommendations, admin, account recovery | Planned; not implemented |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
-The current authentication and foundation verification commands and results are recorded in [testing](development/testing.md). Real Neo4j auth tests use synthetic owned fixtures and prove test-database isolation; Playwright auth QA is separate from mock-backed HTTP contracts.
+The current authentication, profile and foundation verification commands and results are recorded in [testing](development/testing.md). Real Neo4j tests use synthetic owned fixtures and prove test-database isolation; browser MCP implementation smoke remains distinct from saved Scenario Testing.
 
 ## Technology
 

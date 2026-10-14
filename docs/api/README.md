@@ -1,15 +1,17 @@
 # API contracts
 
 This directory documents HTTP behavior implemented by the NestJS API. The
-contract is code-backed and currently limited to liveness/readiness and the
-authentication foundation; proposal-level social features are not API routes.
+contract covers liveness/readiness, Authentication, and authenticated User
+Profile & Discovery; other proposal-level social features are not API routes.
 
 ## Documents
 
 - [Authentication](authentication.md) — browser session, CSRF, request and
   response contracts, errors, limits, and persistence semantics.
-- [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness
-  and authentication routes.
+- [User Profile & Discovery](user-profile-discovery.md) — profile privacy,
+  edits, search and cursor pagination.
+- [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness,
+  Authentication and User routes.
 
 ## Routing
 

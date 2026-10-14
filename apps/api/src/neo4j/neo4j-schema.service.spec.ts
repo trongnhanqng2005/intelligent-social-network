@@ -14,8 +14,8 @@ describe('Neo4jSchemaService', () => {
       verifyConnectivity: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<Neo4jService>;
     migrations = {
-      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 2, migrations: [] }),
-      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 2, migrations: [] }),
+      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 3, migrations: [] }),
+      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 3, migrations: [] }),
     } as unknown as jest.Mocked<Neo4jMigrationService>;
     service = new Neo4jSchemaService(neo4j, migrations);
   });
