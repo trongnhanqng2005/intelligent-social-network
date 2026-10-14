@@ -17,9 +17,11 @@ icons; do not use the brand mark as a generic control icon.
 
 - Write in natural, welcoming Vietnamese; keep Weylume in its approved English
   spelling.
-- Speak confidently about the product's purpose and values without implying
-  feeds, friends, profiles, recommendations, active users, testimonials,
-  moderation guarantees, or other unavailable functionality.
+- Speak confidently about the product's purpose without implying feeds,
+  friendships, recommendations, active-user counts, testimonials, moderation
+  guarantees, or other unavailable functionality. Authenticated profile and
+  discovery copy may describe only the implemented display name, bio, optional
+  location, and member directory; do not imply avatar upload.
 - Product positioning should not be framed as technical progress or API health.
 - Every link and button has a real route, a section target, or an action.
 
@@ -75,7 +77,7 @@ routes. Shared controls do not depend on authentication context or services.
 Current primitives include Button (`primary`, `secondary`, `ghost`, pending),
 Alert (`error`, `success`, `info`) and PasswordField (label, autocomplete,
 visibility toggle, hint/error association). Use semantic links styled as buttons
-for navigation. Page-level layout remains in `pages/` and `features/auth/ui/`.
+for navigation. Page-level layout remains with its owning page or feature UI.
 Add variants only for real repeated use; do not create unused feed, profile,
 friend, avatar, recommendation or dialog abstractions.
 
@@ -86,11 +88,11 @@ entrance (under 240ms), and visible text-backed loading feedback. Avoid continuo
 decoration, parallax and scroll hijacking. Reduced-motion users receive the same
 content and final visual state without movement.
 
-## Adoption by future features
+## Profile and discovery adoption
 
-Future Profile, Friends, Feed and Recommendation work should reuse semantic
-tokens, buttons, fields, cards, typography, containers and focus/feedback rules.
-Keep domain state within its owning feature; add loading, empty and error states
-only when those feature contracts exist. Extend shared patterns centrally and
-document justified deviations. This system does not imply those features are
+The authenticated Profile and Discovery features reuse semantic tokens, buttons,
+fields, cards, typography, containers and focus/feedback rules. Their domain state
+stays in the owning features, and their loading, empty and error states follow the
+documented API contract. Future friendships, feeds and recommendations remain
+planned; their design should reuse these shared rules without implying they are
 implemented.

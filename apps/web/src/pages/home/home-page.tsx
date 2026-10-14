@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowRight, LogOut, RefreshCw } from 'lucide-react';
+import { ArrowDown, ArrowRight, Compass, LogOut, RefreshCw, UserRound } from 'lucide-react';
 import { Link } from 'react-router';
 import { useAuth } from '../../features/auth/model/auth-context';
 import { Alert } from '../../shared/ui/alert';
@@ -109,9 +109,13 @@ export function HomePage() {
         </nav>
         <div className="account-nav">
           {state.status === 'authenticated' ? (
-            <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>
-              <LogOut size={17} aria-hidden="true" /> Đăng xuất
-            </Button>
+            <>
+              <Link className="home-member-link" to="/ho-so"><UserRound size={16} aria-hidden="true" /> Hồ sơ của tôi</Link>
+              <Link className="home-member-link" to="/kham-pha"><Compass size={16} aria-hidden="true" /> Khám phá</Link>
+              <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>
+                <LogOut size={17} aria-hidden="true" /> Đăng xuất
+              </Button>
+            </>
           ) : state.status === 'loading' ? (
             <span className="session-check" role="status">Đang kiểm tra phiên…</span>
           ) : (

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, AtSign, RefreshCw } from 'lucide-react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { AuthApiError } from '../api/auth-api';
 import { useAuth } from '../model/auth-context';
 import { AuthShell } from './auth-shell';
@@ -11,6 +11,8 @@ import { PasswordField } from '../../../shared/ui/password-field';
 function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { state, login, register, retry } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = safeReturnTo(new URLSearchParams(location.search).get('returnTo'));
   const errorSummary = useRef<HTMLDivElement>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +27,7 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     if (error) errorSummary.current?.focus();
   }, [error, errorAnnouncement]);
 
-  if (state.status === 'authenticated') return <Navigate to="/" replace />;
+  if (state.status === 'authenticated') return <Navigate to={returnTo} replace />;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +49,7 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         setConfirmation('');
       } else {
         await login(email, password);
-        navigate('/', { replace: true });
+        navigate(returnTo, { replace: true });
       }
     } catch (cause) {
       if (cause instanceof AuthApiError) {
@@ -138,3 +140,14 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
 
 export function LoginPage() { return <AuthForm mode="login" />; }
 export function RegisterPage() { return <AuthForm mode="register" />; }
+
+function safeReturnTo(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/';
+  try {
+    const destination = new URL(value, window.location.origin);
+    if (destination.origin !== window.location.origin || ['/dang-nhap', '/dang-ky'].includes(destination.pathname)) return '/';
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return '/';
+  }
+}

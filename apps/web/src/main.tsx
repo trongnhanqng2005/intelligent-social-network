@@ -6,6 +6,7 @@ import './app/styles/global.css';
 import './shared/ui/ui.css';
 import './features/auth/ui/auth.css';
 import './pages/home/home-page.css';
+import './features/profile/ui/profile.css';
 
 const rootElement = document.getElementById('root');
 

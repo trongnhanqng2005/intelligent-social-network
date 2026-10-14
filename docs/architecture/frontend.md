@@ -7,7 +7,9 @@ apps/web/src/
 ├── main.tsx                 # React StrictMode bootstrap and CSS entry points
 ├── app/                     # App, single BrowserRouter, routes and design tokens
 ├── features/
-│   └── auth/                 # Auth API, session state, Vietnamese account UI/tests
+│   ├── auth/                 # Auth API, session state, Vietnamese account UI/tests
+│   ├── profile/              # Own/member profiles, edit flow and authenticated layout
+│   └── discovery/            # Authenticated member search and cursor navigation
 ├── pages/
 │   ├── home/                 # Weylume public homepage and responsive presentation
 │   └── not-found/            # Unknown-route screen
@@ -18,11 +20,13 @@ apps/web/src/
     └── ui/                   # Shared presentation primitives and CSS
 ```
 
-`App` owns one `BrowserRouter`; `AppRoutes` maps `/`, `/dang-nhap`, and
-`/dang-ky`, with unknown paths to not-found. The auth feature owns request and
-response validation, loading/anonymous/authenticated/unavailable session states,
-expiry and cross-tab notifications. Authentication keeps JWTs in HttpOnly
-cookies and handles signed CSRF tokens in memory only.
+`App` owns one `BrowserRouter`; `AppRoutes` maps the public/authentication routes
+and protected `/ho-so`, `/kham-pha`, and `/thanh-vien/:id` routes, with unknown
+paths to not-found. Profile and Discovery use the authenticated layout and keep
+loading, anonymous, authenticated, and unavailable session states distinct. The
+auth feature owns request/response validation, session expiry, cross-tab
+notifications, and safe local return paths. Authentication keeps JWTs in
+HttpOnly cookies and handles signed CSRF tokens in memory only.
 
 The Weylume homepage is a public product introduction and does not call `/health`
 to render connectivity status. API liveness/readiness and the Vite proxy remain
@@ -42,6 +46,7 @@ behavior in its owning `features/` module, genuinely shared presentation in
 `shared/api/` and `shared/config/`. Shared UI must not import authentication
 services or state. Do not import backend source into the browser.
 
-Future Profile, Friends, Feed and Recommendation tasks should reuse the documented
-[Weylume design system](../design/frontend-design-system.md), without treating
-those planned capabilities as implemented.
+The profile and discovery screens reuse the documented
+[Weylume design system](../design/frontend-design-system.md). Friendship, feed,
+and recommendation experiences remain planned and are not implied by member
+discovery.

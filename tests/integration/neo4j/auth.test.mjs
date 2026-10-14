@@ -3,6 +3,13 @@ import { generateKeyPairSync, randomUUID, randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import {
+  countAsNumber,
+  recordFixtureOwnership,
+  removeFixtureManifest,
+  removeOwnedFixture,
+  updateFixtureOwnership,
+} from './fixture-ownership.mjs';
 
 test('real isn-test authentication persistence is atomic, session-backed and safely fixture-owned', async () => {
   assert.equal(process.env.NODE_ENV, 'test', 'Set NODE_ENV=test before real authentication integration');
@@ -19,8 +26,8 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
   );
   let targetVerified = false;
   let stage = 'preflight';
-  const fixtureUserIds = new Set();
-  const fixtureEmails = new Set();
+  const fixtureManifests = new Map();
+  let baselineCounts;
   await mkdir(resolve('.artifacts'), { recursive: true });
   const authKeyDirectory = await mkdtemp(resolve('.artifacts/neo4j-auth-keys-'));
 
@@ -33,17 +40,84 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
       assert.equal(database.records[0]?.get('name'), 'isn-test');
       assert.equal(user.records[0]?.get('username'), 'isn_test_runner');
       assert.deepEqual([...user.records[0].get('roles')].sort(), ['PUBLIC', 'isn_test_runner_role']);
+      const dev = driver.session({ database: 'isn-dev' });
+      try {
+        await assert.rejects(dev.run('CALL db.ping()'), (error) =>
+          /^Neo\.ClientError\.Security\./u.test(String(error?.code ?? '')));
+      } finally {
+        await dev.close();
+      }
+      const history = await identity.run(
+        'MATCH (migration:ISNSchemaMigration) RETURN migration.version AS version, migration.name AS name, migration.checksum AS checksum, migration.status AS status, migration.appliedAt IS NOT NULL AS applied, migration.verifiedAt IS NOT NULL AS verified ORDER BY version',
+      );
+      assert.deepEqual(history.records.map((record) => [
+        countAsNumber(record.get('version')), record.get('name'), record.get('checksum'),
+        record.get('status'), record.get('applied'), record.get('verified'),
+      ]), [
+        [1, 'foundation-schema-marker', 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2', 'VERIFIED', true, true],
+        [2, 'authentication-schema', 'ce22db8398514d8caa2c9d93a7107750c84507af737decb9a5a001b5311137de', 'VERIFIED', true, true],
+        [3, 'user-profile-discovery', 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee', 'VERIFIED', true, true],
+      ]);
+      const marker = await identity.run(
+        "MATCH (schema:ISNSchema {key:'application'}) RETURN schema.version AS version LIMIT 1",
+      );
+      assert.equal(countAsNumber(marker.records[0]?.get('version')), 3);
+      const constraints = await identity.run(
+        'SHOW CONSTRAINTS YIELD name, type, entityType, labelsOrTypes, properties RETURN name, type, entityType, labelsOrTypes, properties',
+      );
+      const expectedConstraints = [
+        ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchema', 'key'],
+        ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchemaMigration', 'version'],
+        ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'User', 'id'],
+        ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'User', 'email'],
+        ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'id'],
+        ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'jti'],
+        ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthActivityEvent', 'eventId'],
+      ];
+      assert.equal(constraints.records.length, expectedConstraints.length);
+      for (const [name, type, label, property] of expectedConstraints) {
+        assert.ok(constraints.records.some((record) => record.get('name') === name &&
+          record.get('type') === type && record.get('entityType') === 'NODE' &&
+          JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
+          JSON.stringify(record.get('properties')) === JSON.stringify([property])));
+      }
+      const indexes = await identity.run(
+        'SHOW INDEXES YIELD name, type, entityType, labelsOrTypes, properties, state RETURN name, type, entityType, labelsOrTypes, properties, state',
+      );
+      const expectedIndexes = [
+        ['isn_auth_event_id', 'RANGE', 'AuthActivityEvent', 'eventId'],
+        ['isn_auth_session_id', 'RANGE', 'AuthSession', 'id'],
+        ['isn_auth_session_jti', 'RANGE', 'AuthSession', 'jti'],
+        ['isn_auth_session_expires_at', 'RANGE', 'AuthSession', 'expiresAt'],
+        ['isn_auth_event_timestamp', 'RANGE', 'AuthActivityEvent', 'timestamp'],
+        ['isn_schema_metadata_key', 'RANGE', 'ISNSchema', 'key'],
+        ['isn_schema_migration_version', 'RANGE', 'ISNSchemaMigration', 'version'],
+        ['isn_user_email', 'RANGE', 'User', 'email'],
+        ['isn_user_id', 'RANGE', 'User', 'id'],
+        ['isn_user_display_name_search', 'TEXT', 'User', 'displayNameSearch'],
+      ];
+      const applicationIndexes = indexes.records.filter((record) => record.get('type') !== 'LOOKUP');
+      assert.equal(applicationIndexes.length, expectedIndexes.length);
+      for (const [name, type, label, property] of expectedIndexes) {
+        assert.ok(applicationIndexes.some((record) => record.get('name') === name &&
+          record.get('type') === type && record.get('entityType') === 'NODE' &&
+          JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
+          JSON.stringify(record.get('properties')) === JSON.stringify([property]) &&
+          record.get('state') === 'ONLINE'));
+      }
+      const invalidProfiles = await identity.run(
+        `MATCH (profile:User)
+         WHERE profile.id IS NULL OR profile.displayName IS NULL OR size(profile.displayName) < 2 OR
+               size(profile.displayName) > 80 OR profile.displayNameSearch IS NULL OR
+               profile.profileCreatedAt IS NULL OR profile.profileUpdatedAt IS NULL OR
+               profile.profileVersion IS NULL OR profile.profileVersion < 0
+         RETURN count(profile) AS count`,
+      );
+      assert.equal(countAsNumber(invalidProfiles.records[0]?.get('count')), 0);
+      baselineCounts = await readCounts(identity);
       targetVerified = true;
     } finally {
       await identity.close();
-    }
-
-    const dev = driver.session({ database: 'isn-dev' });
-    try {
-      await assert.rejects(dev.run('CALL db.ping()'), (error) =>
-        /^Neo\.ClientError\.Security\./.test(String(error?.code ?? '')));
-    } finally {
-      await dev.close();
     }
 
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
@@ -69,18 +143,19 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
     const repository = new AuthRepository(neo4jService);
     const passwords = new PasswordService();
     const userId = randomUUID();
-    const email = `neo4j-auth-${randomUUID()}@example.invalid`;
+    const email = `profile-${randomUUID()}@example.invalid`;
     const password = 'synthetic integration test password';
     const passwordHash = await passwords.hash(password);
     const registeredAt = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString();
     const registerEventId = randomUUID();
-    fixtureEmails.add(email);
+    const primaryManifest = await recordFixtureOwnership(email, userId);
+    fixtureManifests.set(email, { email, userId, path: primaryManifest });
 
     stage = 'registration';
     const registered = await repository.register({
       id: userId, email, passwordHash, eventId: registerEventId, now: registeredAt,
     });
-    fixtureUserIds.add(registered.id);
+    await updateFixtureOwnership(primaryManifest, email, registered.id);
     assert.deepEqual(registered, { id: userId, email });
     const credentials = await repository.findCredentials(email);
     assert.ok(credentials);
@@ -93,9 +168,12 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
     }), { name: 'AccountConflictError' });
 
     const rolledBackId = randomUUID();
+    const rollbackEmail = `profile-${randomUUID()}@example.invalid`;
+    const rollbackManifest = await recordFixtureOwnership(rollbackEmail, rolledBackId);
+    fixtureManifests.set(rollbackEmail, { email: rollbackEmail, userId: rolledBackId, path: rollbackManifest });
     stage = 'registration-atomicity';
     await assert.rejects(repository.register({
-      id: rolledBackId, email: `rollback-${randomUUID()}@example.invalid`, passwordHash,
+      id: rolledBackId, email: rollbackEmail, passwordHash,
       eventId: registerEventId, now: registeredAt,
     }));
     const rollbackCheck = driver.session({ database: 'isn-test' });
@@ -106,15 +184,21 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
       await rollbackCheck.close();
     }
 
-    const racingEmail = `race-${randomUUID()}@example.invalid`;
-    fixtureEmails.add(racingEmail);
+    const racingEmail = `profile-${randomUUID()}@example.invalid`;
+    const raceManifest = await recordFixtureOwnership(racingEmail);
+    const raceFixture = { email: racingEmail, path: raceManifest };
+    fixtureManifests.set(racingEmail, raceFixture);
+    const racingIds = [randomUUID(), randomUUID()];
     stage = 'registration-race';
-    const race = await Promise.allSettled([0, 1].map(() => repository.register({
-      id: randomUUID(), email: racingEmail, passwordHash, eventId: randomUUID(), now: registeredAt,
+    const race = await Promise.allSettled(racingIds.map((id) => repository.register({
+      id, email: racingEmail, passwordHash, eventId: randomUUID(), now: registeredAt,
     })));
     const winners = race.filter((result) => result.status === 'fulfilled');
+    if (winners.length === 1) {
+      raceFixture.userId = winners[0].value.id;
+      await updateFixtureOwnership(raceManifest, racingEmail, winners[0].value.id);
+    }
     assert.equal(winners.length, 1, 'the Neo4j unique email constraint must permit exactly one concurrent registration');
-    fixtureUserIds.add(winners[0].value.id);
     assert.equal(race.filter((result) => result.status === 'rejected').length, 1);
 
     const issuedAt = Math.floor(Date.now() / 1000);
@@ -237,37 +321,31 @@ test('real isn-test authentication persistence is atomic, session-backed and saf
     console.error(JSON.stringify({ stage, failureName: error?.name ?? 'unknown', failureCode: error?.code ?? 'none', safeMessage }));
     assert.fail('Real authentication integration failed; database credentials and query details are suppressed.');
   } finally {
-    if (targetVerified) {
-      const cleanup = driver.session({ database: 'isn-test' });
-      try {
-        for (const userId of fixtureUserIds) {
-          await cleanup.run(
-            `MATCH (user:User {id: $userId})
-             OPTIONAL MATCH (user)-[:HAS_AUTH_SESSION]->(authSession:AuthSession)
-             OPTIONAL MATCH (user)-[:PERFORMED_AUTH_EVENT]->(event:AuthActivityEvent)
-             WITH user, collect(DISTINCT authSession) AS sessions, collect(DISTINCT event) AS events
-             UNWIND [user] + [item IN sessions WHERE item IS NOT NULL] + [item IN events WHERE item IS NOT NULL] AS owned
-             DETACH DELETE owned`,
-            { userId },
-          );
+    try {
+      if (targetVerified) {
+        const cleanup = driver.session({ database: 'isn-test' });
+        try {
+          for (const fixture of fixtureManifests.values()) {
+            if (!fixture.userId) {
+              const uncertain = await cleanup.run(
+                'MATCH (user:User {email: $email}) RETURN count(user) AS count', { email: fixture.email },
+              );
+              assert.equal(countAsNumber(uncertain.records[0]?.get('count')), 0,
+                'An interrupted race fixture without a verified UUID is preserved for manual review');
+            } else {
+              await removeOwnedFixture(cleanup, fixture.email, fixture.userId);
+            }
+            await removeFixtureManifest(fixture.path);
+          }
+          assert.deepEqual(await readCounts(cleanup), baselineCounts, 'unrelated database records must remain unchanged');
+        } finally {
+          await cleanup.close();
         }
-        for (const email of fixtureEmails) {
-          await cleanup.run(
-            `MATCH (user:User {email: $email})
-             OPTIONAL MATCH (user)-[:HAS_AUTH_SESSION]->(authSession:AuthSession)
-             OPTIONAL MATCH (user)-[:PERFORMED_AUTH_EVENT]->(event:AuthActivityEvent)
-             WITH user, collect(DISTINCT authSession) AS sessions, collect(DISTINCT event) AS events
-             UNWIND [user] + [item IN sessions WHERE item IS NOT NULL] + [item IN events WHERE item IS NOT NULL] AS owned
-             DETACH DELETE owned`,
-            { email },
-          );
-        }
-      } finally {
-        await cleanup.close();
       }
+    } finally {
+      await driver.close();
+      await rm(authKeyDirectory, { recursive: true, force: true });
     }
-    await driver.close();
-    await rm(authKeyDirectory, { recursive: true, force: true });
   }
 });
 
@@ -286,4 +364,18 @@ async function expectedStoredDate(driver, userId, jti, expected) {
   } finally {
     await session.close();
   }
+}
+
+async function readCounts(session) {
+  const result = await session.run(
+    `CALL { MATCH (user:User) RETURN count(user) AS users }
+     CALL { MATCH (authSession:AuthSession) RETURN count(authSession) AS sessions }
+     CALL { MATCH (event:AuthActivityEvent) RETURN count(event) AS events }
+     RETURN users, sessions, events`,
+  );
+  return {
+    users: countAsNumber(result.records[0]?.get('users')),
+    sessions: countAsNumber(result.records[0]?.get('sessions')),
+    events: countAsNumber(result.records[0]?.get('events')),
+  };
 }

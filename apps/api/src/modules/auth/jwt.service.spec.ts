@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
+import { SignJWT } from 'jose';
 import { JwtService } from './jwt.service.js';
 
 describe('JwtService', () => {
@@ -43,7 +44,21 @@ describe('JwtService', () => {
 
   it('rejects token tampering and tokens signed by an unexpected algorithm', async () => {
     const token = await service.signSession('user-1', 'session-1');
-    await expect(service.verifySessionToken(`${token.slice(0, -1)}x`)).rejects.toThrow();
+    const signatureStart = token.lastIndexOf('.') + 1;
+    const replacement = token[signatureStart] === 'A' ? 'B' : 'A';
+    const tampered = `${token.slice(0, signatureStart)}${replacement}${token.slice(signatureStart + 1)}`;
+    await expect(service.verifySessionToken(tampered)).rejects.toThrow();
+
+    const unexpectedAlgorithm = await new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT', kid: 'test-key' })
+      .setSubject('user-1')
+      .setJti('session-1')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .setIssuer('https://issuer.example.test')
+      .setAudience('isn-web')
+      .sign(new TextEncoder().encode('not-the-rsa-key'));
+    await expect(service.verifySessionToken(unexpectedAlgorithm)).rejects.toThrow();
   });
 
   it('rejects an expired 24-hour token even when its signature is valid', async () => {

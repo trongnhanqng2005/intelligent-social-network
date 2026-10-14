@@ -1,6 +1,17 @@
 # Proposed use cases and business flows
 
-All flows below are proposal-derived and unimplemented. They are domain scenarios, not current API routes.
+Friendship, recommendation, anomaly, content and interaction flows below are
+proposal-derived and unimplemented. The basic authenticated profile and member
+discovery subset is implemented; see the [User Profile & Discovery API](../api/user-profile-discovery.md).
+
+## User profile & discovery (implemented subset)
+
+1. An authenticated member views and edits their display name, optional bio, and
+   optional location using versioned updates.
+2. An authenticated member browses/searches other members and opens a
+   member-visible profile; the directory excludes the current member.
+
+Uploaded avatars and social-graph actions are not part of this implementation.
 
 ## Friendship lifecycle
 

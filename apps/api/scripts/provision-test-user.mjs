@@ -49,6 +49,13 @@ const expectedPrivileges = [
   'GRANT SET PROPERTY {jti} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {revokedAt} ON GRAPH `isn-test` NODE AuthSession TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {createdAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {displayName} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {displayNameSearch} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {bio} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {location} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {profileCreatedAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {profileUpdatedAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {profileVersion} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {email} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {id} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {passwordHash} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
@@ -71,7 +78,8 @@ const schemaLabels = ['ISNSchema', 'ISNSchemaMigration', 'User', 'AuthSession', 
 const schemaRelationshipTypes = ['HAS_AUTH_SESSION', 'PERFORMED_AUTH_EVENT'];
 const schemaPropertyNames = [
   'key', 'version', 'name', 'checksum', 'status', 'appliedAt', 'verifiedAt',
-  'id', 'email', 'passwordHash', 'createdAt', 'updatedAt', 'jti', 'expiresAt', 'revokedAt',
+  'id', 'email', 'passwordHash', 'createdAt', 'updatedAt', 'displayName', 'displayNameSearch', 'bio', 'location',
+  'profileCreatedAt', 'profileUpdatedAt', 'profileVersion', 'jti', 'expiresAt', 'revokedAt',
   'eventId', 'schemaVersion', 'eventType', 'timestamp', 'source', 'userId', 'sessionId',
 ];
 
@@ -85,15 +93,6 @@ try {
     const identity = await testDatabase.run('CALL db.info() YIELD name RETURN name');
     if (identity.records[0]?.get('name') !== 'isn-test') {
       throw new Error('Test database identity verification failed; provisioning stopped');
-    }
-    for (const label of schemaLabels) {
-      await testDatabase.run('CALL db.createLabel($name)', { name: label });
-    }
-    for (const relationshipType of schemaRelationshipTypes) {
-      await testDatabase.run('CALL db.createRelationshipType($name)', { name: relationshipType });
-    }
-    for (const propertyName of schemaPropertyNames) {
-      await testDatabase.run('CALL db.createProperty($name)', { name: propertyName });
     }
   } finally {
     await testDatabase.close();
@@ -139,6 +138,14 @@ try {
           const identity = await session.run('CALL db.info() YIELD name RETURN name');
           if (identity.records[0]?.get('name') !== 'isn-test') throw new Error('Test user target identity mismatch');
         } finally { await session.close(); }
+        const devSession = check.session({ database: 'isn-dev' });
+        try {
+          await devSession.run('CALL db.ping()');
+          throw new Error('Test account unexpectedly accessed isn-dev');
+        } catch (error) {
+          if (error.message === 'Test account unexpectedly accessed isn-dev' ||
+              !String(error?.code ?? '').startsWith('Neo.ClientError.Security.')) throw error;
+        } finally { await devSession.close(); }
       } finally { await check.close(); }
     } else {
       let existingCredentials = '';
@@ -158,6 +165,21 @@ try {
       );
       userCreated = true;
       await system.run('GRANT ROLE isn_test_runner_role TO USER isn_test_runner');
+    }
+
+    const testDatabase = driver.session({ database: 'isn-test' });
+    try {
+      for (const label of schemaLabels) {
+        await testDatabase.run('CALL db.createLabel($name)', { name: label });
+      }
+      for (const relationshipType of schemaRelationshipTypes) {
+        await testDatabase.run('CALL db.createRelationshipType($name)', { name: relationshipType });
+      }
+      for (const propertyName of schemaPropertyNames) {
+        await testDatabase.run('CALL db.createProperty($name)', { name: propertyName });
+      }
+    } finally {
+      await testDatabase.close();
     }
 
     for (const command of expectedPrivileges) {

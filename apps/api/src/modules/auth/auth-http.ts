@@ -16,6 +16,16 @@ import { AuthSecurityService } from './auth-security.service.js';
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function configureAuthHttp(app: NestExpressApplication, security: AuthSecurityService, trustedOrigin: string) {
+  app.use(cookieParser());
+  app.use(helmet({
+    strictTransportSecurity: security.production ? undefined : false,
+  }));
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    if (request.path === '/users' || request.path.startsWith('/users/')) {
+      response.setHeader('Cache-Control', 'no-store');
+    }
+    next();
+  });
   app.useBodyParser('json', { limit: '8kb', strict: true });
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.parse.failed') {
@@ -32,10 +42,6 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     }
     next(error);
   });
-  app.use(cookieParser());
-  app.use(helmet({
-    strictTransportSecurity: security.production ? undefined : false,
-  }));
   app.use((request: Request, response: Response, next: NextFunction) => {
     if (safeMethods.has(request.method)) return next();
     if (request.get('Sec-Fetch-Site') === 'cross-site') {
@@ -43,6 +49,13 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     }
     const source = request.get('Origin') ?? refererOrigin(request.get('Referer'));
     if (!source || source !== trustedOrigin) return sendCsrfFailure(response);
+    if (request.path === '/users/me/profile' && request.method === 'PATCH' &&
+        !request.is('application/json')) {
+      response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
+        error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
+      });
+      return;
+    }
     if ((request.path === '/auth/register' || request.path === '/auth/login') &&
         !request.is('application/json')) {
       response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
@@ -65,7 +78,7 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     exceptionFactory: (errors) => {
       const fieldErrors: Record<string, string[]> = {};
       for (const error of errors) {
-        if (error.property === 'email' || error.property === 'password') {
+        if (['email', 'password', 'displayName', 'bio', 'location', 'expectedVersion', 'id', 'q', 'limit', 'cursor'].includes(error.property)) {
           fieldErrors[error.property] = Object.values(error.constraints ?? {});
         }
       }
@@ -87,7 +100,8 @@ class AuthHttpExceptionFilter implements ExceptionFilter {
     const status = exception instanceof HttpException
       ? exception.getStatus()
       : statusFromError(exception);
-    if (exception instanceof AuthException && exception.retryAfterSeconds) {
+    if (exception instanceof HttpException && 'retryAfterSeconds' in exception &&
+        typeof exception.retryAfterSeconds === 'number' && exception.retryAfterSeconds > 0) {
       response.setHeader('Retry-After', String(exception.retryAfterSeconds));
     }
     if (exception instanceof HttpException) {
