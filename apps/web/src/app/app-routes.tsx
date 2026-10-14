@@ -7,6 +7,8 @@ import { MemberProfilePage } from '../features/profile/ui/member-profile-page';
 import { MemberLayout } from '../features/profile/ui/member-layout';
 import { ProfilePage } from '../features/profile/ui/profile-page';
 import { DiscoveryPage } from '../features/discovery/ui/discovery-page';
+import { FriendsPage } from '../features/friendships/ui/friends-page';
+import { FriendshipRequestsPage } from '../features/friendships/ui/friendship-requests-page';
 
 export function AppRoutes() {
   return (
@@ -17,6 +19,8 @@ export function AppRoutes() {
         <Route path="/dang-ky" element={<RegisterPage />} />
         <Route path="/ho-so" element={<MemberLayout><ProfilePage /></MemberLayout>} />
         <Route path="/kham-pha" element={<MemberLayout><DiscoveryPage /></MemberLayout>} />
+        <Route path="/ban-be" element={<MemberLayout><FriendsPage /></MemberLayout>} />
+        <Route path="/ban-be/loi-moi" element={<MemberLayout><FriendshipRequestsPage /></MemberLayout>} />
         <Route path="/thanh-vien/:id" element={<MemberLayout><MemberProfilePage /></MemberLayout>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

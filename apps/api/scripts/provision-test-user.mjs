@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import neo4j from 'neo4j-driver';
@@ -9,8 +10,20 @@ const uri = process.env.NEO4J_URI;
 const adminUsername = process.env.NEO4J_USERNAME;
 const adminPassword = process.env.NEO4J_PASSWORD;
 const credentialsPath = resolve('apps/api/.env.test.local');
+const friendshipMigrationChecksum = '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2';
 if (!uri || !adminUsername || !adminPassword) {
   throw new Error('Load the development administrator configuration before provisioning');
+}
+if (process.env.NEO4J_DATABASE !== 'isn-dev') {
+  throw new Error('Provisioning requires the explicitly configured isn-dev administrator context');
+}
+const branch = execFileSync('git', ['branch', '--show-current'], { cwd: process.cwd(), encoding: 'utf8' }).trim();
+if (branch !== 'feature/friendship-system') {
+  throw new Error('Provisioning is restricted to the feature/friendship-system worktree');
+}
+const uriHost = new URL(uri).hostname;
+if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(uriHost)) {
+  throw new Error('Provisioning is restricted to the approved loopback Neo4j runtime');
 }
 
 const expectedPrivileges = [
@@ -60,6 +73,28 @@ const expectedPrivileges = [
   'GRANT SET PROPERTY {id} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {passwordHash} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {updatedAt} ON GRAPH `isn-test` NODE User TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT MERGE {pairKey} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT MATCH {*} ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
+  'GRANT CREATE ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
+  'GRANT DELETE ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {pairKey} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {lowUserId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {highUserId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {version} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {requestId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {senderId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {recipientId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {requestStatus} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {requestedAt} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {resolvedAt} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {friendshipId} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {friendsSince} ON GRAPH `isn-test` NODE FriendshipPair TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {id} ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {pairKey} ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
+  'GRANT SET PROPERTY {since} ON GRAPH `isn-test` RELATIONSHIP FRIEND_WITH TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {eventId} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {eventType} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
   'GRANT SET PROPERTY {schemaVersion} ON GRAPH `isn-test` NODE AuthActivityEvent TO `isn_test_runner_role`',
@@ -74,13 +109,15 @@ const expectedPrivileges = [
   'GRANT DELETE ON GRAPH `isn-test` RELATIONSHIP PERFORMED_AUTH_EVENT TO `isn_test_runner_role`',
 ];
 
-const schemaLabels = ['ISNSchema', 'ISNSchemaMigration', 'User', 'AuthSession', 'AuthActivityEvent'];
-const schemaRelationshipTypes = ['HAS_AUTH_SESSION', 'PERFORMED_AUTH_EVENT'];
+const schemaLabels = ['ISNSchema', 'ISNSchemaMigration', 'User', 'AuthSession', 'AuthActivityEvent', 'FriendshipPair'];
+const schemaRelationshipTypes = ['HAS_AUTH_SESSION', 'PERFORMED_AUTH_EVENT', 'FRIEND_WITH'];
 const schemaPropertyNames = [
   'key', 'version', 'name', 'checksum', 'status', 'appliedAt', 'verifiedAt',
   'id', 'email', 'passwordHash', 'createdAt', 'updatedAt', 'displayName', 'displayNameSearch', 'bio', 'location',
   'profileCreatedAt', 'profileUpdatedAt', 'profileVersion', 'jti', 'expiresAt', 'revokedAt',
   'eventId', 'schemaVersion', 'eventType', 'timestamp', 'source', 'userId', 'sessionId',
+  'pairKey', 'lowUserId', 'highUserId', 'requestId', 'senderId', 'recipientId', 'requestStatus',
+  'requestedAt', 'resolvedAt', 'friendshipId', 'friendsSince', 'since',
 ];
 
 const driver = neo4j.driver(uri, neo4j.auth.basic(adminUsername, adminPassword));
@@ -89,16 +126,69 @@ let userCreated = false;
 try {
   await driver.verifyConnectivity();
   const testDatabase = driver.session({ database: 'isn-test' });
+  let databaseBaseline;
+  let schemaVersion;
   try {
-    const identity = await testDatabase.run('CALL db.info() YIELD name RETURN name');
+    const identity = await testDatabase.run('CALL db.info() YIELD name, id RETURN name, id');
     if (identity.records[0]?.get('name') !== 'isn-test') {
       throw new Error('Test database identity verification failed; provisioning stopped');
     }
+    if (typeof identity.records[0]?.get('id') !== 'string') {
+      throw new Error('Test database identity did not include its stable database ID; provisioning stopped');
+    }
+    const marker = await testDatabase.run(
+      "MATCH (schema:ISNSchema {key:'application'}) RETURN schema.version AS version LIMIT 1",
+    );
+    schemaVersion = toNumber(marker.records[0]?.get('version'));
+    if (schemaVersion !== 3 && schemaVersion !== 4) {
+      throw new Error('Provisioning requires a verified V3 baseline or V4 Friendship schema; no writes made');
+    }
+    const history = await testDatabase.run(
+      `MATCH (migration:ISNSchemaMigration)
+       RETURN migration.version AS version, migration.name AS name, migration.checksum AS checksum,
+              migration.status AS status, migration.appliedAt IS NOT NULL AS applied,
+              migration.verifiedAt IS NOT NULL AS verified ORDER BY version`,
+    );
+    const expectedHistory = [
+      [1, 'foundation-schema-marker', 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2'],
+      [2, 'authentication-schema', 'ce22db8398514d8caa2c9d93a7107750c84507af737decb9a5a001b5311137de'],
+      [3, 'user-profile-discovery', 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee'],
+      ...(schemaVersion === 4 ? [[4, 'friendship-system', friendshipMigrationChecksum]] : []),
+    ];
+    const actualHistory = history.records.map((record) => [
+      toNumber(record.get('version')), record.get('name'), record.get('checksum'),
+      record.get('status'), record.get('applied'), record.get('verified'),
+    ]);
+    const verifiedHistory = expectedHistory.map(([version, name, checksum]) =>
+      [version, name, checksum, 'VERIFIED', true, true]);
+    if (JSON.stringify(actualHistory) !== JSON.stringify(verifiedHistory)) {
+      throw new Error('Migration history is missing, interrupted, or drifted; provisioning stopped without writes');
+    }
+    await assertMigrationCatalog(testDatabase, schemaVersion);
+    const friendshipObjects = await testDatabase.run(
+      `CALL { MATCH (pair:FriendshipPair) RETURN count(pair) AS pairs }
+       CALL { MATCH ()-[friendship:FRIEND_WITH]-() RETURN count(friendship) AS edges }
+       RETURN pairs, edges`,
+    );
+    const pairCount = toNumber(friendshipObjects.records[0]?.get('pairs'));
+    const edgeCount = toNumber(friendshipObjects.records[0]?.get('edges'));
+    if (schemaVersion === 3 && (pairCount !== 0 || edgeCount !== 0)) {
+      throw new Error('Unexpected Friendship graph data exists before V4; provisioning stopped without writes');
+    }
+    if (schemaVersion === 3) await assertNoFriendshipSchemaObjects(testDatabase);
+    databaseBaseline = await readDataCounts(testDatabase);
   } finally {
     await testDatabase.close();
   }
   const system = driver.session({ database: 'system' });
   try {
+    const activeTransactions = await system.run(
+      `SHOW TRANSACTIONS YIELD database, transactionId
+       WHERE database = 'isn-test' RETURN transactionId`,
+    );
+    if (activeTransactions.records.length !== 0) {
+      throw new Error('isn-test has active transactions; wait for an exclusive database write window');
+    }
     const dbms = await system.run('CALL dbms.components() YIELD versions, edition RETURN versions[0] AS version, edition');
     const server = dbms.records[0];
     if (server?.get('version') !== '2026.09.0' || server?.get('edition') !== 'enterprise') {
@@ -230,7 +320,20 @@ try {
   } finally {
     await testDriver.close();
   }
-  console.log(JSON.stringify({ provisioned: true, username, role, homeDatabase: 'isn-test', devAccess: 'denied', credentialsStoredLocally: true }));
+  const verifyDatabase = driver.session({ database: 'isn-test' });
+  try {
+    const identity = await verifyDatabase.run('CALL db.info() YIELD name, id RETURN name, id');
+    if (identity.records[0]?.get('name') !== 'isn-test' || typeof identity.records[0]?.get('id') !== 'string') {
+      throw new Error('Test database identity changed during provisioning');
+    }
+    const after = await readDataCounts(verifyDatabase);
+    if (JSON.stringify(after) !== JSON.stringify(databaseBaseline)) {
+      throw new Error('Application graph counts changed during schema-token/grant provisioning');
+    }
+  } finally {
+    await verifyDatabase.close();
+  }
+  console.log(JSON.stringify({ provisioned: true, username, role, homeDatabase: 'isn-test', devAccess: 'denied', schemaVersion, activeTransactionGate: 'clear', applicationDataPreserved: true, credentialsStoredLocally: true }));
 } catch (error) {
   if (generatedFile && !userCreated) {
     await import('node:fs/promises').then(({ unlink }) => unlink(credentialsPath).catch(() => undefined));
@@ -239,4 +342,100 @@ try {
   process.exitCode = 1;
 } finally {
   await driver.close();
+}
+
+async function assertMigrationCatalog(session, version) {
+  const constraints = await session.run(
+    'SHOW CONSTRAINTS YIELD name, type, entityType, labelsOrTypes, properties RETURN name, type, entityType, labelsOrTypes, properties',
+  );
+  const requiredConstraints = [
+    ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchema', ['key']],
+    ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchemaMigration', ['version']],
+    ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', ['id']],
+    ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', ['email']],
+    ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', ['id']],
+    ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', ['jti']],
+    ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthActivityEvent', ['eventId']],
+    ...(version === 4 ? [
+      ['isn_friendship_pair_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', ['pairKey']],
+      ['isn_friendship_request_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', ['requestId']],
+      ['isn_friendship_id', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', ['id']],
+      ['isn_friendship_edge_pair_key', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', ['pairKey']],
+    ] : []),
+  ];
+  if (constraints.records.length !== requiredConstraints.length) {
+    throw new Error('Constraint catalog does not match the verified migration version; provisioning stopped');
+  }
+  for (const [name, type, entityType, label, properties] of requiredConstraints) {
+    if (!constraints.records.some((record) => record.get('name') === name && record.get('type') === type &&
+        record.get('entityType') === entityType && JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
+        JSON.stringify(record.get('properties')) === JSON.stringify(properties))) {
+      throw new Error(`Required constraint ${name} is absent or drifted; provisioning stopped`);
+    }
+  }
+
+  const indexes = await session.run(
+    'SHOW INDEXES YIELD name, type, entityType, labelsOrTypes, properties, state RETURN name, type, entityType, labelsOrTypes, properties, state',
+  );
+  const expectedIndexes = [
+    ['isn_auth_event_id', 'RANGE', 'NODE', 'AuthActivityEvent', ['eventId']],
+    ['isn_auth_session_id', 'RANGE', 'NODE', 'AuthSession', ['id']],
+    ['isn_auth_session_jti', 'RANGE', 'NODE', 'AuthSession', ['jti']],
+    ['isn_auth_session_expires_at', 'RANGE', 'NODE', 'AuthSession', ['expiresAt']],
+    ['isn_auth_event_timestamp', 'RANGE', 'NODE', 'AuthActivityEvent', ['timestamp']],
+    ['isn_schema_metadata_key', 'RANGE', 'NODE', 'ISNSchema', ['key']],
+    ['isn_schema_migration_version', 'RANGE', 'NODE', 'ISNSchemaMigration', ['version']],
+    ['isn_user_email', 'RANGE', 'NODE', 'User', ['email']],
+    ['isn_user_id', 'RANGE', 'NODE', 'User', ['id']],
+    ['isn_user_display_name_search', 'TEXT', 'NODE', 'User', ['displayNameSearch']],
+    ...(version === 4 ? [
+      ['isn_friendship_pair_key', 'RANGE', 'NODE', 'FriendshipPair', ['pairKey']],
+      ['isn_friendship_request_id', 'RANGE', 'NODE', 'FriendshipPair', ['requestId']],
+      ['isn_friendship_id', 'RANGE', 'RELATIONSHIP', 'FRIEND_WITH', ['id']],
+      ['isn_friendship_edge_pair_key', 'RANGE', 'RELATIONSHIP', 'FRIEND_WITH', ['pairKey']],
+      ['isn_friendship_requests_sent', 'RANGE', 'NODE', 'FriendshipPair', ['senderId', 'requestStatus', 'requestId']],
+      ['isn_friendship_requests_received', 'RANGE', 'NODE', 'FriendshipPair', ['recipientId', 'requestStatus', 'requestId']],
+    ] : []),
+  ];
+  const applicationIndexes = indexes.records.filter((record) => record.get('type') !== 'LOOKUP');
+  if (applicationIndexes.length !== expectedIndexes.length) {
+    throw new Error('Index catalog does not match the verified migration version; provisioning stopped');
+  }
+  for (const [name, type, entityType, label, properties] of expectedIndexes) {
+    if (!applicationIndexes.some((record) => record.get('name') === name && record.get('type') === type &&
+        record.get('entityType') === entityType && JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
+        JSON.stringify(record.get('properties')) === JSON.stringify(properties) && record.get('state') === 'ONLINE')) {
+      throw new Error(`Required index ${name} is absent, offline, or drifted; provisioning stopped`);
+    }
+  }
+}
+
+async function assertNoFriendshipSchemaObjects(session) {
+  const constraints = await session.run('SHOW CONSTRAINTS YIELD labelsOrTypes RETURN labelsOrTypes');
+  const indexes = await session.run('SHOW INDEXES YIELD labelsOrTypes RETURN labelsOrTypes');
+  const records = [...constraints.records, ...indexes.records];
+  if (records.some((record) => Array.isArray(record.get('labelsOrTypes')) &&
+      record.get('labelsOrTypes').some((value) => value === 'FriendshipPair' || value === 'FRIEND_WITH'))) {
+    throw new Error('Unexpected Friendship schema objects exist before V4; provisioning stopped without writes');
+  }
+}
+
+async function readDataCounts(session) {
+  const result = await session.run(
+    `CALL { MATCH (user:User) RETURN count(user) AS users }
+     CALL { MATCH (authSession:AuthSession) RETURN count(authSession) AS sessions }
+     CALL { MATCH (event:AuthActivityEvent) RETURN count(event) AS events }
+     CALL { MATCH (pair:FriendshipPair) RETURN count(pair) AS pairs }
+     CALL { MATCH ()-[friendship:FRIEND_WITH]-() RETURN count(friendship) AS edges }
+     RETURN users, sessions, events, pairs, edges`,
+  );
+  const record = result.records[0];
+  if (!record) throw new Error('Could not capture the application data baseline');
+  return Object.fromEntries(['users', 'sessions', 'events', 'pairs', 'edges'].map((key) => [key, toNumber(record.get(key))]));
+}
+
+function toNumber(value) {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'object' && value !== null && typeof value.toNumber === 'function') return value.toNumber();
+  return Number.NaN;
 }

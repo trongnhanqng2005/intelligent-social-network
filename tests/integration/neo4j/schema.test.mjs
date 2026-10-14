@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('restricted test credentials target isn-test and verify cumulative V1/V2/V3 schema', async () => {
+test('restricted test credentials target isn-test and verify cumulative V1–V4 schema', async () => {
   if (process.env.NODE_ENV !== 'test') {
     assert.fail('Set NODE_ENV=test before running real Neo4j integration tests');
   }
@@ -92,19 +92,24 @@ test('restricted test credentials target isn-test and verify cumulative V1/V2/V3
     }, {
       database: 'isn-test',
       status: 'current',
-      version: 3,
+      version: 4,
     });
     assert.deepEqual(repeatInitialization, initialization);
     assert.equal(initialization.migrations[0].status, 'VERIFIED');
     assert.equal(initialization.migrations[0].checksum, 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2');
     assert.equal(initialization.migrations[1].status, 'VERIFIED');
+    assert.equal(initialization.migrations[2].status, 'VERIFIED');
+    assert.equal(initialization.migrations[2].checksum, 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee');
+    assert.equal(initialization.migrations[3].status, 'VERIFIED');
+    assert.equal(initialization.migrations[3].name, 'friendship-system');
+    assert.equal(initialization.migrations[3].checksum, '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2');
     assert.match(initialization.migrations[0].checksum, /^[a-f0-9]{64}$/);
     assert.equal(typeof initialization.migrations[0].appliedAt, 'string');
     assert.equal(typeof initialization.migrations[0].verifiedAt, 'string');
 
     const schemaService = app.get(Neo4jSchemaService);
     assert.deepEqual(await schemaService.checkReadiness(), {
-      status: 'ready', database: 'isn-test', schemaVersion: 3,
+      status: 'ready', database: 'isn-test', schemaVersion: 4,
     });
 
     console.log(

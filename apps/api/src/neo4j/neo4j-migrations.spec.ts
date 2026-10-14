@@ -46,8 +46,8 @@ describe('Neo4jMigrationService', () => {
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
   });
 
-  it('preserves the verified V1/V2 checksums and appends profile migration as V3', () => {
-    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3]);
+  it('preserves V1–V3 checksums and appends friendship migration as V4', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4]);
     expect(checksumMigration(migrationDefinitions[0])).toBe(
       'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
     );
@@ -57,6 +57,11 @@ describe('Neo4jMigrationService', () => {
     expect(checksumMigration(migrationDefinitions[2])).toBe(
       'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee',
     );
+    expect(migrationDefinitions[3].name).toBe('friendship-system');
+    expect(migrationDefinitions[3].statements).toHaveLength(6);
+    expect(migrationDefinitions[3].statements[0]).toContain('isn_friendship_pair_key');
+    expect(migrationDefinitions[3].statements[2]).toContain('FRIEND_WITH');
+    expect(migrationDefinitions[3].preflight).toContain('FriendshipPair');
     expect(checksumMigration({
       ...migrationDefinitions[2],
       dataStatements: ['RETURN 1'],
@@ -123,6 +128,83 @@ describe('Neo4jMigrationService', () => {
     expect(transaction.run).toHaveBeenCalledWith(profileUserIdPreflight);
     expect(writes.some(({ parameters }) => parameters?.version === 3)).toBe(false);
     expect(neo4j.runSchemaStatement).not.toHaveBeenCalledWith(migrationDefinitions[2].statements[0]);
+  });
+
+  it('fails closed before V4 writes when friendship data already exists', async () => {
+    transaction.run.mockReset();
+    const run = transaction.run as unknown as jest.Mock;
+    run.mockImplementation(async (query: unknown) => {
+      const queryText = String(query);
+      if (queryText.includes('CALL db.info()')) return { records: [record({ database: 'isn-test' })] };
+      if (queryText === migrationDefinitions[3].preflight) return { records: [record({ conflicts: 1 })] };
+      return { records: [] };
+    });
+    neo4j.executeRead.mockImplementation(async (work) => work(transaction));
+    jest.spyOn(service, 'getStatus').mockResolvedValue({
+      database: 'isn-test', status: 'incomplete', version: 3,
+      migrations: migrationDefinitions.slice(0, 3).map((migration) => ({
+        version: migration.version,
+        name: migration.name,
+        checksum: checksumMigration(migration),
+        status: 'VERIFIED',
+        appliedAt: 'now',
+        verifiedAt: 'now',
+      })),
+    });
+    const internals = service as unknown as {
+      ensureConstraint: jest.Mock;
+      findHistory: jest.Mock;
+      preflightFriendshipSchema: jest.Mock;
+    };
+    internals.ensureConstraint = jest.fn().mockResolvedValue(undefined);
+    internals.findHistory = jest.fn(async (version: number) => version < 4
+      ? { version, name: migrationDefinitions[version - 1]!.name,
+          checksum: checksumMigration(migrationDefinitions[version - 1]!), status: 'VERIFIED',
+          appliedAt: 'now', verifiedAt: 'now' }
+      : undefined);
+    internals.preflightFriendshipSchema = jest.fn();
+
+    await expect(service.migrate()).rejects.toThrow(/existing friendship data.*no V4 writes/u);
+    expect(internals.preflightFriendshipSchema).not.toHaveBeenCalled();
+    expect(neo4j.runSchemaStatement).not.toHaveBeenCalled();
+    expect(neo4j.executeWrite).not.toHaveBeenCalled();
+  });
+
+  it('stops before writes when a previous V4 apply is interrupted', async () => {
+    transaction.run.mockReset().mockResolvedValueOnce({ records: [record({ database: 'isn-test' })] } as never);
+    neo4j.executeRead.mockImplementation(async (work) => work(transaction));
+    jest.spyOn(service, 'getStatus').mockResolvedValue({
+      database: 'isn-test', status: 'incomplete', version: 4,
+      migrations: [{
+        version: 4,
+        name: 'friendship-system',
+        checksum: checksumMigration(migrationDefinitions[3]),
+        status: 'APPLYING',
+        appliedAt: 'now',
+        verifiedAt: null,
+      }],
+    });
+    const internals = service as unknown as { ensureConstraint: jest.Mock };
+    internals.ensureConstraint = jest.fn();
+
+    await expect(service.migrate()).rejects.toThrow(/interrupted V4 migration.*no migration writes/u);
+    expect(internals.ensureConstraint).not.toHaveBeenCalled();
+    expect(neo4j.runSchemaStatement).not.toHaveBeenCalled();
+    expect(neo4j.executeWrite).not.toHaveBeenCalled();
+  });
+
+  it('fails V4 preflight when any Friendship schema object already exists without verified V4 history', async () => {
+    transaction.run.mockReset()
+      .mockResolvedValueOnce({ records: [record({
+        name: 'unexpected_friendship_pair_index', labelsOrTypes: ['FriendshipPair'],
+      })] } as never)
+      .mockResolvedValueOnce({ records: [] } as never);
+    neo4j.executeRead.mockImplementation(async (work) => work(transaction));
+    const internals = service as unknown as { preflightFriendshipSchema: () => Promise<void> };
+
+    await expect(internals.preflightFriendshipSchema()).rejects.toThrow(/Unexpected Friendship schema objects/u);
+    expect(neo4j.executeWrite).not.toHaveBeenCalled();
+    expect(neo4j.runSchemaStatement).not.toHaveBeenCalled();
   });
 
   it('reports checksum drift for an already recorded migration', async () => {

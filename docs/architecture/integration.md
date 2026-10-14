@@ -30,11 +30,16 @@ and [OpenAPI contract](../api/openapi.yaml).
 
 The Vite proxy is not a production deployment rule. Production use of relative `/api` requires an independently configured same-origin reverse proxy; cross-origin configuration would need separately approved CORS policy. No production endpoint is configured or verified.
 
-Posts, interactions, friendships, recommendations, and other social business
-contracts remain unimplemented. Document request/response schemas, errors, auth,
-ownership, persistence semantics and test locations in each approved feature
-task. Do not use the health endpoint as a business API template beyond its
-deliberately minimal contract.
+The Friendship API source contract is implemented in the approved workstream:
+all routes use authenticated identity, private caller-owned lists, CSRF/Origin
+protection, no-store responses and managed Neo4j pair transactions. Build
+records report V4 applied to both approved databases; resumed Step 6 gates and
+real-stack tests verified the restricted `isn-test` V4 state and restored its
+baseline. See
+[Friendships](../api/friendships.md).
+Posts, interactions and recommendations remain unimplemented. Do not use the
+health endpoint as a business API template beyond its deliberately minimal
+contract.
 
 ## Authentication browser contract
 

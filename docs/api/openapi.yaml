@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Intelligent Social Network API
   version: 0.1.0
-  description: Implemented liveness, readiness, browser authentication, and authenticated user profile/discovery contracts.
+  description: Implemented liveness, readiness, browser authentication, authenticated user profile/discovery, and Friendship contracts. Build records report V4 applied to both approved databases; Step 6 freshly verified the restricted isn-test database and real-stack Friendship acceptance.
 servers:
   - url: http://127.0.0.1:3000
     description: Local API; the Vite development proxy adds and strips /api.
@@ -10,6 +10,7 @@ tags:
   - name: Health
   - name: Authentication
   - name: Users
+  - name: Friendships
 paths:
   /health:
     get:
@@ -33,7 +34,7 @@ paths:
       summary: Neo4j identity and migration readiness
       responses:
         '200':
-          description: Configured database is reachable and current at schema V3.
+          description: Configured database is reachable and current at schema V4.
           content:
             application/json:
               schema:
@@ -42,7 +43,7 @@ paths:
                 properties:
                   status: { const: ready }
                   database: { type: string, example: isn-dev }
-                  schemaVersion: { const: 3 }
+                  schemaVersion: { const: 4 }
         '503':
           description: Configured database unavailable, identity mismatch, or schema not ready.
           content:
@@ -180,6 +181,272 @@ paths:
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /friendships/requests:
+    post:
+      tags: [Friendships]
+      operationId: createFriendshipRequest
+      summary: Send a friendship request
+      description: The sender is derived from the authenticated session. A reverse pending request is a conflict and is never accepted automatically.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFriendshipRequest' }
+      responses:
+        '201':
+          description: Pending request created.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipMutationResult' }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '403': { $ref: '#/components/responses/FriendshipCsrfFailed' }
+        '404':
+          description: Recipient does not exist.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '409':
+          description: Self request, duplicate same-direction request, reverse pending request, or existing friendship.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '413': { $ref: '#/components/responses/FriendshipPayloadTooLarge' }
+        '415': { $ref: '#/components/responses/FriendshipUnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+    get:
+      tags: [Friendships]
+      operationId: listFriendshipRequests
+      summary: List pending requests owned by the caller
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema: { type: string, enum: [received, sent] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string, maxLength: 512 }
+          description: Opaque versioned cursor bound to viewer, list and direction.
+      responses:
+        '200':
+          description: Caller-owned pending request page with privacy-safe counterpart profiles.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipRequestPage' }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/requests/{requestId}/accept:
+    post:
+      tags: [Friendships]
+      operationId: acceptFriendshipRequest
+      summary: Accept a request addressed to the caller
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/FriendshipRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyFriendshipAction' }
+      responses:
+        '200':
+          description: Request accepted and canonical friendship created atomically; same-action retries are idempotent.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipMutationResult' }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '403': { $ref: '#/components/responses/FriendshipActionForbidden' }
+        '404': { $ref: '#/components/responses/FriendshipRequestNotFound' }
+        '409': { $ref: '#/components/responses/FriendshipStateConflict' }
+        '413': { $ref: '#/components/responses/FriendshipPayloadTooLarge' }
+        '415': { $ref: '#/components/responses/FriendshipUnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/requests/{requestId}/reject:
+    post:
+      tags: [Friendships]
+      operationId: rejectFriendshipRequest
+      summary: Reject a request addressed to the caller
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/FriendshipRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyFriendshipAction' }
+      responses:
+        '200':
+          description: Request rejected; same-action retries are idempotent.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipMutationResult' }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '403': { $ref: '#/components/responses/FriendshipActionForbidden' }
+        '404': { $ref: '#/components/responses/FriendshipRequestNotFound' }
+        '409': { $ref: '#/components/responses/FriendshipStateConflict' }
+        '413': { $ref: '#/components/responses/FriendshipPayloadTooLarge' }
+        '415': { $ref: '#/components/responses/FriendshipUnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/requests/{requestId}/cancel:
+    post:
+      tags: [Friendships]
+      operationId: cancelFriendshipRequest
+      summary: Cancel a request sent by the caller
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/FriendshipRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyFriendshipAction' }
+      responses:
+        '200':
+          description: Request cancelled; same-action retries are idempotent.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipMutationResult' }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '403': { $ref: '#/components/responses/FriendshipActionForbidden' }
+        '404': { $ref: '#/components/responses/FriendshipRequestNotFound' }
+        '409': { $ref: '#/components/responses/FriendshipStateConflict' }
+        '413': { $ref: '#/components/responses/FriendshipPayloadTooLarge' }
+        '415': { $ref: '#/components/responses/FriendshipUnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships:
+    get:
+      tags: [Friendships]
+      operationId: listFriendships
+      summary: List the caller's accepted friends
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string, maxLength: 512 }
+          description: Opaque versioned cursor bound to viewer and friends list.
+      responses:
+        '200':
+          description: Bounded page of accepted friends with public profile projections.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendshipPage' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/{friendshipId}:
+    delete:
+      tags: [Friendships]
+      operationId: unfriend
+      summary: Remove the exact current friendship
+      description: Idempotent. A stale, missing or nonparticipant friendship ID returns 204 and cannot remove a newer relationship.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - name: friendshipId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Friendship removed or already absent.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+        '400': { $ref: '#/components/responses/FriendshipBadRequest' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '403': { $ref: '#/components/responses/FriendshipCsrfFailed' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/status/{memberId}:
+    get:
+      tags: [Friendships]
+      operationId: getFriendshipStatus
+      summary: Get the caller's relationship state with one member
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Caller-relative state; no third-party relationship lookup is available.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [relationship]
+                properties:
+                  relationship: { $ref: '#/components/schemas/FriendshipRelationship' }
+        '401': { $ref: '#/components/responses/FriendshipUnauthenticated' }
+        '404': { $ref: '#/components/responses/FriendshipMemberNotFound' }
+        '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
+        '429': { $ref: '#/components/responses/FriendshipRateLimited' }
+        '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
   /auth/csrf:
     get:
       tags: [Authentication]
@@ -352,6 +619,15 @@ components:
       in: header
       required: true
       schema: { type: string }
+    FriendshipRequestId:
+      name: requestId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  headers:
+    NoStore:
+      description: Response must not be stored by caches.
+      schema: { type: string, const: no-store }
   schemas:
     Credentials:
       type: object
@@ -426,6 +702,95 @@ components:
             limit: { type: integer, minimum: 1, maximum: 50 }
             hasMore: { type: boolean }
             nextCursor: { type: [string, 'null'], maxLength: 512 }
+    CreateFriendshipRequest:
+      type: object
+      additionalProperties: false
+      required: [recipientId]
+      properties:
+        recipientId: { type: string, format: uuid }
+    EmptyFriendshipAction:
+      type: object
+      additionalProperties: false
+    FriendshipRequest:
+      type: object
+      additionalProperties: false
+      required: [id, senderId, recipientId, status, createdAt, resolvedAt]
+      properties:
+        id: { type: string, format: uuid }
+        senderId: { type: string, format: uuid }
+        recipientId: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, CANCELLED] }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+    FriendshipRelationship:
+      type: object
+      additionalProperties: false
+      required: [memberId, state, requestId, friendshipId, friendsSince]
+      properties:
+        memberId: { type: string, format: uuid }
+        state: { type: string, enum: [self, none, outgoing_pending, incoming_pending, friends] }
+        requestId: { type: [string, 'null'], format: uuid }
+        friendshipId: { type: [string, 'null'], format: uuid }
+        friendsSince: { type: [string, 'null'], format: date-time }
+    FriendshipMember:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, bio, location]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string, minLength: 2, maxLength: 80 }
+        bio: { type: [string, 'null'], maxLength: 280 }
+        location: { type: [string, 'null'], maxLength: 80 }
+    FriendshipMutationResult:
+      type: object
+      additionalProperties: false
+      required: [request, relationship]
+      properties:
+        request: { $ref: '#/components/schemas/FriendshipRequest' }
+        relationship: { $ref: '#/components/schemas/FriendshipRelationship' }
+    FriendshipRequestListItem:
+      type: object
+      additionalProperties: false
+      required: [request, member]
+      properties:
+        request: { $ref: '#/components/schemas/FriendshipRequest' }
+        member: { $ref: '#/components/schemas/FriendshipMember' }
+    FriendshipListItem:
+      type: object
+      additionalProperties: false
+      required: [friendshipId, friendsSince, member]
+      properties:
+        friendshipId: { type: string, format: uuid }
+        friendsSince: { type: string, format: date-time }
+        member: { $ref: '#/components/schemas/FriendshipMember' }
+    FriendshipPagination:
+      type: object
+      additionalProperties: false
+      required: [limit, hasMore, nextCursor]
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50 }
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'], maxLength: 512 }
+    FriendshipRequestPage:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/FriendshipRequestListItem' }
+        pagination: { $ref: '#/components/schemas/FriendshipPagination' }
+    FriendshipPage:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/FriendshipListItem' }
+        pagination: { $ref: '#/components/schemas/FriendshipPagination' }
     ErrorEnvelope:
       type: object
       required: [error]
@@ -443,6 +808,47 @@ components:
             type: array
             items: { type: string }
   responses:
+    FriendshipBadRequest:
+      description: Malformed JSON request body.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipUnauthenticated:
+      description: No valid current session.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipCsrfFailed:
+      description: Origin, cross-site, or CSRF validation failed.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipValidationFailed:
+      description: Request fields failed validation.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipRateLimited:
+      description: In-memory per-process limit exceeded; Retry-After is seconds.
+      headers:
+        Retry-After: { schema: { type: integer, minimum: 1 } }
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipServiceUnavailable:
+      description: Required service is unavailable.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipPayloadTooLarge:
+      description: Request body exceeds the 8 KiB JSON limit.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipUnsupportedMediaType:
+      description: Friendship POST actions require application/json.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     CsrfFailed:
       description: Origin, cross-site, or CSRF validation failed.
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -454,6 +860,26 @@ components:
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     ProfileNotFound:
       description: No member exists for the supplied UUID.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipRequestNotFound:
+      description: Request is missing, stale, or not visible to the caller.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipMemberNotFound:
+      description: Target member does not exist.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipActionForbidden:
+      description: Origin/CSRF validation failed or the participant attempted an action not allowed by their role.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FriendshipStateConflict:
+      description: Request lifecycle has already changed or the requested transition is not available.
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
     ProfileConflict:
       description: Profile version changed since the client read it; no update was committed.

@@ -11,6 +11,7 @@ import { PasswordService } from '../src/modules/auth/password.service.js';
 import { createDefaultProfile, normalizeSearchKey } from '../src/domain/user-profile.js';
 import { UsersRepository } from '../src/modules/users/users.repository.js';
 import type { OwnProfile, ProfileUpdate } from '../src/modules/users/users.types.js';
+import { FriendshipsRepository } from '../src/modules/friendships/friendships.repository.js';
 
 const origin = 'http://127.0.0.1:3000';
 
@@ -19,6 +20,14 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
   let users: Array<{ id: string; email: string; passwordHash: string }>;
   let sessions: Array<{ jti: string; userId: string; expiresAt: string; revoked: boolean }>;
   let profiles: Map<string, OwnProfile>;
+  let friendshipsRepository: {
+    createRequest: jest.Mock;
+    actOnRequest: jest.Mock;
+    listRequests: jest.Mock;
+    listFriends: jest.Mock;
+    getRelationship: jest.Mock;
+    unfriend: jest.Mock;
+  };
   let tokens = new Map<string, { sub: string; jti: string; iat: number; exp: number }>;
 
   beforeAll(async () => {
@@ -26,6 +35,37 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     sessions = [];
     profiles = new Map();
     tokens = new Map();
+    friendshipsRepository = {
+      createRequest: jest.fn(async (input) => ({
+        kind: 'success',
+        result: {
+          request: { id: input.requestId, senderId: input.senderId, recipientId: input.recipientId,
+            status: 'PENDING', createdAt: input.now, resolvedAt: null },
+          relationship: { memberId: input.recipientId, state: 'outgoing_pending', requestId: input.requestId,
+            friendshipId: null, friendsSince: null },
+        },
+      })),
+      actOnRequest: jest.fn(async (input) => ({
+        kind: 'success',
+        result: {
+          request: { id: input.requestId, senderId: '11111111-1111-4111-8111-111111111111',
+            recipientId: '22222222-2222-4222-8222-222222222222',
+            status: input.action === 'accept' ? 'ACCEPTED' : input.action === 'reject' ? 'REJECTED' : 'CANCELLED',
+            createdAt: '2026-10-14T10:00:00.000Z', resolvedAt: input.now },
+          relationship: { memberId: '22222222-2222-4222-8222-222222222222',
+            state: input.action === 'accept' ? 'friends' : 'none', requestId: null,
+            friendshipId: input.action === 'accept' ? input.friendshipId : null,
+            friendsSince: input.action === 'accept' ? input.now : null },
+        },
+      })),
+      listRequests: jest.fn().mockResolvedValue([]),
+      listFriends: jest.fn().mockResolvedValue([]),
+      getRelationship: jest.fn().mockResolvedValue({ kind: 'found', relationship: {
+        memberId: '22222222-2222-4222-8222-222222222222', state: 'none',
+        requestId: null, friendshipId: null, friendsSince: null,
+      } }),
+      unfriend: jest.fn().mockResolvedValue(undefined),
+    };
     const repository = {
       register: jest.fn(async (input) => {
         if (users.some((user) => user.email === input.email)) {
@@ -116,6 +156,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AuthRepository).useValue(repository)
       .overrideProvider(UsersRepository).useValue(profileRepository)
+      .overrideProvider(FriendshipsRepository).useValue(friendshipsRepository)
       .overrideProvider(PasswordService).useValue(passwords)
       .overrideProvider(JwtService).useValue(jwt)
       .compile();
@@ -365,5 +406,128 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
 
     const own = await browser.get('/users/me/profile').expect(200);
     expect(own.body.profile).toMatchObject({ displayName: 'Tên mới', version: 1, bio: null });
+  });
+
+  it('protects Friendship routes and enforces no-store, CSRF, JSON, strict bodies and caller identity', async () => {
+    await request(app.getHttpServer()).get('/friendships')
+      .expect('Cache-Control', /no-store/)
+      .expect(401);
+    const anonymousMalformed = await request(app.getHttpServer()).post('/friendships/requests')
+      .set('Content-Type', 'application/json')
+      .send('{"recipientId":')
+      .expect(400);
+    expect(anonymousMalformed.headers['cache-control']).toContain('no-store');
+
+    const browser = request.agent(app.getHttpServer());
+    const bootstrap = await browser.get('/auth/csrf').expect(200);
+    const login = await browser.post('/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', bootstrap.body.csrfToken)
+      .send({ email: 'profile-security@example.test', password: 'a sufficiently long password' })
+      .expect(200);
+    const csrf = login.body.csrfToken as string;
+    const actorId = login.body.user.id as string;
+    const recipientId = '22222222-2222-4222-8222-222222222222';
+
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .send({ recipientId })
+      .expect('Cache-Control', /no-store/)
+      .expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('CSRF_FAILED'));
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .set('Content-Type', 'text/plain')
+      .send(`recipientId=${recipientId}`)
+      .expect('Cache-Control', /no-store/)
+      .expect(415);
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ recipientId, senderId: recipientId })
+      .expect(422)
+      .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+
+    const created = await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ recipientId })
+      .expect('Cache-Control', /no-store/)
+      .expect(201);
+    expect(created.body.request).toMatchObject({ senderId: actorId, recipientId, status: 'PENDING' });
+    expect(created.body.request.id).toMatch(/^[0-9a-f-]{36}$/iu);
+    expect(friendshipsRepository.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      senderId: actorId,
+      recipientId,
+      requestId: created.body.request.id,
+    }));
+
+    await browser.get('/friendships/requests?direction=received')
+      .expect('Cache-Control', /no-store/)
+      .expect(200, { items: [], pagination: { limit: 20, hasMore: false, nextCursor: null } });
+    await browser.get('/friendships/requests?direction=unknown').expect(422);
+    await browser.get('/friendships?limit=51').expect(422);
+    await browser.get('/friendships/status/not-a-uuid').expect(422);
+    const status = await browser.get('/friendships/status/22222222-2222-4222-8222-222222222222')
+      .expect('Cache-Control', /no-store/)
+      .expect(200);
+    expect(status.body.relationship).toMatchObject({ state: 'none' });
+
+    const actionId = '33333333-3333-4333-8333-333333333333';
+    for (const action of ['accept', 'reject', 'cancel']) {
+      await browser.post(`/friendships/requests/${actionId}/${action}`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', csrf)
+        .set('Content-Type', 'application/json')
+        .expect('Cache-Control', /no-store/)
+        .expect(422)
+        .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+    }
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .set('Content-Type', 'application/json')
+      .set('Transfer-Encoding', 'chunked')
+      .expect('Cache-Control', /no-store/)
+      .expect(422)
+      .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+    expect(friendshipsRepository.actOnRequest).not.toHaveBeenCalled();
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ unexpected: true })
+      .expect(422);
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect('Cache-Control', /no-store/)
+      .expect(200);
+    await browser.post(`/friendships/requests/${actionId}/reject`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect(200);
+    await browser.post(`/friendships/requests/${actionId}/cancel`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect(200);
+    expect(friendshipsRepository.actOnRequest.mock.calls.map(([input]) => input.action))
+      .toEqual(['accept', 'reject', 'cancel']);
+
+    const friendshipId = '44444444-4444-4444-8444-444444444444';
+    await browser.delete(`/friendships/${friendshipId}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .expect('Cache-Control', /no-store/)
+      .expect(204);
+    expect(friendshipsRepository.unfriend).toHaveBeenCalledWith(actorId, friendshipId);
+    await browser.delete(`/friendships/${friendshipId}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ body: true })
+      .expect(422);
   });
 });
