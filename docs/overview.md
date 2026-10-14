@@ -11,8 +11,9 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
 | Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, V1 foundation migration and `GET /ready` | Implemented and verified against both local databases; authentication V2 is verified on `isn-test` |
-| Browser-to-API health request through Vite `/api` development proxy | Implemented and verified |
+| Vite `/api` development proxy forwarding the API health contract | Implemented and verified independently of the public homepage |
 | Email/password registration, RS256-backed 24-hour Neo4j sessions, CSRF/origin defense, restoration and logout/revocation | Implemented and verified; event retention policy remains pending |
+| Weylume public homepage, authentication presentation and not-found screen | Implemented; social capabilities remain planned |
 | Profiles, posts, interactions, friendships, admin, account recovery | Planned; not implemented |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |

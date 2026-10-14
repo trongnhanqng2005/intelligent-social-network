@@ -23,7 +23,9 @@ body {
 }
 
 button,
-a {
+input,
+textarea,
+select {
   font: inherit;
 }
 
@@ -32,12 +34,35 @@ a {
 }
 
 a:focus-visible,
-button:focus-visible {
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
 
+.skip-focus-target:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+html { scroll-behavior: smooth; }
+
+body { min-width: 20rem; }
+
 ::selection {
   color: var(--color-surface);
-  background: var(--color-accent);
+  background: var(--color-accent-pressed);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

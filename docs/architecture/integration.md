@@ -10,24 +10,12 @@ Content-Type: application/json
 {"status":"ok"}
 ```
 
-The browser's public base path defaults to `/api`; Vite's **development server** forwards `/api/health` to the server-only `API_PROXY_TARGET` (default `http://127.0.0.1:3000`) after removing `/api`. The actual API route remains `/health`. Browser code must not receive the proxy target as a `VITE_*` variable.
+The browser auth base path defaults to `/api`; Vite's **development server** forwards `/api/health` to the server-only `API_PROXY_TARGET` (default `http://127.0.0.1:3000`) after removing `/api`. The actual API route remains `/health`. Browser code must not receive the proxy target as a `VITE_*` variable.
 
-```mermaid
-sequenceDiagram
-  participant UI as Home status hook
-  participant HTTP as Shared fetch client
-  participant Vite as Vite development proxy
-  participant API as NestJS
-  UI->>HTTP: checkApiHealth()
-  HTTP->>Vite: GET /api/health
-  Vite->>API: GET /health (prefix removed)
-  API-->>Vite: 200 {"status":"ok"}
-  Vite-->>HTTP: JSON response
-  HTTP-->>UI: unknown payload
-  UI->>UI: validate health contract; display state
-```
-
-The frontend checks status, parses JSON as unknown and validates the health response. The UI does not present a connected state until the response passes validation. A development proxy failure is actionable and retryable.
+The Weylume public homepage does not call `/health` or display service
+connectivity. The root API-through-Vite test validates the proxy boundary
+independently of the homepage; liveness/readiness endpoints remain backend
+operational contracts.
 
 ## Boundaries and future API
 

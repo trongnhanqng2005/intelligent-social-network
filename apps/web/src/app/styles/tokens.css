@@ -1,25 +1,75 @@
 :root {
   color-scheme: light;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    "Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
 
-  --color-canvas: #f4f5f2;
-  --color-surface: #ffffff;
-  --color-ink: #17211f;
-  --color-muted: #53615b;
-  --color-border: #d8dfda;
-  --color-accent: #1f684f;
-  --color-accent-soft: #eaf3ed;
-  --color-focus: #245bc7;
+  /* Primitive palette */
+  --color-teal-900: #134e4a;
+  --color-teal-800: #115e59;
+  --color-teal-700: #0f766e;
+  --color-teal-100: #ccfbf1;
+  --color-teal-50: #f0fdfa;
+  --color-neutral-950: #172b2a;
+  --color-neutral-700: #526461;
+  --color-neutral-500: #829590;
+  --color-neutral-300: #d8e2df;
+  --color-neutral-50: #fafaf7;
+  --color-white: #ffffff;
+  --color-red-800: #85251d;
+  --color-red-100: #f3c4bd;
+  --color-red-50: #fff4f1;
+  --color-green-800: #185c3c;
+  --color-green-100: #9cdbbc;
+  --color-green-50: #eef9f2;
+  --color-focus-ring: #164e8a;
 
-  --space-1: 0.5rem;
-  --space-2: 1rem;
-  --space-3: 1.5rem;
-  --space-4: 2rem;
-  --space-5: 3rem;
-  --space-6: 4.5rem;
+  /* Semantic color aliases */
+  --color-canvas: var(--color-neutral-50);
+  --color-surface: var(--color-white);
+  --color-ink: var(--color-neutral-950);
+  --color-muted: var(--color-neutral-700);
+  --color-border: var(--color-neutral-300);
+  --color-control-border: var(--color-neutral-500);
+  --color-accent: var(--color-teal-700);
+  --color-accent-hover: var(--color-teal-800);
+  --color-accent-pressed: var(--color-teal-900);
+  --color-accent-soft: var(--color-teal-50);
+  --color-focus: var(--color-focus-ring);
+  --color-error: var(--color-red-800);
+  --color-error-border: var(--color-red-100);
+  --color-error-surface: var(--color-red-50);
+  --color-success: var(--color-green-800);
+  --color-success-border: var(--color-green-100);
+  --color-success-surface: var(--color-green-50);
 
+  /* Spacing primitives: 4px base */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  --duration-fast: 100ms;
+  --duration-normal: 160ms;
+  --duration-enter: 220ms;
+  --radius-control: 0.625rem;
   --radius-card: 1rem;
-  --content-width: 70rem;
+  --radius-panel: 1.5rem;
+  --shadow-card: 0 1rem 3rem rgb(23 43 42 / 6%);
+  --content-width: 75rem;
+
+  /* Component tokens */
+  --button-primary-bg: var(--color-accent);
+  --button-primary-hover-bg: var(--color-accent-hover);
+  --button-primary-pressed-bg: var(--color-accent-pressed);
+  --button-primary-fg: var(--color-white);
+  --input-border: var(--color-control-border);
+  --input-focus-ring: var(--color-focus);
+  --card-bg: var(--color-surface);
+  --card-border: var(--color-border);
 }
