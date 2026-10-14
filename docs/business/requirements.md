@@ -16,7 +16,7 @@
 | User profile & discovery (USER) | View/edit display name and bio; browse/search members and view member-visible profiles | Authenticated display name, optional bio/location, privacy-safe member projection, and bounded directory/search implemented. Avatar upload is not implemented; UI uses local initials. |
 | Posts (POST) | Create/edit/delete/read posts and a simple feed | Not implemented |
 | Interaction (INT) | Like/unlike and comment on posts | Not implemented |
-| Friendships (FRIEND) | Send/cancel/accept/reject requests; list friends | Not implemented |
+| Friendships (FRIEND) | Send/list/accept/reject/cancel requests; list/unfriend friends; view caller-relative profile relationship | Implemented; corrected Step 6 real-Neo4j concurrency and browser acceptance passed, and restricted `isn-test` V4/baseline were freshly verified |
 | Recommendations (REC) | Show Top-K candidates and allow request initiation | Not implemented |
 | Activity (EVENT) | Record events such as logins, requests, posts and comments | Authentication events are recorded transactionally; other event families are not implemented and retention remains undecided |
 | Administration (ADMIN) | View aggregate statistics/alerts and mark reviewed | Not implemented |
@@ -26,10 +26,10 @@ Implemented HTTP contracts include process liveness/readiness, the authenticatio
 
 ## Core proposal rules
 
-- A user cannot friend themselves, create a duplicate pending request, or recreate an existing friendship.
+- Friendship rules: no self-friendship; one pending request or accepted relationship per unordered pair; duplicate same-direction and reverse pending requests conflict without auto-accept; re-request is allowed after reject/cancel/unfriend. See the [Friendship API contract](../api/friendships.md).
 - Only a post/comment owner or an administrator under an eventual authorization policy may edit/delete that content.
 - Recommendations and anomaly detections are probabilistic/derived data, not definitive relationship or misconduct evidence.
 - Anomaly review should not automatically lock an account; an administrator reviews an alert.
 - The proposal distinguishes simulated events from application-generated activity. Event records must not contain passwords or tokens; minimize sensitive identifying information.
 
-Authorization details, moderation policy, deletion/retention behavior, request conflict resolution, and account lifecycle remain unspecified and must be decided with the corresponding feature plan.
+Posts/feed authorization, moderation, account lifecycle, and production deployment remain to be decided in their own plans. Friendship's approved authorization, transition, privacy, and graph rules are documented in its feature contract; latest lifecycle state is not a complete Activity Events history.

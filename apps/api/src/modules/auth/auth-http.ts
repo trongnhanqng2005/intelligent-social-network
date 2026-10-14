@@ -7,7 +7,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { type NextFunction, type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AuthException } from './auth.errors.js';
@@ -21,12 +21,22 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     strictTransportSecurity: security.production ? undefined : false,
   }));
   app.use((request: Request, response: Response, next: NextFunction) => {
-    if (request.path === '/users' || request.path.startsWith('/users/')) {
+    if (request.path === '/users' || request.path.startsWith('/users/') ||
+        request.path === '/friendships' || request.path.startsWith('/friendships/')) {
       response.setHeader('Cache-Control', 'no-store');
     }
     next();
   });
-  app.useBodyParser('json', { limit: '8kb', strict: true });
+  app.use(express.json({
+    limit: '8kb',
+    strict: true,
+    verify: (request, _response, body) => {
+      const pathname = (request.url ?? '').split('?')[0] ?? '';
+      if (request.method === 'POST' && /^\/friendships\/requests\/[^/]+\/(?:accept|reject|cancel)$/u.test(pathname)) {
+        (request as Request & { friendshipRawBody?: Buffer }).friendshipRawBody = Buffer.from(body);
+      }
+    },
+  }));
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.parse.failed') {
       response.status(HttpStatus.BAD_REQUEST).json({
@@ -56,6 +66,13 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
       });
       return;
     }
+    if (request.method === 'POST' && request.path.startsWith('/friendships/requests') &&
+        !request.is('application/json')) {
+      response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
+        error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
+      });
+      return;
+    }
     if ((request.path === '/auth/register' || request.path === '/auth/login') &&
         !request.is('application/json')) {
       response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
@@ -78,7 +95,8 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     exceptionFactory: (errors) => {
       const fieldErrors: Record<string, string[]> = {};
       for (const error of errors) {
-        if (['email', 'password', 'displayName', 'bio', 'location', 'expectedVersion', 'id', 'q', 'limit', 'cursor'].includes(error.property)) {
+        if (['email', 'password', 'displayName', 'bio', 'location', 'expectedVersion', 'id', 'q', 'limit', 'cursor',
+          'recipientId', 'requestId', 'friendshipId', 'memberId', 'direction'].includes(error.property)) {
           fieldErrors[error.property] = Object.values(error.constraints ?? {});
         }
       }

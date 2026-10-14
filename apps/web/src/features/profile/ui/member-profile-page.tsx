@@ -6,6 +6,7 @@ import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
 import { getMemberProfile, UserApiError, type PublicProfile } from '../api/profile-api';
 import { ProfileAvatar } from './profile-avatar';
+import { FriendshipActions } from '../../friendships/ui/friendship-actions';
 
 export function MemberProfilePage() {
   const { id = '' } = useParams();
@@ -37,14 +38,11 @@ export function MemberProfilePage() {
   }, [id, retry, state]);
 
   if (state.status === 'authenticated' && id === state.session.user.id) return <Navigate to="/ho-so" replace />;
-  const from = typeof location.state === 'object' && location.state !== null && 'from' in location.state &&
-    typeof location.state.from === 'string' && location.state.from.startsWith('/kham-pha')
-    ? location.state.from
-    : '/kham-pha';
+  const from = safeReturnPath(location.state);
 
   return (
     <section className="profile-page" aria-labelledby="member-profile-title">
-      <Link className="member-profile-back" to={from}><ArrowLeft size={17} aria-hidden="true" /> Quay lại khám phá</Link>
+      <Link className="member-profile-back" to={from}><ArrowLeft size={17} aria-hidden="true" /> {from.startsWith('/ban-be') ? 'Quay lại danh sách' : 'Quay lại khám phá'}</Link>
       {loading && <p role="status">Đang tải hồ sơ thành viên…</p>}
       {notFound && <div className="profile-error-state"><h1 id="member-profile-title">Không tìm thấy hồ sơ</h1><Alert tone="info">Thành viên này không tồn tại hoặc hồ sơ không còn khả dụng.</Alert></div>}
       {error && <div className="profile-error-state"><h1 id="member-profile-title">Chưa thể tải hồ sơ</h1><Alert tone="error">Dịch vụ đang tạm thời không khả dụng.</Alert><Button variant="secondary" onClick={() => setRetry((value) => value + 1)}>Thử lại</Button></div>}
@@ -56,8 +54,24 @@ export function MemberProfilePage() {
             <div><dt>Giới thiệu</dt><dd>{profile.bio || 'Chưa có giới thiệu.'}</dd></div>
             <div><dt>Địa điểm</dt><dd>{profile.location ? <><MapPin size={15} aria-hidden="true" /> {profile.location}</> : 'Chưa thêm địa điểm.'}</dd></div>
           </dl>
+          <FriendshipActions memberId={profile.id} />
         </article>
       </>}
     </section>
   );
+}
+
+function safeReturnPath(state: unknown): string {
+  if (typeof state !== 'object' || state === null || !('from' in state) ||
+      typeof state.from !== 'string' || state.from.includes('\\')) return '/kham-pha';
+  try {
+    const destination = new URL(state.from, 'https://weylume.invalid');
+    if (destination.origin !== 'https://weylume.invalid' ||
+        !['/kham-pha', '/ban-be', '/ban-be/loi-moi'].includes(destination.pathname)) {
+      return '/kham-pha';
+    }
+    return `${destination.pathname}${destination.search}`;
+  } catch {
+    return '/kham-pha';
+  }
 }

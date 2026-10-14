@@ -1,8 +1,6 @@
 # Proposed use cases and business flows
 
-Friendship, recommendation, anomaly, content and interaction flows below are
-proposal-derived and unimplemented. The basic authenticated profile and member
-discovery subset is implemented; see the [User Profile & Discovery API](../api/user-profile-discovery.md).
+The authenticated profile/member-discovery subset is implemented; see the [User Profile & Discovery API](../api/user-profile-discovery.md). Friendship implementation, corrected Step 6 real-Neo4j concurrency tests and real-stack acceptance passed against restricted `isn-test`, with the original data baseline restored. Recommendation, anomaly, content and interaction remain planned.
 
 ## User profile & discovery (implemented subset)
 
@@ -11,16 +9,16 @@ discovery subset is implemented; see the [User Profile & Discovery API](../api/u
 2. An authenticated member browses/searches other members and opens a
    member-visible profile; the directory excludes the current member.
 
-Uploaded avatars and social-graph actions are not part of this implementation.
+Uploaded avatars are not implemented. Friendship actions are in the separate [Friendship API contract](../api/friendships.md).
 
 ## Friendship lifecycle
 
-1. User A requests friendship with B.
-2. System validates eligibility and records a pending directed request.
-3. B accepts or rejects; either user may cancel according to a policy still to be specified.
-4. Acceptance creates one logical mutual friendship and records a corresponding activity event.
+1. A member sends a request to another registered member; the authenticated session supplies the sender identity.
+2. Only recipient B accepts/rejects; only sender A cancels. Reverse pending requests conflict and are not automatically accepted.
+3. Acceptance creates exactly one canonical mutual friendship edge. Either participant can later unfriend.
+4. Reject, cancel and unfriend permit a new lifecycle with fresh identifiers.
 
-Required invariants in the proposal: no self-friendship, duplicate pending request, or duplicate existing friendship.
+The graph retains only the latest request lifecycle in `FriendshipPair`; it does not record a complete Activity Events history. See the feature contract for errors, privacy, pagination and concurrency.
 
 ## Friend recommendation
 

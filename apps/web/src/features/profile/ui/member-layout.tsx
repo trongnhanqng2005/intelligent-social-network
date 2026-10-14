@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Compass, LogOut, UserRound } from 'lucide-react';
+import { Compass, LogOut, UserRound, UsersRound } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../auth/model/auth-context';
 import { Alert } from '../../../shared/ui/alert';
@@ -53,6 +53,9 @@ export function MemberLayout({ children }: { children: ReactNode }) {
           </Link>
           <Link to="/kham-pha" aria-current={location.pathname.startsWith('/kham-pha') ? 'page' : undefined}>
             <Compass size={17} aria-hidden="true" /> Khám phá
+          </Link>
+          <Link to="/ban-be" aria-current={location.pathname === '/ban-be' || location.pathname.startsWith('/ban-be/') ? 'page' : undefined}>
+            <UsersRound size={17} aria-hidden="true" /> Bạn bè
           </Link>
         </nav>
         <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>

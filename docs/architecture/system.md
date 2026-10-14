@@ -2,7 +2,7 @@
 
 ## Implemented runtime
 
-The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, and `UsersModule`. `/health` is process liveness; `/ready` checks configured database identity and V3 migration/index readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication routes, protected profile/discovery routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
+The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, `UsersModule`, and `FriendshipsModule`. `/health` is process liveness; `/ready` checks configured database identity and V4 migration/catalog readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication routes, protected profile/discovery/friendship routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
 
 ```mermaid
 flowchart LR
@@ -16,6 +16,7 @@ flowchart LR
   Root --> HealthModule[HealthModule]
   Root --> AuthModule[AuthModule]
   Root --> UsersModule[UsersModule]
+  Root --> FriendshipsModule[FriendshipsModule]
   HealthModule --> Neo4jModule[Neo4jModule: driver + explicit DB sessions]
   AuthModule --> Neo4jModule
   Neo4jModule --> Neo4j[(Configured Neo4j database)]
@@ -31,11 +32,14 @@ flowchart LR
   UsersAPI --> AuthModule
   UsersAPI --> UsersRepo[UsersRepository: allowlisted projections + versioned writes]
   UsersRepo --> Neo4jModule
-  Router --> ProfileUI[Profile / Discovery UI]
-  ProfileUI -->|user requests| Vite
+  FriendshipsModule --> AuthModule
+  FriendshipsModule --> FriendshipRepo[FriendshipsRepository: locked pair lifecycle]
+  FriendshipRepo --> Neo4jModule
+  Router --> ProfileUI[Profile / Discovery / Friendship UI]
+  ProfileUI -->|feature requests| Vite
 ```
 
-This diagram covers implemented foundation, authentication, profile and discovery only; it is not a future-state social/data architecture. Friendship, posts/interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
+This diagram includes the Friendship implementation. Build records report V4 applied to both approved databases; resumed Step 6 gates verified current restricted `isn-test` V4 state, and corrected real graph concurrency plus interactive UI acceptance passed with the original test-data baseline restored. Posts/interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
 
 ## Dependency direction
 

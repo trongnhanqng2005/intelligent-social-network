@@ -78,6 +78,28 @@ export const migrationDefinitions = [
             user.profileUpdatedAt IS NULL OR user.profileVersion IS NULL OR user.profileVersion < 0
       RETURN count(user) AS invalidProfiles`,
   },
+  {
+    version: 4,
+    name: 'friendship-system',
+    statements: [
+      `CREATE CONSTRAINT isn_friendship_pair_key IF NOT EXISTS
+       FOR (pair:FriendshipPair) REQUIRE pair.pairKey IS UNIQUE`,
+      `CREATE CONSTRAINT isn_friendship_request_id IF NOT EXISTS
+       FOR (pair:FriendshipPair) REQUIRE pair.requestId IS UNIQUE`,
+      `CREATE CONSTRAINT isn_friendship_id IF NOT EXISTS
+       FOR ()-[friendship:FRIEND_WITH]-() REQUIRE friendship.id IS UNIQUE`,
+      `CREATE CONSTRAINT isn_friendship_edge_pair_key IF NOT EXISTS
+       FOR ()-[friendship:FRIEND_WITH]-() REQUIRE friendship.pairKey IS UNIQUE`,
+      `CREATE RANGE INDEX isn_friendship_requests_sent IF NOT EXISTS
+       FOR (pair:FriendshipPair) ON (pair.senderId, pair.requestStatus, pair.requestId)`,
+      `CREATE RANGE INDEX isn_friendship_requests_received IF NOT EXISTS
+       FOR (pair:FriendshipPair) ON (pair.recipientId, pair.requestStatus, pair.requestId)`,
+    ],
+    preflight: `
+      CALL { MATCH (pair:FriendshipPair) RETURN count(pair) AS pairs }
+      CALL { MATCH ()-[friendship:FRIEND_WITH]->() RETURN count(friendship) AS relationships }
+      RETURN pairs + relationships AS conflicts`,
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -112,6 +134,18 @@ const authenticationIndexes = [
 
 const profileIndexes = [
   { name: 'isn_user_display_name_search', type: 'TEXT', entityType: 'NODE', labelsOrTypes: ['User'], properties: ['displayNameSearch'] },
+] as const;
+
+const friendshipConstraints = [
+  { name: 'isn_friendship_pair_key', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['pairKey'] },
+  { name: 'isn_friendship_request_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['requestId'] },
+  { name: 'isn_friendship_id', type: 'RELATIONSHIP_PROPERTY_UNIQUENESS', entityType: 'RELATIONSHIP', labelsOrTypes: ['FRIEND_WITH'], properties: ['id'] },
+  { name: 'isn_friendship_edge_pair_key', type: 'RELATIONSHIP_PROPERTY_UNIQUENESS', entityType: 'RELATIONSHIP', labelsOrTypes: ['FRIEND_WITH'], properties: ['pairKey'] },
+] as const;
+
+const friendshipIndexes = [
+  { name: 'isn_friendship_requests_sent', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['senderId', 'requestStatus', 'requestId'] },
+  { name: 'isn_friendship_requests_received', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['recipientId', 'requestStatus', 'requestId'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -201,6 +235,26 @@ export class Neo4jMigrationService {
     }
     if (priorStatus.status === 'current') return priorStatus;
 
+    const recordedV4 = priorStatus.migrations.find((migration) => migration.version === 4);
+    if (recordedV4 && recordedV4.status !== 'VERIFIED') {
+      throw new Error('An interrupted V4 migration requires manual read-only inspection; no migration writes were made');
+    }
+    const verifiedV3 = priorStatus.version === 3 && priorStatus.migrations.length === 3 &&
+      migrationDefinitions.slice(0, 3).every((definition) => {
+        const record = priorStatus.migrations.find((migration) => migration.version === definition.version);
+        return record?.name === definition.name && record.checksum === checksumMigration(definition) &&
+          record.status === 'VERIFIED' && record.appliedAt !== null && record.verifiedAt !== null;
+      });
+    if (verifiedV3) {
+      const preflight = await this.neo4jService.executeRead((transaction) =>
+        transaction.run(migrationDefinitions[3].preflight!),
+      );
+      if (asNumber(preflight.records[0]?.get('conflicts')) !== 0) {
+        throw new Error('Friendship migration found existing friendship data that requires manual review; no V4 writes were made');
+      }
+      await this.preflightFriendshipSchema();
+    }
+
     for (const constraint of requiredConstraints) {
       await this.ensureConstraint(constraint);
     }
@@ -218,9 +272,16 @@ export class Neo4jMigrationService {
           transaction.run(migration.preflight!),
         );
         if (asNumber(preflight.records[0]?.get('conflicts')) !== 0) {
-          throw new Error('Profile migration found existing profile data that requires manual review; no V3 writes were made');
+          if (migration.version === 3) {
+            throw new Error('Profile migration found existing profile data that requires manual review; no V3 writes were made');
+          }
+          if (migration.version === 4) {
+            throw new Error('Friendship migration found existing friendship data that requires manual review; no V4 writes were made');
+          }
         }
       }
+
+      if (migration.version === 4) await this.preflightFriendshipSchema();
 
       if (migration.version === 3) {
         const usersWithoutId = await this.neo4jService.executeRead((transaction) =>
@@ -320,6 +381,25 @@ export class Neo4jMigrationService {
     });
   }
 
+  private async preflightFriendshipSchema(): Promise<void> {
+    const existing = await this.neo4jService.executeRead(async (transaction) => {
+      const constraints = await transaction.run(
+        'SHOW CONSTRAINTS YIELD name, entityType, labelsOrTypes RETURN name, entityType, labelsOrTypes',
+      );
+      const indexes = await transaction.run(
+        'SHOW INDEXES YIELD name, entityType, labelsOrTypes RETURN name, entityType, labelsOrTypes',
+      );
+      return [...constraints.records, ...indexes.records].filter((record) => {
+        const labelsOrTypes = record.get('labelsOrTypes');
+        return Array.isArray(labelsOrTypes) &&
+          labelsOrTypes.some((value) => value === 'FriendshipPair' || value === 'FRIEND_WITH');
+      }).map((record) => String(record.get('name')));
+    });
+    if (existing.length) {
+      throw new Error(`Unexpected Friendship schema objects exist (${existing.join(', ')}); no V4 writes were made`);
+    }
+  }
+
   private async findHistory(version: number): Promise<HistoryRecord | undefined> {
     return this.neo4jService.executeRead(async (transaction) => {
       const result = await transaction.run(
@@ -376,9 +456,16 @@ export class Neo4jMigrationService {
       verifiedAt: typeof record.get('verifiedAt') === 'string' ? record.get('verifiedAt') as string : null,
     }));
     const markerVersion = asNumber(marker.records[0]?.get('version'));
-    const expectedConstraints = markerVersion >= 2
+    const expectedConstraints: {
+      name: string;
+      type: string;
+      entityType: string;
+      labelsOrTypes: readonly string[];
+      properties: readonly string[];
+    }[] = markerVersion >= 2
       ? [...requiredConstraints, ...authenticationConstraints]
-      : markerVersion >= 1 ? requiredConstraints : [];
+      : markerVersion >= 1 ? [...requiredConstraints] : [];
+    if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);
@@ -391,6 +478,10 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const friendshipIndexesValid = markerVersion < 4 || friendshipIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const profileVerification = markerVersion < 3
       ? undefined
       : await transaction.run(migrationDefinitions[2].verification);
@@ -400,7 +491,7 @@ export class Neo4jMigrationService {
       database: identity.records[0]?.get('database'),
       markerVersion,
       history: historyRecords,
-      schemaValid: constraintsValid && indexesValid && profileIndexesValid && profilesValid,
+      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && profilesValid,
     };
   }
 

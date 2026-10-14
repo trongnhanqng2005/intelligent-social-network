@@ -9,11 +9,13 @@
 | API rule/provider behavior | `apps/api/src/**` | Jest; `npm run test:api` |
 | API HTTP contract | `apps/api/test/` | Jest + Supertest; `npm run test:api:e2e` |
 | React component, hook, route behavior | `apps/web/src/**` beside source | Vitest + RTL; `npm run test:web` |
-| Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*.test.mjs` (only when justified) | Node `node:test`; no separate root unit scenario currently |
+| Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*` (only when justified) | Node `node:test`; invoke focused file directly |
 | Real component/service boundary without a browser | `tests/integration/<boundary-or-feature>/*.test.mjs` | Node `node:test`; `npm run test:integration` |
 | Real Neo4j authentication/profile integration | `tests/integration/neo4j/*.test.mjs` | Node `node:test`; `npm run test:neo4j`, dedicated `isn-test` credentials required |
+| Real Neo4j Friendship integration and graph invariants | `tests/integration/neo4j/friendships.test.mjs` | Node `node:test`; `npm run test:neo4j:friendships`, current-V4 preflight plus exclusive restricted `isn-test` write window required |
 | Complete user/system flow in a real browser | `tests/e2e/specs/<feature-or-journey>.spec.ts` | Playwright Test; `npm run test:e2e` |
 | Real-stack profile/discovery browser acceptance | `tests/e2e/specs/user-profile-discovery.spec.ts` | Playwright Test; `npm run test:e2e:profile`, restricted `isn-test` required |
+| Real-stack Friendship browser acceptance | `tests/e2e/specs/friendship-system.spec.ts` | Playwright Test; `npm run test:e2e:friendships`, restricted `isn-test` and owned-fixture cleanup required |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
 
 Current root tests:
@@ -23,6 +25,8 @@ Current root tests:
 - `e2e/playwright.config.ts` and `e2e/specs/foundation.spec.ts`: real Chromium browser journeys across desktop and emulated mobile projects.
 - `e2e/auth.playwright.config.ts` and `e2e/specs/authentication.spec.ts`: real registration/session journeys against restricted `isn-test`; excluded from ordinary dummy-database browser QA.
 - `e2e/profile.playwright.config.ts` and `e2e/specs/user-profile-discovery.spec.ts`: UPD-01–08 real-stack browser acceptance against restricted `isn-test`; excluded from ordinary dummy-database browser QA. See the [acceptance record](e2e/user-profile-discovery-acceptance.md).
+- `integration/neo4j/friendships.test.mjs`, `integration/neo4j/friendship-acceptance-preflight.mjs`, and `fixtures/friendships/acceptance-support.cjs`: read-only current-V4 gate plus focused real-DB scenarios and exact ownership/recovery manifests. `tests/unit/friendship-acceptance-support.test.cjs` verifies manifests do not persist raw account/auth baseline records.
+- `e2e/friendship.playwright.config.ts` and `e2e/specs/friendship-system.spec.ts`: FS-00–FS-10 real-stack Friendship acceptance on dedicated ports 3311/5181; excluded from ordinary dummy-database browser QA. See the [acceptance record](e2e/friendship-system-acceptance.md).
 - `integration/neo4j/profile-readiness.test.mjs`: read-only UPD-00 identity/schema/data preflight; does not migrate or write fixtures.
 
 Use **unit** for isolated behavior, **integration** for a real boundary between components/services, and **E2E** for observable user/system behavior across the running application. A browser test is E2E, not an integration test. Do not create empty category directories or placeholder tests.
@@ -44,8 +48,13 @@ Use **unit** for isolated behavior, **integration** for a real boundary between 
 npm run test:integration       # HTTP boundary test
 npm run test:e2e               # Headless Playwright desktop + mobile suite
 npm run test:e2e:auth          # Real auth journey against restricted isn-test
-npm run test:neo4j:profile-preflight # Read-only restricted isn-test V3 readiness gate
+npm run test:neo4j:profile-preflight # Read-only restricted isn-test V4 readiness gate
+npm run test:neo4j:friendship-preflight # Preserved read-only V1-V3 pre-migration gate
 npm run test:e2e:profile       # Real-stack profile/discovery browser acceptance
+npm run test:neo4j:friendship-acceptance-preflight # Read-only current-V4 FS-00 gate
+npm run test:neo4j:friendships  # Focused real-DB writer; exclusive write window required
+npm run test:e2e:friendships    # Current-V4 preflight + real-stack browser acceptance
+node --test tests/unit/friendship-acceptance-support.test.cjs # Manifest-redaction unit check
 npm run test:e2e:headed        # Visible browser runs
 npm run test:e2e:ui             # Playwright UI mode
 npm run test:e2e:report         # Open the latest local HTML report
@@ -60,7 +69,7 @@ npm test                       # Existing app-local API and Web tests
 
 Install the browser once after dependency installation with `npx playwright install chromium`. The pinned Playwright version selects its required browser revision. The test configuration starts the API and Vite frontend on dedicated loopback ports; no pre-running app is needed. Only desktop/mobile Chromium is configured initially. Other browser engines are not verified.
 
-The profile acceptance command loads ignored `apps/api/.env.test.local`, verifies the effective restricted `isn-test` configuration, and owns/cleans its synthetic fixtures. Run the read-only `npm run test:neo4j:profile-preflight` before separately authorized database writes. Do not substitute `npm run test:neo4j` on a live acceptance database: its schema scenario invokes the migration runner and preserves migration-writing/idempotency coverage. See the [scenario acceptance record](e2e/user-profile-discovery-acceptance.md).
+The profile and Friendship acceptance commands load ignored `apps/api/.env.test.local`, verify the restricted `isn-test` configuration, and own/clean their synthetic fixtures. Friendship requires the read-only current-V4 `npm run test:neo4j:friendship-acceptance-preflight` before any writer and a separately verified exclusive write window. Do not substitute `npm run test:neo4j` on a live acceptance database: its schema scenario invokes the migration runner and preserves migration-writing/idempotency coverage. See the [profile](e2e/user-profile-discovery-acceptance.md) and [Friendship](e2e/friendship-system-acceptance.md) scenario records.
 
 ## Adding/updating QA in a feature task
 
