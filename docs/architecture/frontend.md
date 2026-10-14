@@ -4,23 +4,44 @@
 
 ```text
 apps/web/src/
-├── main.tsx                 # React StrictMode bootstrap
-├── app/                     # App, single BrowserRouter, routes, global styles
+├── main.tsx                 # React StrictMode bootstrap and CSS entry points
+├── app/                     # App, single BrowserRouter, routes and design tokens
 ├── features/
-│   └── auth/                 # Auth API, session context, Vietnamese account UI and tests
+│   └── auth/                 # Auth API, session state, Vietnamese account UI/tests
 ├── pages/
-│   ├── home/                 # Community home, API status and health state hook
+│   ├── home/                 # Weylume public homepage and responsive presentation
 │   └── not-found/            # Unknown-route screen
-├── shared/
-│   ├── api/                  # Fetch-based JSON transport and typed failures
-│   └── config/               # Public API base URL resolution
-└── test/                    # Vitest DOM setup
+└── shared/
+    ├── api/                  # Fetch-based JSON transport and typed failures
+    ├── brand/                # Weylume mark and lockup
+    ├── config/               # Public API base URL resolution
+    └── ui/                   # Shared presentation primitives and CSS
 ```
 
-`App` owns one `BrowserRouter`; `AppRoutes` maps `/`, `/dang-nhap`, and `/dang-ky`, with unknown paths to not-found. The auth feature owns auth API request/response validation, loading/anonymous/authenticated/unavailable state, session expiry and cross-tab notifications. The home view combines community copy with the independent `/health` status card. The shared health transport returns untrusted response JSON as `unknown`; the health page validates `{ status: "ok" }` at runtime. Authentication keeps JWTs in HttpOnly cookies and handles signed CSRF tokens in memory only.
+`App` owns one `BrowserRouter`; `AppRoutes` maps `/`, `/dang-nhap`, and
+`/dang-ky`, with unknown paths to not-found. The auth feature owns request and
+response validation, loading/anonymous/authenticated/unavailable session states,
+expiry and cross-tab notifications. Authentication keeps JWTs in HttpOnly
+cookies and handles signed CSRF tokens in memory only.
 
-The app uses React 19, TypeScript, Vite, React Router 7 and `lucide-react`. Vitest/RTL tests live beside app source. No entity layer or general state library is present.
+The Weylume homepage is a public product introduction and does not call `/health`
+to render connectivity status. API liveness/readiness and the Vite proxy remain
+independent backend/development contracts. See [integration](integration.md).
+
+The app uses React 19, TypeScript, Vite, React Router 7, `lucide-react`, plain CSS
+and the shared design primitives. `apps/web/src/app/styles/tokens.css` is the
+single runtime source for primitive, semantic and component design tokens.
+Vitest/RTL tests live beside app source. No entity layer, general state library,
+CSS framework or component framework is present.
 
 ## Boundary guidance
 
-Keep route composition in `app/`, route-level screens in `pages/`, genuinely shared infrastructure in `shared/`, and avoid importing backend source. A feature/entity split, state library, component library and production API origin are not present or approved by this foundation.
+Keep route composition in `app/`, route-level screens in `pages/`, feature
+behavior in its owning `features/` module, genuinely shared presentation in
+`shared/ui/`, brand assets/components in `shared/brand/`, and infrastructure in
+`shared/api/` and `shared/config/`. Shared UI must not import authentication
+services or state. Do not import backend source into the browser.
+
+Future Profile, Friends, Feed and Recommendation tasks should reuse the documented
+[Weylume design system](../design/frontend-design-system.md), without treating
+those planned capabilities as implemented.

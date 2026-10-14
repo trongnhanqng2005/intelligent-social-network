@@ -34,8 +34,8 @@ export default defineConfig({
     headless: true,
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
-    screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    screenshot: 'off',
+    trace: 'off',
   },
   projects: [
     { name: 'auth-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } } },
