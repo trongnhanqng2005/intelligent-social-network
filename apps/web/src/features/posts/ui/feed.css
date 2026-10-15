@@ -1,0 +1,21 @@
+.feed-page { max-width: 760px; margin: 0 auto; }
+.feed-heading { margin-bottom: 1.5rem; }
+.feed-composer, .feed-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #d9e2df); border-radius: 1rem; padding: 1.25rem; }
+.feed-composer { display: grid; gap: .75rem; margin-bottom: 1.25rem; }
+.feed-composer label { font-weight: 700; }
+.feed-composer textarea { min-height: 110px; resize: vertical; border: 1px solid #b9cbc6; border-radius: .65rem; padding: .75rem; font: inherit; }
+.feed-composer__actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; color: #63736f; font-size: .85rem; }
+.feed-list { display: grid; gap: 1rem; }
+.feed-card header { display: flex; justify-content: space-between; gap: 1rem; }
+.feed-card header > div:first-child { display: grid; gap: .2rem; }
+.feed-card header a { color: inherit; font-weight: 700; }
+.feed-card time, .feed-card small { color: #63736f; font-size: .8rem; }
+.feed-card p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.feed-card__actions { display: flex; gap: .25rem; }
+.feed-card__interactions { display: flex; flex-wrap: wrap; gap: .25rem; border-top: 1px solid #e5ecea; padding-top: .6rem; }
+.feed-comments { display: grid; gap: .6rem; margin-top: .8rem; }
+.feed-comment { display: flex; align-items: center; gap: .6rem; background: #f5f8f7; border-radius: .5rem; padding: .55rem .7rem; }
+.feed-comment span { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feed-comment-form { display: flex; gap: .5rem; }
+.feed-comment-form input { flex: 1; min-width: 0; border: 1px solid #b9cbc6; border-radius: .5rem; padding: .6rem; font: inherit; }
+.feed-empty { padding: 2rem 0; text-align: center; }

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Compass, LogOut, UserRound, UsersRound } from 'lucide-react';
+import { Compass, FileText, LogOut, UserRound, UsersRound } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../auth/model/auth-context';
 import { Alert } from '../../../shared/ui/alert';
@@ -48,6 +48,9 @@ export function MemberLayout({ children }: { children: ReactNode }) {
       <header className="member-header">
         <BrandLockup />
         <nav className="member-nav" aria-label="Điều hướng thành viên">
+          <Link to="/bang-tin" aria-current={location.pathname === '/bang-tin' ? 'page' : undefined}>
+            <FileText size={17} aria-hidden="true" /> Bảng tin
+          </Link>
           <Link to="/ho-so" aria-current={location.pathname === '/ho-so' ? 'page' : undefined}>
             <UserRound size={17} aria-hidden="true" /> Hồ sơ của tôi
           </Link>
