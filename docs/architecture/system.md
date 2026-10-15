@@ -2,7 +2,7 @@
 
 ## Implemented runtime
 
-The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, `UsersModule`, and `FriendshipsModule`. `/health` is process liveness; `/ready` checks configured database identity and V4 migration/catalog readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication routes, protected profile/discovery/friendship routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
+The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, `UsersModule`, `FriendshipsModule`, and `PostsModule`. `/health` is process liveness; `/ready` checks configured database identity and V5 migration/catalog readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication, profile/discovery, friendship and feed routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
 
 ```mermaid
 flowchart LR
@@ -39,7 +39,7 @@ flowchart LR
   ProfileUI -->|feature requests| Vite
 ```
 
-This diagram includes the Friendship implementation. Build records report V4 applied to both approved databases; resumed Step 6 gates verified current restricted `isn-test` V4 state, and corrected real graph concurrency plus interactive UI acceptance passed with the original test-data baseline restored. Posts/interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
+This diagram includes the Friendship and Posts/feed interaction implementations. Media, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
 
 ## Dependency direction
 

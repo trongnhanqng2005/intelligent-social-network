@@ -15,7 +15,7 @@ The dedicated role is limited to `isn-test`: `ACCESS`, explicit `DENY ACCESS` on
 
 ## Explicit schema migrations
 
-Migrations are defined in `apps/api/src/neo4j/neo4j-migrations.ts` as an ordered, versioned list. `V1 foundation-schema-marker` establishes uniqueness constraints for schema metadata/history. `V2 authentication-schema` adds unique user/session/event constraints and auth indexes. `V3 user-profile-discovery` safely initializes existing users and adds the TEXT index on `User.displayNameSearch`. `V4 friendship-system` adds unique canonical pair/request IDs, unique `FRIEND_WITH` relationship ID/pair key, and composite sent/received request indexes. V1–V3 definitions/checksums remain immutable; Friendship owns V4. No Post migration is authorized here.
+Migrations are defined in `apps/api/src/neo4j/neo4j-migrations.ts` as an ordered, versioned list. `V1 foundation-schema-marker` establishes uniqueness constraints for schema metadata/history. `V2 authentication-schema` adds unique user/session/event constraints and auth indexes. `V3 user-profile-discovery` safely initializes existing users and adds the TEXT index on `User.displayNameSearch`. `V4 friendship-system` adds unique canonical pair/request IDs, unique `FRIEND_WITH` relationship ID/pair key, and composite sent/received request indexes. `V5 posts-feed` adds the unique Post ID constraint and chronological/author feed indexes. `V6 post-interactions` adds unique comment IDs, relationship IDs for `LIKED` and `SHARED`, and a comment post/time index. V1–V5 definitions/checksums remain immutable; Posts owns V6.
 
 Neo4j constraint/index DDL is run as explicit schema statements, outside the graph transaction that updates migration metadata. The runner therefore:
 

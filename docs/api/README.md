@@ -2,7 +2,8 @@
 
 This directory documents HTTP behavior implemented by the NestJS API. The
 contract covers liveness/readiness, Authentication, User Profile & Discovery,
-and the Friendship System source contract. Build records report V4 applied to
+the Friendship System, and the Posts/feed interaction increment. The current
+application schema is V6; migration evidence is environment-specific.
 both approved databases; resumed Step 6 gates and real-stack tests verified the
 restricted `isn-test` V4 state and restored its baseline. See the Friendship
 acceptance and database-operation records for scope and evidence.
@@ -15,6 +16,8 @@ acceptance and database-operation records for scope and evidence.
   edits, search and cursor pagination.
 - [Friendships](friendships.md) — request state machine, private lists,
   canonical graph and authenticated API behavior.
+- [Posts and feed](posts.md) — authenticated text posts, friendship feed
+  pagination, likes, comments, and shares.
 - [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness,
   Authentication, User, and Friendship routes.
 

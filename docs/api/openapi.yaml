@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Intelligent Social Network API
   version: 0.1.0
-  description: Implemented liveness, readiness, browser authentication, authenticated user profile/discovery, and Friendship contracts. Build records report V4 applied to both approved databases; Step 6 freshly verified the restricted isn-test database and real-stack Friendship acceptance.
+  description: Implemented liveness, readiness, browser authentication, authenticated user profile/discovery, Friendship, and Posts/feed interaction contracts. The application schema is V6.
 servers:
   - url: http://127.0.0.1:3000
     description: Local API; the Vite development proxy adds and strips /api.
@@ -11,6 +11,7 @@ tags:
   - name: Authentication
   - name: Users
   - name: Friendships
+  - name: Posts
 paths:
   /health:
     get:
@@ -595,6 +596,95 @@ paths:
               schema: { type: string }
         '403': { $ref: '#/components/responses/CsrfFailed' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /posts/{id}/like:
+    post:
+      tags: [Posts]
+      operationId: likePost
+      summary: Like a visible post
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '201': { description: Like is active., content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } }
+        '403': { $ref: '#/components/responses/CsrfFailed' }
+    delete:
+      tags: [Posts]
+      operationId: unlikePost
+      summary: Remove the caller's like
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200': { description: Like is inactive., content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } }
+  /posts/{id}/share:
+    post:
+      tags: [Posts]
+      operationId: sharePost
+      summary: Share a visible post
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '201': { description: Share is active., content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } }
+    delete:
+      tags: [Posts]
+      operationId: unsharePost
+      summary: Remove the caller's share
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200': { description: Share is inactive., content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } }
+  /posts/{id}/comments:
+    get:
+      tags: [Posts]
+      operationId: listPostComments
+      summary: List comments on a visible post
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Comments in creation order., content: { application/json: { schema: { $ref: '#/components/schemas/CommentList' } } } }
+    post:
+      tags: [Posts]
+      operationId: createPostComment
+      summary: Add a comment to a visible post
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties: { content: { type: string, minLength: 1, maxLength: 1000 } }
+      responses:
+        '201': { description: Comment created., content: { application/json: { schema: { type: object, required: [comment], properties: { comment: { $ref: '#/components/schemas/Comment' } } } } } }
+  /posts/{id}/comments/{commentId}:
+    delete:
+      tags: [Posts]
+      operationId: deletePostComment
+      summary: Delete the caller's comment
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204': { description: Comment deleted. }
 components:
   securitySchemes:
     csrfToken:
@@ -629,6 +719,29 @@ components:
       description: Response must not be stored by caches.
       schema: { type: string, const: no-store }
   schemas:
+    InteractionState:
+      type: object
+      additionalProperties: false
+      required: [active]
+      properties:
+        active: { type: boolean }
+    Comment:
+      type: object
+      additionalProperties: false
+      required: [id, postId, content, createdAt, updatedAt, author, mine]
+      properties:
+        id: { type: string, format: uuid }
+        postId: { type: string, format: uuid }
+        content: { type: string, minLength: 1, maxLength: 1000 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        author: { type: object, required: [id, displayName], properties: { id: { type: string, format: uuid }, displayName: { type: string } } }
+        mine: { type: boolean }
+    CommentList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Comment' } }
     Credentials:
       type: object
       additionalProperties: false

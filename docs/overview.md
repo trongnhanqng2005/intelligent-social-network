@@ -16,7 +16,7 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
 | Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented and verified |
 | Friendship request/friend lifecycle API and Vietnamese UI | Implemented; corrected real-Neo4j lifecycle/concurrency suite and real-stack browser acceptance passed during Step 6; exact `isn-test` baseline restored |
-| Posts, interactions, recommendations, admin, account recovery | Planned; not implemented |
+| Text posts, chronological friendship feed, likes, comments and shares | Implemented for the author and accepted friends; media, recommendations, moderation and account recovery remain planned |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 

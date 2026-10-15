@@ -37,7 +37,11 @@ records report V4 applied to both approved databases; resumed Step 6 gates and
 real-stack tests verified the restricted `isn-test` V4 state and restored its
 baseline. See
 [Friendships](../api/friendships.md).
-Posts, interactions and recommendations remain unimplemented. Do not use the
+The authenticated browser calls `/api/posts/feed` for the chronological feed
+and `/api/posts` for text-post creation. Like, comment, and share routes use the same
+development proxy and CSRF/origin protection. The feed includes the caller and
+accepted friends; it does not include pending-request members. Media and
+recommendations remain unimplemented. Do not use the
 health endpoint as a business API template beyond its deliberately minimal
 contract.
 

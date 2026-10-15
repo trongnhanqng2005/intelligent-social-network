@@ -14,8 +14,8 @@
 |---|---|---|
 | Authentication (AUTH) | Register, sign in/out, validate session/JWT | Email/password registration, login, 24-hour Neo4j-backed browser session, CSRF defense and logout/revocation implemented; account recovery remains unimplemented |
 | User profile & discovery (USER) | View/edit display name and bio; browse/search members and view member-visible profiles | Authenticated display name, optional bio/location, privacy-safe member projection, and bounded directory/search implemented. Avatar upload is not implemented; UI uses local initials. |
-| Posts (POST) | Create/edit/delete/read posts and a simple feed | Not implemented |
-| Interaction (INT) | Like/unlike and comment on posts | Not implemented |
+| Posts (POST) | Create/edit/delete/read text posts and a member feed | Implemented: authenticated text posts, author-only edit/delete, friendship feed and cursor pagination |
+| Interaction (INT) | Like/unlike, comment on, and share visible posts | Implemented for the author and accepted friends; comments are author-deletable and interactions are idempotent |
 | Friendships (FRIEND) | Send/list/accept/reject/cancel requests; list/unfriend friends; view caller-relative profile relationship | Implemented; corrected Step 6 real-Neo4j concurrency and browser acceptance passed, and restricted `isn-test` V4/baseline were freshly verified |
 | Recommendations (REC) | Show Top-K candidates and allow request initiation | Not implemented |
 | Activity (EVENT) | Record events such as logins, requests, posts and comments | Authentication events are recorded transactionally; other event families are not implemented and retention remains undecided |
@@ -23,6 +23,9 @@
 | Data processing (PIPE) | Ingest, clean, aggregate features, update batch predictions | Not implemented |
 
 Implemented HTTP contracts include process liveness/readiness, the authentication foundation and authenticated User Profile & Discovery; see [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Other proposal capabilities remain planned.
+
+The Posts increment contains a text feed and basic friend-only interactions.
+Media uploads, ranking and moderation are separate planned increments.
 
 ## Core proposal rules
 
