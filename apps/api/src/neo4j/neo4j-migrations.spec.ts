@@ -46,8 +46,8 @@ describe('Neo4jMigrationService', () => {
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
   });
 
-  it('preserves V1–V3 checksums and appends friendship migration as V4', () => {
-    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4]);
+  it('preserves V1–V5 checksums and appends interaction migration as V6', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(checksumMigration(migrationDefinitions[0])).toBe(
       'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
     );
@@ -62,6 +62,10 @@ describe('Neo4jMigrationService', () => {
     expect(migrationDefinitions[3].statements[0]).toContain('isn_friendship_pair_key');
     expect(migrationDefinitions[3].statements[2]).toContain('FRIEND_WITH');
     expect(migrationDefinitions[3].preflight).toContain('FriendshipPair');
+    expect(migrationDefinitions[4].name).toBe('posts-feed');
+    expect(migrationDefinitions[4].statements).toHaveLength(3);
+    expect(migrationDefinitions[5].name).toBe('post-interactions');
+    expect(migrationDefinitions[5].statements).toHaveLength(4);
     expect(checksumMigration({
       ...migrationDefinitions[2],
       dataStatements: ['RETURN 1'],

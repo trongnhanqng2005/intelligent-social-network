@@ -100,6 +100,32 @@ export const migrationDefinitions = [
       CALL { MATCH ()-[friendship:FRIEND_WITH]->() RETURN count(friendship) AS relationships }
       RETURN pairs + relationships AS conflicts`,
   },
+  {
+    version: 5,
+    name: 'posts-feed',
+    statements: [
+      `CREATE CONSTRAINT isn_post_id IF NOT EXISTS
+       FOR (post:Post) REQUIRE post.id IS UNIQUE`,
+      `CREATE RANGE INDEX isn_post_created_at IF NOT EXISTS
+       FOR (post:Post) ON (post.createdAt)`,
+      `CREATE RANGE INDEX isn_post_author_created_at IF NOT EXISTS
+       FOR (post:Post) ON (post.authorId, post.createdAt)`,
+    ],
+  },
+  {
+    version: 6,
+    name: 'post-interactions',
+    statements: [
+      `CREATE CONSTRAINT isn_comment_id IF NOT EXISTS
+       FOR (comment:Comment) REQUIRE comment.id IS UNIQUE`,
+      `CREATE CONSTRAINT isn_like_id IF NOT EXISTS
+       FOR ()-[like:LIKED]-() REQUIRE like.id IS UNIQUE`,
+      `CREATE CONSTRAINT isn_share_id IF NOT EXISTS
+       FOR ()-[share:SHARED]-() REQUIRE share.id IS UNIQUE`,
+      `CREATE RANGE INDEX isn_comment_post_created_at IF NOT EXISTS
+       FOR (comment:Comment) ON (comment.postId, comment.createdAt)`,
+    ],
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -146,6 +172,25 @@ const friendshipConstraints = [
 const friendshipIndexes = [
   { name: 'isn_friendship_requests_sent', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['senderId', 'requestStatus', 'requestId'] },
   { name: 'isn_friendship_requests_received', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['recipientId', 'requestStatus', 'requestId'] },
+] as const;
+
+const postConstraints = [
+  { name: 'isn_post_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['id'] },
+] as const;
+
+const postIndexes = [
+  { name: 'isn_post_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['createdAt'] },
+  { name: 'isn_post_author_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['authorId', 'createdAt'] },
+] as const;
+
+const interactionConstraints = [
+  { name: 'isn_comment_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['id'] },
+  { name: 'isn_like_id', type: 'RELATIONSHIP_PROPERTY_UNIQUENESS', entityType: 'RELATIONSHIP', labelsOrTypes: ['LIKED'], properties: ['id'] },
+  { name: 'isn_share_id', type: 'RELATIONSHIP_PROPERTY_UNIQUENESS', entityType: 'RELATIONSHIP', labelsOrTypes: ['SHARED'], properties: ['id'] },
+] as const;
+
+const interactionIndexes = [
+  { name: 'isn_comment_post_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['postId', 'createdAt'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -466,6 +511,8 @@ export class Neo4jMigrationService {
       ? [...requiredConstraints, ...authenticationConstraints]
       : markerVersion >= 1 ? [...requiredConstraints] : [];
     if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
+    if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
+    if (markerVersion >= 6) expectedConstraints.push(...interactionConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);
@@ -482,6 +529,14 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const postIndexesValid = markerVersion < 5 || postIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
+    const interactionIndexesValid = markerVersion < 6 || interactionIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const profileVerification = markerVersion < 3
       ? undefined
       : await transaction.run(migrationDefinitions[2].verification);
@@ -491,7 +546,7 @@ export class Neo4jMigrationService {
       database: identity.records[0]?.get('database'),
       markerVersion,
       history: historyRecords,
-      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && profilesValid,
+      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && postIndexesValid && interactionIndexesValid && profilesValid,
     };
   }
 
