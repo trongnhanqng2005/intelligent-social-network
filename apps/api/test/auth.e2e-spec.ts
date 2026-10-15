@@ -12,6 +12,7 @@ import { createDefaultProfile, normalizeSearchKey } from '../src/domain/user-pro
 import { UsersRepository } from '../src/modules/users/users.repository.js';
 import type { OwnProfile, ProfileUpdate } from '../src/modules/users/users.types.js';
 import { FriendshipsRepository } from '../src/modules/friendships/friendships.repository.js';
+import { PostsRepository } from '../src/modules/posts/posts.repository.js';
 
 const origin = 'http://127.0.0.1:3000';
 
@@ -27,6 +28,14 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     listFriends: jest.Mock;
     getRelationship: jest.Mock;
     unfriend: jest.Mock;
+  };
+  let postsRepository: {
+    create: jest.Mock;
+    findVisible: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+    listProfile: jest.Mock;
+    listFeed: jest.Mock;
   };
   let tokens = new Map<string, { sub: string; jti: string; iat: number; exp: number }>;
 
@@ -65,6 +74,14 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
         requestId: null, friendshipId: null, friendsSince: null,
       } }),
       unfriend: jest.fn().mockResolvedValue(undefined),
+    };
+    postsRepository = {
+      create: jest.fn(),
+      findVisible: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      listProfile: jest.fn(),
+      listFeed: jest.fn().mockResolvedValue([]),
     };
     const repository = {
       register: jest.fn(async (input) => {
@@ -157,6 +174,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       .overrideProvider(AuthRepository).useValue(repository)
       .overrideProvider(UsersRepository).useValue(profileRepository)
       .overrideProvider(FriendshipsRepository).useValue(friendshipsRepository)
+      .overrideProvider(PostsRepository).useValue(postsRepository)
       .overrideProvider(PasswordService).useValue(passwords)
       .overrideProvider(JwtService).useValue(jwt)
       .compile();
@@ -186,6 +204,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       .set('Content-Type', 'application/json')
       .send({ email: 'large@example.test', password: 'x'.repeat(9000) })
       .expect(413)
+      .expect(({ headers }) => expect(headers['cache-control']).toContain('no-store'))
       .expect(({ body }) => expect(body.error.code).toBe('PAYLOAD_TOO_LARGE'));
   });
 
@@ -406,6 +425,65 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
 
     const own = await browser.get('/users/me/profile').expect(200);
     expect(own.body.profile).toMatchObject({ displayName: 'Tên mới', version: 1, bio: null });
+  });
+
+  it('requires a session for Feed and gives Post JSON writes a 32 KiB cap without changing the 8 KiB cap elsewhere', async () => {
+    const anonymous = await request(app.getHttpServer()).get('/feed').expect(401);
+    expect(anonymous.headers['cache-control']).toContain('no-store');
+    expect(anonymous.body.error.code).toBe('UNAUTHENTICATED');
+
+    const browser = request.agent(app.getHttpServer());
+    const bootstrap = await browser.get('/auth/csrf').expect(200);
+    const login = await browser.post('/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', bootstrap.body.csrfToken)
+      .send({ email: 'profile-security@example.test', password: 'a sufficiently long password' })
+      .expect(200);
+
+    for (const code of ['ServiceUnavailable', 'SessionExpired']) {
+      postsRepository.findVisible.mockRejectedValueOnce(Object.assign(new Error('private Neo4j details'), { code }));
+      const unavailable = await browser.get('/posts/22222222-2222-4222-8222-222222222222').expect(503);
+      expect(unavailable.body.error).toEqual({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại.',
+      });
+      expect(JSON.stringify(unavailable.body)).not.toContain('private Neo4j details');
+    }
+
+    const acceptedByParser = await browser.post('/posts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'application/json')
+      .send({ content: 'x'.repeat(9000) })
+      .expect(422);
+    expect(acceptedByParser.headers['cache-control']).toContain('no-store');
+    expect(acceptedByParser.body.error.code).toBe('VALIDATION_ERROR');
+    expect(postsRepository.create).not.toHaveBeenCalled();
+
+    const wrongContentType = await browser.patch('/posts/22222222-2222-4222-8222-222222222222')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'text/plain')
+      .send('not JSON')
+      .expect(415);
+    expect(wrongContentType.headers['cache-control']).toContain('no-store');
+
+    const deleteBody = await browser.delete('/posts/22222222-2222-4222-8222-222222222222?expectedVersion=0')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .send({ content: 'body is not allowed' })
+      .expect(422);
+    expect(deleteBody.headers['cache-control']).toContain('no-store');
+    expect(postsRepository.delete).not.toHaveBeenCalled();
+
+    const tooLarge = await browser.post('/posts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'application/json')
+      .send({ content: 'x'.repeat(33_000) })
+      .expect(413);
+    expect(tooLarge.headers['cache-control']).toContain('no-store');
+    expect(tooLarge.body.error.code).toBe('PAYLOAD_TOO_LARGE');
   });
 
   it('protects Friendship routes and enforces no-store, CSRF, JSON, strict bodies and caller identity', async () => {

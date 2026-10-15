@@ -4,6 +4,7 @@ import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
 import { getOwnProfile, updateOwnProfile, UserApiError, type OwnProfile } from '../api/profile-api';
 import { ProfileAvatar } from './profile-avatar';
+import { ProfilePosts } from '../../posts/ui/profile-posts';
 
 type Draft = { displayName: string; bio: string; location: string };
 
@@ -179,6 +180,7 @@ export function ProfilePage() {
           </>
         )}
       </article>
+      <ProfilePosts memberId={profile.id} />
     </section>
   );
 }

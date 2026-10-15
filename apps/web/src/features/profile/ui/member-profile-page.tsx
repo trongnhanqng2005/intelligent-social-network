@@ -7,6 +7,7 @@ import { Button } from '../../../shared/ui/button';
 import { getMemberProfile, UserApiError, type PublicProfile } from '../api/profile-api';
 import { ProfileAvatar } from './profile-avatar';
 import { FriendshipActions } from '../../friendships/ui/friendship-actions';
+import { ProfilePosts } from '../../posts/ui/profile-posts';
 
 export function MemberProfilePage() {
   const { id = '' } = useParams();
@@ -17,6 +18,7 @@ export function MemberProfilePage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [relationshipRevision, setRelationshipRevision] = useState(0);
 
   useEffect(() => {
     if (!id || (state.status === 'authenticated' && state.session.user.id === id)) return;
@@ -54,8 +56,9 @@ export function MemberProfilePage() {
             <div><dt>Giới thiệu</dt><dd>{profile.bio || 'Chưa có giới thiệu.'}</dd></div>
             <div><dt>Địa điểm</dt><dd>{profile.location ? <><MapPin size={15} aria-hidden="true" /> {profile.location}</> : 'Chưa thêm địa điểm.'}</dd></div>
           </dl>
-          <FriendshipActions memberId={profile.id} />
+          <FriendshipActions memberId={profile.id} onRelationshipChanged={() => setRelationshipRevision((value) => value + 1)} />
         </article>
+        <ProfilePosts memberId={profile.id} refreshKey={relationshipRevision} />
       </>}
     </section>
   );

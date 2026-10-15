@@ -1,6 +1,6 @@
 # Proposed use cases and business flows
 
-The authenticated profile/member-discovery subset is implemented; see the [User Profile & Discovery API](../api/user-profile-discovery.md). Friendship implementation, corrected Step 6 real-Neo4j concurrency tests and real-stack acceptance passed against restricted `isn-test`, with the original data baseline restored. Recommendation, anomaly, content and interaction remain planned.
+The authenticated profile/member-discovery subset and Friendship implementation are verified as recorded below. Posts & Feed is implemented, and V5 plus focused real-database behavior were verified on restricted `isn-test` under separate Owner authorization; broader Scenario Testing remains separate. Recommendation, anomaly detection, likes and comments remain planned.
 
 ## User profile & discovery (implemented subset)
 
@@ -40,4 +40,11 @@ The model is decision support only: no automatic account lock. Alert thresholds,
 
 ## Content and interaction
 
-Users are expected to create and view posts, edit/delete their own posts, like/unlike and comment. Admin override is proposed for content changes, but authorization boundaries and visibility/moderation rules are not specified.
+### Posts & Feed (implemented; focused test-database verification complete)
+
+1. An authenticated member creates a plain-text post, defaulting to friends-only; content is normalized and limited to 2,000 Unicode code points.
+2. The owner, any authenticated member for `members` visibility, or a current accepted friend for `friends` visibility may read a post. Friendship changes affect access to existing posts.
+3. The home feed contains the viewer and current accepted friends, ordered chronologically with stable keyset pagination; profile lists include only caller-visible posts.
+4. The owner may edit content or permanently delete a post using `expectedVersion`; visibility cannot be changed. A visible non-owner gets 403, while an invisible/missing post gets a privacy-safe 404.
+
+V5 and the reviewed Post grant delta were applied to restricted `isn-test` under separate Owner authorization. The focused real-Neo4j scenario and query-plan check passed with exact cleanup and baseline restoration; this is not production readiness or Step 5 Scenario Testing. See the [Posts & Feed API contract](../api/posts-feed.md). Likes, comments and proposed administrator override remain unimplemented; their policies are not inferred from the post MVP.

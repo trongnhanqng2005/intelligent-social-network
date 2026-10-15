@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowRight, Compass, LogOut, RefreshCw, UserRound } from 'lucide-react';
+import { ArrowDown, ArrowRight, Compass, LogOut, Newspaper, RefreshCw, UserRound } from 'lucide-react';
 import { Link } from 'react-router';
 import { useAuth } from '../../features/auth/model/auth-context';
 import { Alert } from '../../shared/ui/alert';
@@ -111,6 +111,7 @@ export function HomePage() {
           {state.status === 'authenticated' ? (
             <>
               <Link className="home-member-link" to="/ho-so"><UserRound size={16} aria-hidden="true" /> Hồ sơ của tôi</Link>
+              <Link className="home-member-link" to="/bang-tin"><Newspaper size={16} aria-hidden="true" /> Bảng tin</Link>
               <Link className="home-member-link" to="/kham-pha"><Compass size={16} aria-hidden="true" /> Khám phá</Link>
               <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>
                 <LogOut size={17} aria-hidden="true" /> Đăng xuất

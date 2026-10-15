@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('restricted test credentials target isn-test and verify cumulative V1–V4 schema', async () => {
+test('restricted test credentials target isn-test and verify cumulative V1–V5 schema', async () => {
   if (process.env.NODE_ENV !== 'test') {
     assert.fail('Set NODE_ENV=test before running real Neo4j integration tests');
   }
@@ -92,7 +92,7 @@ test('restricted test credentials target isn-test and verify cumulative V1–V4 
     }, {
       database: 'isn-test',
       status: 'current',
-      version: 4,
+      version: 5,
     });
     assert.deepEqual(repeatInitialization, initialization);
     assert.equal(initialization.migrations[0].status, 'VERIFIED');
@@ -103,13 +103,16 @@ test('restricted test credentials target isn-test and verify cumulative V1–V4 
     assert.equal(initialization.migrations[3].status, 'VERIFIED');
     assert.equal(initialization.migrations[3].name, 'friendship-system');
     assert.equal(initialization.migrations[3].checksum, '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2');
+    assert.equal(initialization.migrations[4].status, 'VERIFIED');
+    assert.equal(initialization.migrations[4].name, 'posts-feed');
+    assert.equal(initialization.migrations[4].checksum, '48613d31278476128f0d904ad40c76c21c68d61d20b2b3fa526f423de63be523');
     assert.match(initialization.migrations[0].checksum, /^[a-f0-9]{64}$/);
     assert.equal(typeof initialization.migrations[0].appliedAt, 'string');
     assert.equal(typeof initialization.migrations[0].verifiedAt, 'string');
 
     const schemaService = app.get(Neo4jSchemaService);
     assert.deepEqual(await schemaService.checkReadiness(), {
-      status: 'ready', database: 'isn-test', schemaVersion: 4,
+      status: 'ready', database: 'isn-test', schemaVersion: 5,
     });
 
     console.log(
