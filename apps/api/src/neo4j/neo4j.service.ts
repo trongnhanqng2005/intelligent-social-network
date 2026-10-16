@@ -3,6 +3,7 @@ import type {
   Driver,
   ManagedTransaction,
   Session,
+  Transaction,
 } from 'neo4j-driver';
 import { NEO4J_DATABASE, NEO4J_DRIVER } from './neo4j.constants.js';
 
@@ -29,6 +30,25 @@ export class Neo4jService implements OnModuleDestroy {
     return this.withSession((session) => session.executeWrite(work));
   }
 
+  async executeWriteOnce<T>(work: (transaction: Transaction) => Promise<T>): Promise<T> {
+    const session = this.driver.session({ database: this.database });
+    let transaction: Transaction | undefined;
+    let commitStarted = false;
+    try {
+      transaction = await session.beginTransaction();
+      const result = await work(transaction);
+      commitStarted = true;
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      if (commitStarted) throw new Neo4jWriteOutcomeUnknownError();
+      if (transaction) await transaction.rollback().catch(() => undefined);
+      throw error;
+    } finally {
+      await session.close().catch(() => undefined);
+    }
+  }
+
   async runSchemaStatement(statement: string): Promise<void> {
     await this.withSession(async (session) => {
       await session.run(statement);
@@ -46,5 +66,12 @@ export class Neo4jService implements OnModuleDestroy {
     } finally {
       await session.close();
     }
+  }
+}
+
+export class Neo4jWriteOutcomeUnknownError extends Error {
+  constructor() {
+    super('Neo4j write outcome could not be confirmed');
+    this.name = 'Neo4jWriteOutcomeUnknownError';
   }
 }

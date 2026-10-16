@@ -64,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const refreshOnFocus = () => {
       if (document.visibilityState !== 'visible') return;
-      setState((current) => current.status === 'authenticated' ? { status: 'loading' } : current);
       setAttempt((current) => current + 1);
     };
     window.addEventListener('focus', refreshOnFocus);
