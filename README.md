@@ -1,10 +1,10 @@
 # Intelligent Social Network
 
-A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, and the Friendship System implementation. Posts/interactions and Big Data/ML components remain planned.
+A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes/comments and Big Data/ML components remain planned.
 
 ## Status
 
-**Neo4j V1–V4 migrations, authenticated dev/test isolation, live readiness, authentication, User Profile & Discovery, and Friendship are implemented and verified.** Build records report V4 applied to the approved `isn-dev` and `isn-test` databases; Step 6 freshly reverified the restricted `isn-test` identity/catalog/privileges and passed corrected real-Neo4j concurrency and browser acceptance. No `isn-dev` application data was read during that final verification. Do not use the feature against a V3 database. Posts/interactions, account recovery, data pipelines, trained models, and production deployment remain unimplemented. Activity-event retention is undecided; no automatic pruning is configured.
+**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. Likes/comments, account recovery, data pipelines, trained models, and production deployment remain unimplemented. Activity-event retention is undecided; no automatic pruning is configured.
 
 ## Stack and architecture
 

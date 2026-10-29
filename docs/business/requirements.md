@@ -14,7 +14,7 @@
 |---|---|---|
 | Authentication (AUTH) | Register, sign in/out, validate session/JWT | Email/password registration, login, 24-hour Neo4j-backed browser session, CSRF defense and logout/revocation implemented; account recovery remains unimplemented |
 | User profile & discovery (USER) | View/edit display name and bio; browse/search members and view member-visible profiles | Authenticated display name, optional bio/location, privacy-safe member projection, and bounded directory/search implemented. Avatar upload is not implemented; UI uses local initials. |
-| Posts (POST) | Create/edit/delete/read posts and a simple feed | Not implemented |
+| Posts (POST) | Create/edit/delete/read posts and a simple feed | Implemented; V5 and focused real-Neo4j behavior verified on restricted `isn-test`; Step 5 Functional Acceptance Owner-accepted and Step 6 complete; production readiness remains separate |
 | Interaction (INT) | Like/unlike and comment on posts | Not implemented |
 | Friendships (FRIEND) | Send/list/accept/reject/cancel requests; list/unfriend friends; view caller-relative profile relationship | Implemented; corrected Step 6 real-Neo4j concurrency and browser acceptance passed, and restricted `isn-test` V4/baseline were freshly verified |
 | Recommendations (REC) | Show Top-K candidates and allow request initiation | Not implemented |
@@ -22,7 +22,7 @@
 | Administration (ADMIN) | View aggregate statistics/alerts and mark reviewed | Not implemented |
 | Data processing (PIPE) | Ingest, clean, aggregate features, update batch predictions | Not implemented |
 
-Implemented HTTP contracts include process liveness/readiness, the authentication foundation and authenticated User Profile & Discovery; see [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Other proposal capabilities remain planned.
+Implemented source HTTP contracts include process liveness/readiness, Authentication, User Profile & Discovery, Friendship, and Posts & Feed. Focused Posts V5 and real-Neo4j behavior are verified on restricted `isn-test`; this does not establish `isn-dev` or production readiness. See [Posts & Feed](../api/posts-feed.md), [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Interactions and other proposal capabilities remain planned.
 
 ## Core proposal rules
 
@@ -32,4 +32,4 @@ Implemented HTTP contracts include process liveness/readiness, the authenticatio
 - Anomaly review should not automatically lock an account; an administrator reviews an alert.
 - The proposal distinguishes simulated events from application-generated activity. Event records must not contain passwords or tokens; minimize sensitive identifying information.
 
-Posts/feed authorization, moderation, account lifecycle, and production deployment remain to be decided in their own plans. Friendship's approved authorization, transition, privacy, and graph rules are documented in its feature contract; latest lifecycle state is not a complete Activity Events history.
+Posts/feed authorization, moderation and visibility are specified for the MVP in the [Posts & Feed contract](../api/posts-feed.md). Admin override, interaction behavior, account lifecycle and production deployment remain undecided. Friendship's approved authorization, transition, privacy, and graph rules are documented in its feature contract; latest lifecycle state is not a complete Activity Events history.

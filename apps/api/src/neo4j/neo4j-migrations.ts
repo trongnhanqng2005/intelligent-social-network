@@ -100,6 +100,20 @@ export const migrationDefinitions = [
       CALL { MATCH ()-[friendship:FRIEND_WITH]->() RETURN count(friendship) AS relationships }
       RETURN pairs + relationships AS conflicts`,
   },
+  {
+    version: 5,
+    name: 'posts-feed',
+    statements: [
+      `CREATE CONSTRAINT isn_post_id IF NOT EXISTS
+       FOR (post:Post) REQUIRE post.id IS UNIQUE`,
+      `CREATE RANGE INDEX isn_post_author_chronology IF NOT EXISTS
+       FOR (post:Post) ON (post.authorId, post.createdAt, post.id)`,
+    ],
+    preflight: `
+      CALL { MATCH (post:Post) RETURN count(post) AS posts }
+      CALL { MATCH ()-[authored:AUTHORED]->() RETURN count(authored) AS relationships }
+      RETURN posts + relationships AS conflicts`,
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -146,6 +160,14 @@ const friendshipConstraints = [
 const friendshipIndexes = [
   { name: 'isn_friendship_requests_sent', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['senderId', 'requestStatus', 'requestId'] },
   { name: 'isn_friendship_requests_received', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['FriendshipPair'], properties: ['recipientId', 'requestStatus', 'requestId'] },
+] as const;
+
+const postConstraints = [
+  { name: 'isn_post_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['id'] },
+] as const;
+
+const postIndexes = [
+  { name: 'isn_post_author_chronology', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['authorId', 'createdAt', 'id'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -239,6 +261,11 @@ export class Neo4jMigrationService {
     if (recordedV4 && recordedV4.status !== 'VERIFIED') {
       throw new Error('An interrupted V4 migration requires manual read-only inspection; no migration writes were made');
     }
+    const recordedV5 = priorStatus.migrations.find((migration) => migration.version === 5);
+    if (recordedV5 && recordedV5.status !== 'VERIFIED') {
+      throw new Error('An interrupted V5 migration requires manual read-only inspection; no migration writes were made');
+    }
+    if (priorStatus.version === 4) await this.assertVerifiedV4Baseline();
     const verifiedV3 = priorStatus.version === 3 && priorStatus.migrations.length === 3 &&
       migrationDefinitions.slice(0, 3).every((definition) => {
         const record = priorStatus.migrations.find((migration) => migration.version === definition.version);
@@ -278,10 +305,17 @@ export class Neo4jMigrationService {
           if (migration.version === 4) {
             throw new Error('Friendship migration found existing friendship data that requires manual review; no V4 writes were made');
           }
+          if (migration.version === 5) {
+            throw new Error('Posts migration found existing Post data that requires manual review; no V5 writes were made');
+          }
         }
       }
 
       if (migration.version === 4) await this.preflightFriendshipSchema();
+      if (migration.version === 5) {
+        await this.assertVerifiedV4Baseline();
+        await this.preflightPostSchema();
+      }
 
       if (migration.version === 3) {
         const usersWithoutId = await this.neo4jService.executeRead((transaction) =>
@@ -400,6 +434,40 @@ export class Neo4jMigrationService {
     }
   }
 
+  private async preflightPostSchema(): Promise<void> {
+    const existing = await this.neo4jService.executeRead(async (transaction) => {
+      const constraints = await transaction.run(
+        'SHOW CONSTRAINTS YIELD name, entityType, labelsOrTypes RETURN name, entityType, labelsOrTypes',
+      );
+      const indexes = await transaction.run(
+        'SHOW INDEXES YIELD name, entityType, labelsOrTypes RETURN name, entityType, labelsOrTypes',
+      );
+      return [...constraints.records, ...indexes.records].filter((record) => {
+        const labelsOrTypes = record.get('labelsOrTypes');
+        return ['isn_post_id', 'isn_post_author_chronology'].includes(String(record.get('name'))) ||
+          (Array.isArray(labelsOrTypes) &&
+          labelsOrTypes.some((value) => value === 'Post' || value === 'AUTHORED'));
+      }).map((record) => String(record.get('name')));
+    });
+    if (existing.length) {
+      throw new Error(`Unexpected Posts schema objects exist (${existing.join(', ')}); no V5 writes were made`);
+    }
+  }
+
+  private async assertVerifiedV4Baseline(): Promise<void> {
+    const inspection = await this.neo4jService.executeRead((transaction) => this.inspect(transaction));
+    const expectedHistory = migrationDefinitions.slice(0, 4);
+    const historyValid = inspection.history.length === expectedHistory.length && expectedHistory.every((definition) => {
+      const record = inspection.history.find((entry) => entry.version === definition.version);
+      return record?.name === definition.name && record.checksum === checksumMigration(definition) &&
+        record.status === 'VERIFIED' && record.appliedAt !== null && record.verifiedAt !== null;
+    });
+    if (inspection.database !== this.neo4jService.database || inspection.markerVersion !== 4 ||
+        !historyValid || !inspection.schemaValid) {
+      throw new Error('Posts migration requires a verified V1–V4 schema baseline; no V5 writes were made');
+    }
+  }
+
   private async findHistory(version: number): Promise<HistoryRecord | undefined> {
     return this.neo4jService.executeRead(async (transaction) => {
       const result = await transaction.run(
@@ -466,6 +534,7 @@ export class Neo4jMigrationService {
       ? [...requiredConstraints, ...authenticationConstraints]
       : markerVersion >= 1 ? [...requiredConstraints] : [];
     if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
+    if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);
@@ -482,6 +551,10 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const postIndexesValid = markerVersion < 5 || postIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const profileVerification = markerVersion < 3
       ? undefined
       : await transaction.run(migrationDefinitions[2].verification);
@@ -491,7 +564,8 @@ export class Neo4jMigrationService {
       database: identity.records[0]?.get('database'),
       markerVersion,
       history: historyRecords,
-      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && profilesValid,
+      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid &&
+        postIndexesValid && profilesValid,
     };
   }
 

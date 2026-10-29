@@ -6,7 +6,7 @@ This is the navigation index for the Intelligent Social Network. Code is authori
 
 - [Overview](overview.md) — purpose, stack and implementation status.
 - [Business](business/README.md) — proposal-derived actors, use cases and rules; all are planned unless explicitly marked implemented.
-- [API contracts](api/README.md) — implemented health, authentication, and authenticated User Profile & Discovery interfaces, including [authentication](api/authentication.md), [User Profile & Discovery](api/user-profile-discovery.md), and [OpenAPI](api/openapi.yaml).
+- [API contracts](api/README.md) — implemented health, authentication, User Profile & Discovery, Friendship, and Posts & Feed source interfaces, including [Posts & Feed](api/posts-feed.md) and [OpenAPI](api/openapi.yaml). Owner-authorized V5 and focused Posts verification on restricted `isn-test` are recorded in the Neo4j operations guide; no `isn-dev` Posts status is inferred.
 - [Architecture](architecture/README.md) — source-based current application, integration boundary and Mermaid views.
 - [Big Data and ML](big-data/README.md) — proposed graph, event, Parquet, PySpark and model flows with open questions.
 - [Development](development/README.md) — setup, Neo4j local operations, commands, testing and [documentation maintenance policy](development/workflow.md).
