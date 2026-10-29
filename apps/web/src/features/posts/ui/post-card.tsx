@@ -18,6 +18,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
   const ownPost = post.author.id === viewerId && post.permissions.canEdit;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.content);
+  const [editVersion, setEditVersion] = useState(post.version);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [validationError, setValidationError] = useState('');
@@ -25,6 +26,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
   const [unknownOutcome, setUnknownOutcome] = useState(false);
   const [notice, setNotice] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteVersion, setDeleteVersion] = useState(post.version);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleteConflict, setDeleteConflict] = useState(false);
@@ -61,6 +63,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
 
   function beginEdit() {
     setDraft(post.content);
+    setEditVersion(post.version);
     setError('');
     setValidationError('');
     setConflict(false);
@@ -96,7 +99,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
     }
     setSaving(true);
     try {
-      const updated = await updatePost(post.id, { content: draft, expectedVersion: post.version });
+      const updated = await updatePost(post.id, { content: draft, expectedVersion: editVersion });
       onUpdated(updated);
       restoreEditFocus.current = true;
       setEditing(false);
@@ -120,6 +123,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
     try {
       const latest = await getPost(post.id);
       onUpdated(latest);
+      setEditVersion(latest.version);
       setConflict(false);
       setUnknownOutcome(false);
       setNotice('Đã tải phiên bản mới. Bản nháp vẫn được giữ lại; hãy kiểm tra trước khi lưu tiếp.');
@@ -140,7 +144,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
     setDeleteNotice('');
     setDeleting(true);
     try {
-      await deletePost(post.id, post.version);
+      await deletePost(post.id, deleteVersion);
       onDeleted(post.id);
     } catch (cause) {
       if (cause instanceof PostsApiError && cause.status === 401) retrySession();
@@ -157,6 +161,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
     try {
       const latest = await getPost(post.id);
       onUpdated(latest);
+      setDeleteVersion(latest.version);
       setDeleteConflict(false);
       setDeleteUnknown(false);
       setDeleteNotice('Đã tải phiên bản mới. Hãy xác nhận lại thao tác xóa.');
@@ -228,6 +233,7 @@ export function PostCard({ post, onUpdated, onDeleted }: {
               </Button>
               <Button data-post-action="delete" variant="ghost" onClick={() => {
                 setDeleteError('');
+                setDeleteVersion(post.version);
                 setConfirmDelete(true);
               }}>
                 <Trash2 size={16} aria-hidden="true" /> Xóa bài viết

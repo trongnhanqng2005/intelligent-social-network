@@ -444,8 +444,9 @@ export class Neo4jMigrationService {
       );
       return [...constraints.records, ...indexes.records].filter((record) => {
         const labelsOrTypes = record.get('labelsOrTypes');
-        return Array.isArray(labelsOrTypes) &&
-          labelsOrTypes.some((value) => value === 'Post' || value === 'AUTHORED');
+        return ['isn_post_id', 'isn_post_author_chronology'].includes(String(record.get('name'))) ||
+          (Array.isArray(labelsOrTypes) &&
+          labelsOrTypes.some((value) => value === 'Post' || value === 'AUTHORED'));
       }).map((record) => String(record.get('name')));
     });
     if (existing.length) {

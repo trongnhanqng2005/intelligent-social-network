@@ -38,6 +38,22 @@ function ProtectedPostList({ loadPage }: { loadPage(): Promise<PostsPage> }) {
 afterEach(cleanup);
 
 describe('PostList session revalidation', () => {
+  it('retains the retry callback identity when the same session is revalidated', async () => {
+    let retry: (() => void) | undefined;
+    function Capture() {
+      const auth = useAuth();
+      if (auth.state.status === 'authenticated') retry = auth.retry;
+      return <span>{auth.state.status}</span>;
+    }
+    mocks.restoreSession.mockReset().mockResolvedValue(session);
+    render(<AuthProvider><Capture /></AuthProvider>);
+    await screen.findByText('authenticated');
+    const initial = retry;
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    fireEvent.focus(window);
+    await waitFor(() => expect(mocks.restoreSession).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(retry).toBe(initial));
+  });
   it('preserves an editing draft during focus refresh and clears protected state after revocation', async () => {
     let finishRevalidation!: (value: typeof session) => void;
     mocks.restoreSession.mockReset()

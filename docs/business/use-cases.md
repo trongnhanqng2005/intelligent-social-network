@@ -1,6 +1,6 @@
 # Proposed use cases and business flows
 
-The authenticated profile/member-discovery subset and Friendship implementation are verified as recorded below. Posts & Feed is implemented, and V5 plus focused real-database behavior were verified on restricted `isn-test` under separate Owner authorization; broader Scenario Testing remains separate. Recommendation, anomaly detection, likes and comments remain planned.
+The authenticated profile/member-discovery subset and Friendship implementation are verified as recorded below. Posts & Feed is implemented; V5 and focused real-database behavior were verified on restricted `isn-test` under separate Owner authorization, Step 5 Functional Acceptance was Owner-accepted, and Step 6 is complete. Production readiness remains separate. Recommendation, anomaly detection, likes and comments remain planned.
 
 ## User profile & discovery (implemented subset)
 

@@ -40,6 +40,34 @@ afterEach(() => {
 });
 
 describe('Posts API client', () => {
+  it.each(['update', 'delete'])('requires reconciliation for unreadable 503 after %s', async (operation) => {
+    fetchMock.mockResolvedValueOnce(response({ csrfToken: 'csrf' }))
+      .mockResolvedValueOnce({ ok: false, status: 503, json: vi.fn().mockRejectedValue(new Error('truncated')) } as unknown as Response);
+    const write = operation === 'update' ? updatePost(post.id, { content: 'draft', expectedVersion: 0 }) : deletePost(post.id, 0);
+    await expect(write).rejects.toMatchObject({ code: 'WRITE_OUTCOME_UNKNOWN' });
+  });
+
+  it('retains a definitive conflict response', async () => {
+    fetchMock.mockResolvedValueOnce(response({ csrfToken: 'csrf' }))
+      .mockResolvedValueOnce(response({ error: { code: 'POST_CONFLICT', message: 'Conflict' } }, { ok: false, status: 409 }));
+    await expect(updatePost(post.id, { content: 'draft', expectedVersion: 0 })).rejects.toMatchObject({ code: 'POST_CONFLICT' });
+  });
+  it.each(['update', 'delete'])('requires reconciliation when a dispatched %s loses its response', async (operation) => {
+    fetchMock.mockResolvedValueOnce(response({ csrfToken: 'csrf' }))
+      .mockRejectedValueOnce(new TypeError('connection reset'));
+    const write = operation === 'update'
+      ? updatePost(post.id, { content: 'draft', expectedVersion: 0 })
+      : deletePost(post.id, 0);
+    await expect(write).rejects.toMatchObject({ code: 'WRITE_OUTCOME_UNKNOWN' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not classify failure to obtain CSRF as an unknown dispatched write', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    await expect(updatePost(post.id, { content: 'draft', expectedVersion: 0 }))
+      .rejects.not.toMatchObject({ code: 'WRITE_OUTCOME_UNKNOWN' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('gets CSRF before creating a no-store JSON Post and parses only the explicit projection', async () => {
     fetchMock.mockResolvedValueOnce(response({ csrfToken: 'csrf' }))
       .mockResolvedValueOnce(response({ post }));

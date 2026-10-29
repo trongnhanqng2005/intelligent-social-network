@@ -38,6 +38,28 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('PostCard', () => {
+  it('keeps the edit base version when a refresh updates the post', async () => {
+    const user = userEvent.setup();
+    mocks.updatePost.mockRejectedValue(new PostsApiError('Conflict', 409, 'POST_CONFLICT'));
+    const renderCard = (post: PostView) => <MemoryRouter><PostCard post={post} onUpdated={vi.fn()} onDeleted={vi.fn()} /></MemoryRouter>;
+    const view = render(renderCard(initialPost));
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa bài viết' }));
+    view.rerender(renderCard({ ...initialPost, content: 'Remote edit', version: 1 }));
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    expect(mocks.updatePost).toHaveBeenCalledWith('post-1', expect.objectContaining({ expectedVersion: 0 }));
+    expect(await screen.findByRole('button', { name: 'Tải phiên bản mới' })).toBeVisible();
+  });
+
+  it('keeps the delete confirmation base version across refresh', async () => {
+    const user = userEvent.setup();
+    mocks.deletePost.mockRejectedValue(new PostsApiError('Conflict', 409, 'POST_CONFLICT'));
+    const renderCard = (post: PostView) => <MemoryRouter><PostCard post={post} onUpdated={vi.fn()} onDeleted={vi.fn()} /></MemoryRouter>;
+    const view = render(renderCard(initialPost));
+    await user.click(screen.getByRole('button', { name: 'Xóa bài viết' }));
+    view.rerender(renderCard({ ...initialPost, version: 1 }));
+    await user.click(screen.getByRole('button', { name: 'Xóa vĩnh viễn' }));
+    expect(mocks.deletePost).toHaveBeenCalledWith('post-1', 0);
+  });
   it('renders content as literal text and exposes owner actions without relying on hover', () => {
     render(<MemoryRouter><Harness /></MemoryRouter>);
     expect(screen.getByText(/<img src=x onerror=alert\(1\)>/u)).toBeVisible();

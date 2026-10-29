@@ -7,7 +7,9 @@ vi.mock('../../auth/model/auth-context', () => ({
   useAuth: () => ({ state: { status: 'authenticated', session: { user: { id: 'viewer' } } }, retry: mocks.retry }),
 }));
 vi.mock('./post-card', () => ({
-  PostCard: ({ post }: { post: PostView }) => <article data-testid="post-card">{post.content}</article>,
+  PostCard: ({ post, onDeleted, onUpdated }: { post: PostView; onDeleted(id: string): void; onUpdated(post: PostView): void }) =>
+    <article data-testid="post-card">{post.content}<button onClick={() => onDeleted(post.id)}>Delete</button>
+      <button onClick={() => onUpdated({ ...post, content: 'Updated', version: 1 })}>Update</button></article>,
 }));
 
 import { PostList } from './post-list';
@@ -27,6 +29,45 @@ function page(items: PostView[], hasMore = false, nextCursor: string | null = nu
 afterEach(cleanup);
 
 describe('PostList', () => {
+  it('settles a pending refresh as unsuccessful when a card mutation aborts it', async () => {
+    const onLoadComplete = vi.fn();
+    const loadPage = vi.fn().mockResolvedValueOnce(page([first]))
+      .mockImplementationOnce(() => new Promise<PostsPage>(() => {}));
+    const user = userEvent.setup();
+    render(<PostList loadPage={loadPage} refreshKey={0} onLoadComplete={onLoadComplete} />);
+    await screen.findByText('Bài viết thứ nhất');
+    await user.click(screen.getByRole('button', { name: 'Tải mới' }));
+    await user.click(screen.getByRole('button', { name: 'Update' }));
+    expect(onLoadComplete).toHaveBeenLastCalledWith(false, 0);
+  });
+  it.each(['Delete', 'Update'])('ignores a pending older refresh after %s succeeds', async (action) => {
+    let deliverOld!: (value: PostsPage) => void;
+    const loadPage = vi.fn().mockResolvedValueOnce(page([first]))
+      .mockImplementationOnce(() => new Promise<PostsPage>((resolve) => { deliverOld = resolve; }));
+    const user = userEvent.setup();
+    render(<PostList loadPage={loadPage} refreshKey={0} />);
+    await screen.findByText('Bài viết thứ nhất');
+    await user.click(screen.getByRole('button', { name: 'Tải mới' }));
+    await user.click(screen.getByRole('button', { name: action }));
+    deliverOld(page([first]));
+    await waitFor(() => expect(screen.queryByText('Bài viết thứ nhất')).not.toBeInTheDocument());
+    if (action === 'Update') expect(await screen.findByText('Updated')).toBeVisible();
+  });
+
+  it('preserves loaded pages and the keyset cursor after an edit', async () => {
+    const user = userEvent.setup();
+    const loadPage = vi.fn().mockResolvedValueOnce(page([first], true, 'cursor-1'))
+      .mockResolvedValueOnce(page([second], true, 'cursor-2'))
+      .mockResolvedValueOnce(page([]));
+    render(<PostList loadPage={loadPage} refreshKey={0} />);
+    await screen.findByText('Bài viết thứ nhất');
+    await user.click(screen.getByRole('button', { name: 'Tải thêm bài viết' }));
+    await screen.findByText('Bài viết thứ hai');
+    await user.click(screen.getAllByRole('button', { name: 'Update' })[0]!);
+    expect(screen.getByText('Bài viết thứ hai')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Tải thêm bài viết' }));
+    expect(loadPage.mock.calls[2]?.[0]).toBe('cursor-2');
+  });
   it('loads chronologically and uses explicit Load More with UUID deduplication', async () => {
     const user = userEvent.setup();
     const loadPage = vi.fn()

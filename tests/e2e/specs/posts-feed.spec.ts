@@ -77,7 +77,7 @@ async function reserveScenarioPost(scenario: Scenario, input: { authorId: string
   return (await scenarioSupport()).reserveScenarioPost(scenario, input);
 }
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'default' });
 
 test('PF-00 V5 gate and real runtime readiness @lifecycle-security', async () => {
   const health = await fetch(`${apiOrigin}/health`, { signal: AbortSignal.timeout(requestTimeout) });
@@ -582,6 +582,7 @@ test('PF-09–PF-14 current friendship visibility, privacy-safe profile lists an
 
     await test.step('PF-14 refresh after create/delete, empty Feed/profile and Load More retry state', async () => {
       await author.page.goto('/bang-tin');
+      await expect(author.page.getByLabel('Danh sách bài viết').locator('.post-card')).toHaveCount(20);
       await loadAllPostPages(author.page, '/feed');
       const previouslyLoaded = await author.page.locator('.post-card-content').allTextContents();
       expect(previouslyLoaded.length).toBeGreaterThan(20);
@@ -627,7 +628,8 @@ test('PF-09–PF-14 current friendship visibility, privacy-safe profile lists an
   }
 });
 
-test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled failures @concurrency-recovery', async ({ browser }) => {
+for (const acceptanceCase of ['PF-15', 'PF-16', 'PF-17']) {
+test(`${acceptanceCase} real concurrent mutations, stale recovery or session revocation @concurrency-recovery`, async ({ browser }) => {
   const scenario = await createPostsScenario({ actorCount: 3 });
   try {
     let [author, other] = await loginActors(scenario, browser, scenario.users.slice(0, 2));
@@ -639,6 +641,7 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
     const cardA = author.page.locator('.post-card').filter({ hasText: post.content });
     const cardB = secondTab.locator('.post-card').filter({ hasText: post.content });
 
+    if (acceptanceCase === 'PF-15') {
     await test.step('PF-15 genuinely overlapping edit/edit requests have one winner and one conflict', async () => {
       await author.page.goto('/bang-tin');
       await secondTab.goto('/bang-tin');
@@ -732,7 +735,9 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       }
     });
 
-    await test.step('PF-16 sequential stale expectedVersion conflict retains draft and requires explicit reload', async () => {
+    }
+
+    if (acceptanceCase === 'PF-16') await test.step('PF-16 sequential stale expectedVersion conflict retains draft and requires explicit reload', async () => {
       const stale = await createPostFromComposer(scenario, author, {
         content: `Stale recovery ${markerFor('stale-edit')}`, visibility: 'friends',
       });
@@ -765,7 +770,7 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       expect((await apiCall(other, 'GET', `/posts/${latest.id}`)).status()).toBe(200);
     });
 
-    await test.step('PF-17 real logout revocation and exact owned-session expiry clear protected state', async () => {
+    if (acceptanceCase === 'PF-17') await test.step('PF-17 real logout revocation and exact owned-session expiry clear protected state', async () => {
       await author.page.goto('/bang-tin');
       const logoutObserver = await author.context.newPage();
       await logoutObserver.goto('/ho-so');
@@ -806,6 +811,17 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       author = await loginActor(browser, scenario, scenario.users[0]!);
     });
 
+  } finally {
+    await cleanupPostsScenario(scenario);
+  }
+});
+
+}
+
+test('PF-18 SIMULATED edit and Feed transport recovery @concurrency-recovery', async ({ browser }) => {
+  const scenario = await createPostsScenario({ actorCount: 3 });
+  try {
+    const [author] = await loginActors(scenario, browser, scenario.users.slice(0, 1));
     await test.step('PF-18 SIMULATED aborted writes retain drafts and real retry creates once', async () => {
       const editPost = await createPostFromComposer(scenario, author, {
         content: `Edit transport retry ${markerFor('abort-edit')}`, visibility: 'friends',
@@ -842,6 +858,9 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       expect((await editRetry).status()).toBe(200);
       expect(patchAttempts).toBe(2);
       author.page.off('request', countPatchAttempts);
+      await expect(editCard.locator('.post-card-content')).toHaveText(editDraft);
+      const loadedContents = await author.page.locator('.post-card-content').allTextContents();
+      expect(loadedContents).toContain(editDraft);
 
       const failInitialList = async (route: Route) => {
         const url = new URL(route.request().url());
@@ -854,13 +873,14 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       await author.page.route('**/api/feed**', failInitialList);
       try {
         await author.page.getByRole('button', { name: /Tải mới/ }).click();
-        await expect(author.page.getByRole('alert')).toBeVisible();
-        await expect(author.page.locator('.post-card')).toHaveCount(0);
+        await expect(author.page.locator('.posts-list-error').getByRole('alert')).toBeVisible();
+        await expect(author.page.locator('.post-card-content')).toHaveText(loadedContents);
       } finally {
         await author.page.unroute('**/api/feed**', failInitialList);
       }
       await author.page.getByRole('button', { name: 'Thử tải lại' }).click();
-      await expect(author.page.locator('.post-card').first()).toBeVisible();
+      await expect(author.page.locator('.posts-list-error')).toHaveCount(0);
+      await expect(author.page.locator('.post-card-content')).toHaveText(loadedContents);
 
       const repository = scenario.appModule.get((await import('../../../apps/api/dist/modules/posts/posts.repository.js')).PostsRepository);
       for (let index = 0; index < 21; index += 1) {
@@ -912,6 +932,17 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       expect(retriedCursors).toHaveLength(2);
       expect(retriedCursors[1]).toBe(heldCursor);
 
+    });
+  } finally {
+    await cleanupPostsScenario(scenario);
+  }
+});
+
+test('PF-18 SIMULATED aborted create requires reconciliation before retry @concurrency-recovery', async ({ browser }) => {
+  const scenario = await createPostsScenario({ actorCount: 3 });
+  try {
+    const [author] = await loginActors(scenario, browser, scenario.users.slice(0, 1));
+    await test.step('PF-18 unknown create outcome retains draft and prevents automatic retry', async () => {
       const simulated = markerFor('abort-create');
       await author.page.goto('/bang-tin');
       const composer = author.page.getByLabel('Nội dung bài viết');
@@ -945,12 +976,19 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
         expect(postAttempts).toBe(1);
         releaseAbort();
         await pendingClick;
-        await expect(author.page.getByRole('alert')).toContainText('Không thể kết nối');
+        await expect(author.page.getByRole('alert')).toContainText('Chưa thể xác nhận kết quả đăng bài');
         await expect(composer).toHaveValue(`Transport retry ${simulated}`);
+        await expect(author.page.getByRole('button', { name: 'Đăng bài' })).toBeDisabled();
+        expect(postAttempts).toBe(1);
       } finally {
         releaseAbort();
         await author.page.unroute('**/api/posts', abortPost);
       }
+      await author.page.getByRole('button', { name: 'Tải lại bảng tin để kiểm tra' }).click();
+      await expect(author.page.getByRole('button', { name: 'Tôi đã kiểm tra, cho phép gửi lại' })).toBeVisible();
+      expect(postAttempts).toBe(1);
+      expect(await countPostByMarker(scenario, scenario.users[0]!.id, intentMarker)).toBe(0);
+      await author.page.getByRole('button', { name: 'Tôi đã kiểm tra, cho phép gửi lại' }).click();
       const retryResponse = waitForResponse(author.page, 'POST', '/api/posts');
       await author.page.getByRole('button', { name: 'Đăng bài' }).click();
       const successfulRetry = await retryResponse;
@@ -962,7 +1000,18 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       author.page.off('request', countPostAttempts);
     });
 
+  } finally {
+    await cleanupPostsScenario(scenario);
+  }
+});
+
+for (const outcome of ['lost-response', 'explicit-unknown']) {
+test(`PF-19 SIMULATED ${outcome} reconciliation @concurrency-recovery`, async ({ browser }) => {
+  const scenario = await createPostsScenario({ actorCount: 3 });
+  try {
+    const [author] = await loginActors(scenario, browser, scenario.users.slice(0, 1));
     await test.step('PF-19 SIMULATED lost response after real commit reconciles one persisted Post without auto-retry', async () => {
+      if (outcome === 'lost-response') {
       const marker = markerFor('lost-response');
       const content = `Committed response lost ${marker}`;
       await author.page.goto('/bang-tin');
@@ -1000,7 +1049,12 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       await author.page.getByRole('button', { name: 'Tải mới' }).click();
       await expect(author.page.locator('.post-card').filter({ hasText: content })).toBeVisible();
       expect(await countPostById(scenario, observedPostId)).toBe(1);
+      await author.page.getByRole('button', { name: 'Tải lại bảng tin để kiểm tra' }).click();
+      await author.page.getByRole('button', { name: 'Tôi đã kiểm tra, cho phép gửi lại' }).click();
 
+      }
+      if (outcome === 'explicit-unknown') {
+      await author.page.goto('/bang-tin');
       const unknownMarker = markerFor('unknown-outcome');
       const unknownContent = `Unknown outcome reconciliation ${unknownMarker}`;
       await author.page.getByLabel('Nội dung bài viết').fill(unknownContent);
@@ -1037,14 +1091,29 @@ test('PF-15–PF-20 real concurrent mutations, stale recovery and controlled fai
       const recoveredPost = (await recovered.json()).post;
       await recordScenarioPost(scenario, { authorId: scenario.users[0]!.id, marker: unknownMarker, postId: recoveredPost.id });
       expect(unknownAttempts).toBe(1);
+      }
     });
 
+  } finally {
+    await cleanupPostsScenario(scenario);
+  }
+});
+
+}
+
+test('PF-20 controlled stale Feed delivery and route changes @concurrency-recovery', async ({ browser }) => {
+  const scenario = await createPostsScenario({ actorCount: 3 });
+  try {
+    const [author, other] = await loginActors(scenario, browser, scenario.users.slice(0, 2));
     await test.step('PF-20 controlled stale Feed delivery cannot restore revoked Posts or append to another page', async () => {
       const delayedPost = await createPostFromComposer(scenario, author, {
         content: `Delayed response ${markerFor('delayed-read')}`, visibility: 'friends',
       });
       const deletedPost = await createPostFromComposer(scenario, author, {
         content: `Deleted during stale response ${markerFor('deleted-delivery')}`, visibility: 'friends',
+      });
+      await createPostFromComposer(scenario, other, {
+        content: `Own profile baseline ${markerFor('profile-baseline')}`, visibility: 'friends',
       });
       const initialIntent = await requestFriendship(scenario, other, author);
       const initialFriendship = await acceptFriendship(scenario, author, initialIntent);
@@ -1293,16 +1362,17 @@ test('PF-21–PF-23 approved Weylume UI, responsive/accessibility checks and V5 
       const ownCard = author.page.locator('.post-card').filter({ hasText: ownPost.content });
       const editButton = ownCard.getByRole('button', { name: 'Chỉnh sửa bài viết' });
       await editButton.click();
-      const editor = ownCard.getByRole('textbox', { name: 'Chỉnh sửa nội dung bài viết' });
+      const editingCard = author.page.locator('.post-card').filter({ has: author.page.locator(`#post-editor-${ownPost.id}`) });
+      const editor = editingCard.getByRole('textbox', { name: 'Chỉnh sửa nội dung bài viết' });
       await expect(editor).toBeFocused();
       await editor.fill('  \n  ');
-      await ownCard.getByRole('button', { name: 'Lưu thay đổi' }).click();
-      const editorError = ownCard.getByRole('alert').locator('[id]');
+      await editingCard.getByRole('button', { name: 'Lưu thay đổi' }).click();
+      const editorError = editingCard.getByRole('alert').locator('[id]');
       await expect(editorError).toHaveText('Vui lòng nhập nội dung bài viết.');
       await expect(editor).toHaveAttribute('aria-invalid', 'true');
       expect((await editor.getAttribute('aria-describedby'))?.split(/\s+/u)).toContain(await editorError.getAttribute('id'));
       await captureUiInspectionScreenshot(author.page, 'edit-validation');
-      await ownCard.getByRole('button', { name: 'Hủy', exact: true }).click();
+      await editingCard.getByRole('button', { name: 'Hủy', exact: true }).click();
       await expect(editButton).toBeFocused();
 
       const deleteButton = ownCard.getByRole('button', { name: 'Xóa bài viết' });

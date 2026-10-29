@@ -85,9 +85,10 @@ test('Windows process inventory avoids command lines and uses byte-valued proces
   assert.match(source, /PrivateMemorySize64/u);
 });
 
-test('resource capacity rejects sustained paging, Spark overlap and unverified workloads', () => {
+test('resource capacity records paging without blocking adequate headroom, and rejects overlapping workloads', () => {
   const paging = assessPostsScenarioResourceCapacity({
     samples: samples({ paging: [1, 1, 1, 0, 0, 0] }), sparkWorkloadActive: false, workloadsVerified: true,
+    ...clearWorkloads,
   });
   const spark = assessPostsScenarioResourceCapacity({ samples: samples(), sparkWorkloadActive: true, workloadsVerified: true });
   const unknownWorkloads = assessPostsScenarioResourceCapacity({
@@ -106,8 +107,9 @@ test('resource capacity rejects sustained paging, Spark overlap and unverified w
     samples: samples(), sparkWorkloadActive: false, workloadsVerified: true,
   });
 
-  assert.equal(paging.safe, false);
+  assert.equal(paging.safe, true);
   assert.equal(paging.sustainedPaging, true);
+  assert.match(paging.warnings.join(' '), /Paging activity/u);
   assert.equal(spark.safe, false);
   assert.equal(unknownWorkloads.safe, false);
   assert.match(unknownWorkloads.issues.join(' '), /Docker\/WSL/u);
@@ -127,14 +129,14 @@ test('transient paging in isolated samples is reported but does not count as sus
   assert.deepEqual(result.issues, []);
 });
 
-test('sustained page reads fail closed even when page-input counters are zero', () => {
+test('sustained page reads remain visible even when page-input counters are zero', () => {
   const result = summarizeResourceSamples(samples().map((sample, index) => ({
     ...sample,
     pageReadsPerSec: index < 3 ? 1 : 0,
   })));
 
   assert.equal(result.sustainedPaging, true);
-  assert.match(result.issues.join(' '), /Paging activity persisted/u);
+  assert.match(result.warnings.join(' '), /Paging activity persisted/u);
 });
 
 test('resource sampling rejects incomplete paging and commit measurements', () => {
@@ -145,9 +147,9 @@ test('resource sampling rejects incomplete paging and commit measurements', () =
   assert.match(result.issues.join(' '), /missing valid/u);
 });
 
-test('runtime capacity blocks prolonged pressure and fails closed on incomplete samples', () => {
+test('runtime capacity blocks inadequate headroom even with paging and fails closed on incomplete samples', () => {
   const pressure = assessPostsScenarioRuntimeCapacity({
-    samples: samples({ paging: [0, 2, 2, 2, 0, 0] }),
+    samples: samples({ available: 999, paging: [0, 2, 2, 2, 0, 0] }),
     requiredHeadroomBytes: 1_000,
     sparkWorkloadActive: false,
     workloadsVerified: true,
@@ -158,6 +160,17 @@ test('runtime capacity blocks prolonged pressure and fails closed on incomplete 
   });
 
   assert.equal(pressure.safe, false);
+  assert.match(pressure.issues.join(' '), /physical memory/u);
+  assert.match(pressure.warnings.join(' '), /Paging activity/u);
   assert.equal(inconclusive.safe, false);
   assert.match(inconclusive.issues.join(' '), /Fewer than three/u);
+});
+
+test('runtime capacity blocks inadequate commit headroom even without paging', () => {
+  const result = assessPostsScenarioRuntimeCapacity({
+    samples: samples({ commitHeadroom: 999 }), requiredHeadroomBytes: { physical: 1, commit: 1_000 },
+    sparkWorkloadActive: false, workloadsVerified: true, ...clearWorkloads,
+  });
+  assert.equal(result.safe, false);
+  assert.match(result.issues.join(' '), /commit capacity/u);
 });

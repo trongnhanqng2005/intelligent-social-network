@@ -16,12 +16,12 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
 | Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented and verified |
 | Friendship request/friend lifecycle API and Vietnamese UI | Implemented; corrected real-Neo4j lifecycle/concurrency suite and real-stack browser acceptance passed during Step 6; exact `isn-test` baseline restored |
-| Posts & Feed | Implemented; focused real-Neo4j behavior and query plan verified on `isn-test`, with exact cleanup and baseline restoration. Step 5 acceptance and production readiness remain separate. |
+| Posts & Feed | Implemented; focused real-Neo4j behavior/query plan and Owner-accepted Step 5 Functional Acceptance are recorded. Step 6 resource-safety evidence and Feed reconciliation fix are complete; production readiness remains separate. |
 | Likes/comments, recommendations, admin, account recovery | Planned; not implemented |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
-The current authentication, profile, Friendship and foundation verification commands and results are recorded in [testing](development/testing.md). The Posts Build record distinguishes source behavior, the separately authorized `isn-test` migration/integration evidence, and the still-separate Step 5 acceptance. Real Neo4j tests use synthetic owned fixtures and exact cleanup.
+The current authentication, profile, Friendship, foundation and Posts verification commands and results are recorded in [testing](development/testing.md). Posts records distinguish source behavior, separately authorized `isn-test` evidence, Owner-accepted Step 5 acceptance, and Step 6 targeted follow-up. Real Neo4j tests use synthetic owned fixtures and exact cleanup; this verification does not establish production readiness.
 
 ## Technology
 

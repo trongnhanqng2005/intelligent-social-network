@@ -232,7 +232,7 @@ test('direct runner refusal cannot create auth keys, fixture manifests, or launc
 test('direct Playwright config refusal happens without config-owned server or key startup', () => {
   const root = fileURLToPath(new URL('../..', import.meta.url));
   const cli = resolve(root, 'node_modules/@playwright/test/cli.js');
-  const config = resolve(root, 'tests/e2e/posts.playwright.config.ts');
+  const config = resolve(root, 'tests/e2e/posts.playwright.config.mts');
   const environment = { ...process.env };
   delete environment.ISN_POSTS_SCENARIO_DISCOVERY;
   delete environment.ISN_POSTS_SCENARIO_RUNNER_TOKEN;

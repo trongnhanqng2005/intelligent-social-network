@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import neo4j from 'neo4j-driver';
 import friendshipSupport from '../friendships/acceptance-support.cjs';
 import { removeOwnedFixture, countAsNumber } from '../../integration/neo4j/fixture-ownership.mjs';
+import { runPostsAcceptancePreflight } from '../../integration/neo4j/posts-acceptance-preflight.mjs';
+import { assertPostsScenarioRunnerHandoff } from './scenario-runner.mjs';
 import {
   capturePostsDataFingerprint,
   createPostsRunManifest,
@@ -26,8 +28,32 @@ const root = fileURLToPath(new URL('../../..', import.meta.url));
 const baselinePath = resolve(root, '.artifacts/weylume/posts-acceptance/v4-preservation-baseline.json');
 const passwordPrefix = 'Weylume-Scenario-';
 
+export async function loadPostsScenarioAppModule() {
+  assert.ok(!process.env.NEO4J_USERNAME && !process.env.NEO4J_PASSWORD);
+  try {
+    return await import('../../../apps/api/dist/app.module.js');
+  } finally {
+    if (process.env.NEO4J_USERNAME === process.env.NEO4J_TEST_USERNAME &&
+        process.env.NEO4J_PASSWORD === process.env.NEO4J_TEST_PASSWORD) {
+      delete process.env.NEO4J_USERNAME;
+      delete process.env.NEO4J_PASSWORD;
+    }
+  }
+}
+
 export async function createPostsScenario({ actorCount = 4 } = {}) {
   assert.ok(Number.isSafeInteger(actorCount) && actorCount >= 2 && actorCount <= 5);
+  const gateFile = resolve(process.env.ISN_POSTS_SCENARIO_GATE_FILE ?? '');
+  const gateRelative = relative(resolve(root, '.artifacts/playwright/posts/run-control'), gateFile);
+  assert.ok(gateRelative && gateRelative !== '..' && !gateRelative.startsWith(`..${sep}`));
+  const marker = JSON.parse(await readFile(gateFile, 'utf8'));
+  let runnerActive = false;
+  if (Number.isSafeInteger(marker.runnerPid) && marker.runnerPid > 0) {
+    try { process.kill(marker.runnerPid, 0); runnerActive = true; } catch { /* fail closed */ }
+  }
+  assert.equal(assertPostsScenarioRunnerHandoff({ environment: process.env, marker,
+    parentPid: process.ppid, runnerActive }), 'run');
+  await runPostsAcceptancePreflight({ requireFreePorts: false });
   const driver = neo4j.driver(
     process.env.NEO4J_URI,
     neo4j.auth.basic(process.env.NEO4J_TEST_USERNAME, process.env.NEO4J_TEST_PASSWORD),
@@ -74,7 +100,7 @@ export async function createPostsScenario({ actorCount = 4 } = {}) {
     await savePostsRunManifest(manifestPath, manifest);
 
     const { Test } = await import('@nestjs/testing');
-    const { AppModule } = await import('../../../apps/api/dist/app.module.js');
+    const { AppModule } = await loadPostsScenarioAppModule();
     appModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     scenario.appModule = appModule;
     const { AuthRepository } = await import('../../../apps/api/dist/modules/auth/auth.repository.js');

@@ -18,12 +18,13 @@
 | Complete user/system flow in a real browser | `tests/e2e/specs/<feature-or-journey>.spec.ts` | Playwright Test; `npm run test:e2e` |
 | Real-stack profile/discovery browser acceptance | `tests/e2e/specs/user-profile-discovery.spec.ts` | Playwright Test; `npm run test:e2e:profile`, restricted `isn-test` required |
 | Real-stack Friendship browser acceptance | `tests/e2e/specs/friendship-system.spec.ts` | Playwright Test; `npm run test:e2e:friendships`, restricted `isn-test` and owned-fixture cleanup required |
-| Real-stack Posts & Feed acceptance | `tests/e2e/posts.playwright.config.ts` and `tests/e2e/specs/posts-feed.spec.ts` | Guarded Playwright runner; `npm run test:e2e:posts`, current-V5 read-only preflight and fresh Owner/ISN-B safety gates required |
+| Real-stack Posts & Feed acceptance | `tests/e2e/posts.playwright.config.mts` and `tests/e2e/specs/posts-feed.spec.ts` | Guarded Playwright runner; `npm run test:e2e:posts`, current-V5 read-only preflight and fresh Owner/ISN-B safety gates required |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
 
 Current root tests:
 
 - `integration/api-proxy.test.mjs`: real API + Vite HTTP proxy contract, without browser automation.
+- `integration/posts-resource-safety-child.test.mjs`: Posts serial runner/resource-monitor behavior through a real Node child, using synthetic resource assessments without Neo4j.
 - `integration/neo4j/auth.test.mjs` and `integration/neo4j/users.test.mjs`: real authentication/profile persistence, isolation, search and concurrent versioned update scenarios on restricted `isn-test`.
 - `e2e/playwright.config.ts` and `e2e/specs/foundation.spec.ts`: real Chromium browser journeys across desktop and emulated mobile projects.
 - `e2e/auth.playwright.config.ts` and `e2e/specs/authentication.spec.ts`: real registration/session journeys against restricted `isn-test`; excluded from ordinary dummy-database browser QA.
@@ -34,7 +35,7 @@ Current root tests:
 - `integration/neo4j/posts-preflight.test.mjs` and `fixtures/posts/acceptance-support.mjs`: read-only V1–V4 identity/schema/role/data gate, durable V4 preservation fingerprint, exact Posts fixture ownership and narrowly approved privilege-delta helpers.
 - `integration/neo4j/posts.test.mjs`: separately authorized, serial V5 Posts/Feed real-Neo4j scenario with exact synthetic ownership, cleanup, baseline restoration and production query-plan capture.
 - `integration/neo4j/posts-acceptance-preflight.mjs` and `e2e/posts-acceptance-runner.mjs`: current-V5 read-only gate and fail-closed owner runner. Direct Playwright execution is refused; `npm run test:e2e:posts:list` is a no-startup discovery path.
-- `e2e/posts.playwright.config.ts` and `e2e/specs/posts-feed.spec.ts`: PF-00–PF-23 real-stack Posts & Feed scenarios, grouped serially on ports 3312/5182; the four group runs use one worker, no retries, isolated contexts, write-ahead fixture manifests and exact cleanup. Controlled abort/response-delay cases are explicitly simulated.
+- `e2e/posts.playwright.config.mts` and `e2e/specs/posts-feed.spec.ts`: PF-00–PF-23 real-stack Posts & Feed scenarios, grouped serially on ports 3312/5182; the four group runs use one worker, no retries, isolated contexts, write-ahead fixture manifests and exact cleanup. Controlled abort/response-delay cases are explicitly simulated.
 
 Use **unit** for isolated behavior, **integration** for a real boundary between components/services, and **E2E** for observable user/system behavior across the running application. A browser test is E2E, not an integration test. Do not create empty category directories or placeholder tests.
 

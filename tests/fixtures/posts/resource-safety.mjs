@@ -74,9 +74,11 @@ export function measurePostsScenarioObservedResourceDelta(baseline, samples) {
 
 export function summarizeResourceSamples(samples) {
   const issues = [];
+  const warnings = [];
   if (!Array.isArray(samples) || samples.length < 3) {
     return {
       issues: ['Fewer than three resource samples were collected.'],
+      warnings,
       sampleCount: Array.isArray(samples) ? samples.length : 0,
       minimumAvailablePhysicalBytes: 0,
       minimumCommitHeadroomBytes: 0,
@@ -112,13 +114,14 @@ export function summarizeResourceSamples(samples) {
   }
 
   const sustainedPaging = maximumConsecutivePagingSamples >= 3;
-  if (sustainedPaging) issues.push('Paging activity persisted across three consecutive samples.');
+  if (sustainedPaging) warnings.push('Paging activity persisted across three consecutive samples; assess alongside headroom and observed stability.');
   if (!Number.isFinite(minimumAvailablePhysicalBytes) || !Number.isFinite(minimumCommitHeadroomBytes)) {
     issues.push('No complete resource samples were available.');
   }
 
   return {
     issues,
+    warnings,
     sampleCount: samples.length,
     minimumAvailablePhysicalBytes: Number.isFinite(minimumAvailablePhysicalBytes) ? minimumAvailablePhysicalBytes : 0,
     minimumCommitHeadroomBytes: Number.isFinite(minimumCommitHeadroomBytes) ? minimumCommitHeadroomBytes : 0,

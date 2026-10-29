@@ -1,4 +1,4 @@
-export function startPostsScenarioResourceMonitor({ sample, intervalMs = 30_000 }) {
+export function startPostsScenarioResourceMonitor({ sample, onUnsafe = () => {}, intervalMs = 30_000 }) {
   let checkPromise;
   let assessment;
   let checks = 0;
@@ -17,7 +17,12 @@ export function startPostsScenarioResourceMonitor({ sample, intervalMs = 30_000 
       assessment = { safe: false, stage: 'runtime-monitor', issues: ['Resource monitoring became inconclusive.'] };
     }).finally(() => {
       checkPromise = undefined;
-      if (assessment && !assessment.safe) clearInterval(timer);
+      if (assessment && !assessment.safe) {
+        clearInterval(timer);
+        try { onUnsafe(); } catch {
+          assessment = { safe: false, stage: 'runtime-monitor', issues: ['Could not revoke the scenario handoff.'] };
+        }
+      }
     });
   }
 

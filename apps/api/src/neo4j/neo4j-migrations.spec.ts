@@ -272,6 +272,17 @@ describe('Neo4jMigrationService', () => {
     expect(neo4j.runSchemaStatement).not.toHaveBeenCalled();
   });
 
+  it.each(['isn_post_id', 'isn_post_author_chronology'])('rejects reserved schema name %s on another label', async (name) => {
+    transaction.run.mockReset()
+      .mockResolvedValueOnce({ records: [record({ name, labelsOrTypes: ['Other'] })] } as never)
+      .mockResolvedValueOnce({ records: [] } as never);
+    neo4j.executeRead.mockImplementation(async (work) => work(transaction));
+    const internals = service as unknown as { preflightPostSchema: () => Promise<void> };
+    await expect(internals.preflightPostSchema()).rejects.toThrow(/Unexpected Posts schema objects/u);
+    expect(neo4j.executeWrite).not.toHaveBeenCalled();
+    expect(neo4j.runSchemaStatement).not.toHaveBeenCalled();
+  });
+
   it('requires exact verified V1–V4 history and catalog before V5 can proceed', async () => {
     const history = migrationDefinitions.slice(0, 4).map((migration) => ({
       version: migration.version,

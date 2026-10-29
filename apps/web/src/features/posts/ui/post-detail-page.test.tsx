@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -48,6 +48,48 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('PostDetailPage route identity', () => {
+  it.each([401, 404])('does not restore a post when an older focus read succeeds after a manual retry returns %i', async (status) => {
+    let finishFocusRead!: (value: PostView) => void;
+    mocks.getPost.mockRejectedValueOnce(new PostsApiError('Initial read failed', 503, 'SERVICE_UNAVAILABLE'))
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFocusRead = resolve; }))
+      .mockRejectedValueOnce(new PostsApiError('Access unavailable', status, status === 404 ? 'POST_NOT_FOUND' : 'UNAUTHENTICATED'));
+    const user = userEvent.setup();
+    render(<DetailRoutes />);
+    await screen.findByRole('button', { name: 'Thử tải lại' });
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    fireEvent.focus(window);
+    await waitFor(() => expect(finishFocusRead).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Thử tải lại' }));
+    await waitFor(() => expect(screen.getByText(status === 404
+      ? 'Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.'
+      : 'Access unavailable')).toBeVisible());
+
+    finishFocusRead(postA);
+    await waitFor(() => expect(screen.queryByText('Post A')).not.toBeInTheDocument());
+    expect(screen.getByText(status === 404
+      ? 'Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.'
+      : 'Access unavailable')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Chỉnh sửa bài viết' })).not.toBeInTheDocument();
+  });
+
+  it('revalidates on focus, preserving a draft when visible and clearing it after access is revoked', async () => {
+    const user = userEvent.setup();
+    render(<DetailRoutes />);
+    await screen.findByText('Post A');
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa bài viết' }));
+    const draft = screen.getByRole('textbox', { name: 'Chỉnh sửa nội dung bài viết' });
+    await user.clear(draft);
+    await user.type(draft, 'Unsaved draft');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    fireEvent.focus(window);
+    await waitFor(() => expect(mocks.getPost).toHaveBeenCalledTimes(2));
+    expect(draft).toHaveValue('Unsaved draft');
+    mocks.getPost.mockRejectedValueOnce(new PostsApiError('Not found', 404, 'POST_NOT_FOUND'));
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Chỉnh sửa nội dung bài viết' })).not.toBeInTheDocument());
+    expect(screen.getByText('Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.')).toBeVisible();
+  });
   it('ignores a late Post A edit completion after navigating to Post B', async () => {
     let finishUpdate!: (value: PostView) => void;
     mocks.updatePost.mockImplementation(() => new Promise((resolve) => { finishUpdate = resolve; }));

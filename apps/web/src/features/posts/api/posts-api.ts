@@ -183,11 +183,34 @@ export async function updatePost(
   input: { content: string; expectedVersion: number },
 ): Promise<PostView> {
   const csrfToken = await getCsrfToken();
-  return parsePostEnvelope(await requestJson(`/posts/${encodeURIComponent(postId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-    body: JSON.stringify(input),
-  }));
+  let response: Response;
+  try {
+    response = await fetch(resolveApiUrl(`/posts/${encodeURIComponent(postId)}`), {
+      method: 'PATCH', credentials: 'same-origin', cache: 'no-store',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw unknownMutationOutcome();
+  }
+  if (!response.ok) throw await readMutationError(response);
+  try {
+    return parsePostEnvelope(await response.json() as unknown);
+  } catch {
+    throw unknownMutationOutcome();
+  }
+}
+
+function unknownMutationOutcome(): PostsApiError {
+  return new PostsApiError('Chưa thể xác nhận kết quả. Hãy tải lại bài viết trước khi thử lại.', 503, 'WRITE_OUTCOME_UNKNOWN');
+}
+
+async function readMutationError(response: Response): Promise<PostsApiError> {
+  const error = await readApiError(response);
+  if (response.status >= 500 && !['WRITE_OUTCOME_UNKNOWN', 'POST_DATA_INCONSISTENT', 'SERVICE_UNAVAILABLE'].includes(error.code ?? '')) {
+    return unknownMutationOutcome();
+  }
+  return error;
 }
 
 export async function deletePost(postId: string, expectedVersion: number): Promise<void> {
@@ -201,11 +224,10 @@ export async function deletePost(postId: string, expectedVersion: number): Promi
       cache: 'no-store',
       headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
     });
-  } catch (error) {
-    if (isRecord(error) && error.name === 'AbortError') throw error;
-    throw new PostsApiError('Không thể kết nối đến dịch vụ. Hãy tải lại để kiểm tra bài viết trước khi thử lại.');
+  } catch {
+    throw unknownMutationOutcome();
   }
-  if (!response.ok) throw await readApiError(response);
+  if (!response.ok) throw await readMutationError(response);
 }
 
 export async function listFeed(input: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<PostsPage> {

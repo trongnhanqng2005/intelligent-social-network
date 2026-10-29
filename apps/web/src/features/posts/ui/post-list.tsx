@@ -14,7 +14,7 @@ export function PostList({ loadPage, refreshKey, heading = 'Bài viết', focusO
   heading?: string;
   focusOnMount?: boolean;
   clearOnRefreshKeyChange?: boolean;
-  onLoadComplete?(success: boolean): void;
+  onLoadComplete?(success: boolean, refreshKey: number | string): void;
 }) {
   const { retry: retrySession } = useAuth();
   const [posts, setPosts] = useState<PostView[]>([]);
@@ -25,6 +25,7 @@ export function PostList({ loadPage, refreshKey, heading = 'Bài viết', focusO
   const [moreError, setMoreError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const controllerRef = useRef<AbortController | undefined>(undefined);
+  const paginationRef = useRef<PostsPage['pagination'] | undefined>(undefined);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const mountedRef = useRef(false);
   const previousScope = useRef({ loadPage, refreshKey });
@@ -36,32 +37,44 @@ export function PostList({ loadPage, refreshKey, heading = 'Bài viết', focusO
     controllerRef.current?.abort();
     controllerRef.current = controller;
     previousScope.current = { loadPage, refreshKey };
-    if (scopeChanged) setPosts([]);
+    if (scopeChanged) {
+      setPosts([]);
+      paginationRef.current = undefined;
+    }
     setPagination(undefined);
     setLoading(true);
     setLoadError('');
     setMoreError('');
     setMoreLoading(false);
+    let completed = false;
+    const complete = (success: boolean) => {
+      if (completed) return;
+      completed = true;
+      onLoadComplete?.(success, refreshKey);
+    };
+    controller.signal.addEventListener('abort', () => complete(false), { once: true });
     if (focusOnMount && !mountedRef.current) headingRef.current?.focus();
     mountedRef.current = true;
     loadPage(undefined, controller.signal).then((page) => {
       if (controller.signal.aborted) return;
       setPosts(page.items);
+      paginationRef.current = page.pagination;
       setPagination(page.pagination);
       setLoading(false);
-      onLoadComplete?.(true);
+      complete(true);
     }).catch((cause: unknown) => {
       if (controller.signal.aborted) return;
       if (cause instanceof PostsApiError && cause.status === 401) {
         setPosts([]);
+        paginationRef.current = undefined;
         setPagination(undefined);
         retrySession();
       }
       setLoadError(cause instanceof Error ? cause.message : 'Không thể tải bài viết. Vui lòng thử lại.');
       setLoading(false);
-      onLoadComplete?.(false);
+      complete(false);
     });
-    return () => controller.abort();
+    return () => controllerRef.current?.abort();
   }, [loadPage, refreshKey, attempt, focusOnMount, clearOnRefreshKeyChange, retrySession, onLoadComplete]);
 
   useEffect(() => {
@@ -73,10 +86,20 @@ export function PostList({ loadPage, refreshKey, heading = 'Bài viết', focusO
   }, []);
 
   const updatePost = useCallback((updated: PostView) => {
+    controllerRef.current?.abort();
+    controllerRef.current = new AbortController();
+    setLoading(false);
+    setMoreLoading(false);
+    setPagination(paginationRef.current);
     setPosts((current) => current.map((post) => post.id === updated.id ? updated : post));
   }, []);
 
   const removePost = useCallback((postId: string) => {
+    controllerRef.current?.abort();
+    controllerRef.current = new AbortController();
+    setLoading(false);
+    setMoreLoading(false);
+    setPagination(paginationRef.current);
     setPosts((current) => current.filter((post) => post.id !== postId));
     headingRef.current?.focus();
   }, []);
@@ -100,11 +123,13 @@ export function PostList({ loadPage, refreshKey, heading = 'Bài viết', focusO
         }
         return [...current, ...appended];
       });
+      paginationRef.current = page.pagination;
       setPagination(page.pagination);
     } catch (cause) {
       if (controller.signal.aborted) return;
       if (cause instanceof PostsApiError && cause.status === 401) {
         setPosts([]);
+        paginationRef.current = undefined;
         setPagination(undefined);
         retrySession();
       }

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 import { relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { assertPostsScenarioRunnerHandoff } from '../fixtures/posts/scenario-runner.mjs';
 
-const root = resolve(__dirname, '../..');
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const gateFile = process.env.ISN_POSTS_SCENARIO_GATE_FILE;
 let marker: unknown;
 

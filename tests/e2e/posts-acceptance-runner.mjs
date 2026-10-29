@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { access, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { unlinkSync } from 'node:fs';
 import { once } from 'node:events';
 import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,7 @@ import {
   capturePostsScenarioOutput,
   getPostsScenarioOwnedPids,
   runPostsScenario,
+  runPostsSerialCases,
   sanitizePostsScenarioFailure,
   summarizePostsPlaywrightReport,
 } from '../fixtures/posts/scenario-runner.mjs';
@@ -27,14 +29,29 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const apiOrigin = 'http://127.0.0.1:3312';
 const webOrigin = 'http://127.0.0.1:5182';
 const groups = ['@lifecycle-security', '@visibility-feed', '@concurrency-recovery', '@ux-compatibility'];
+const groupCases = {
+  '@lifecycle-security': ['PF-00 V5 gate and real runtime readiness @lifecycle-security',
+    'PF-01–PF-08 real authentication, security boundaries and Post lifecycle @lifecycle-security'],
+  '@visibility-feed': ['PF-09–PF-14 current friendship visibility, privacy-safe profile lists and real Feed pagination @visibility-feed'],
+  '@concurrency-recovery': [
+    ...['PF-15', 'PF-16', 'PF-17'].map((name) => `${name} real concurrent mutations, stale recovery or session revocation @concurrency-recovery`),
+    'PF-18 SIMULATED edit and Feed transport recovery @concurrency-recovery',
+    'PF-18 SIMULATED aborted create requires reconciliation before retry @concurrency-recovery',
+    ...['lost-response', 'explicit-unknown'].map((name) => `PF-19 SIMULATED ${name} reconciliation @concurrency-recovery`),
+    'PF-20 controlled stale Feed delivery and route changes @concurrency-recovery'],
+  '@ux-compatibility': ['PF-21–PF-23 approved Weylume UI, responsive/accessibility checks and V5 compatibility @ux-compatibility'],
+};
 const runControlDirectory = resolve(root, '.artifacts/playwright/posts/run-control');
 const runOutputDirectory = resolve(root, '.artifacts/playwright/posts');
 const resourceEvidenceDirectory = resolve(runOutputDirectory, 'resource-preflight');
 
 async function main(arguments_) {
   const resourceProbeOnly = arguments_.length === 1 && arguments_[0] === '--resource-probe-only';
-  const requestedGroup = readGroup(resourceProbeOnly ? [] : arguments_);
-  const groupSelection = requestedGroup ? [requestedGroup] : groups;
+  const remaining = arguments_.length === 1 && arguments_[0] === '--remaining';
+  const remainingCases = arguments_.length === 1 && arguments_[0] === '--remaining-cases';
+  const requestedGroup = remainingCases ? '@concurrency-recovery' : readGroup(resourceProbeOnly || remaining ? [] : arguments_);
+  const groupSelection = remaining
+    ? groups.slice(1) : requestedGroup ? [requestedGroup] : groups;
   let services = [];
   let invocation;
   let resourceEvidence;
@@ -253,6 +270,7 @@ async function main(arguments_) {
       });
       invocation.resourceStageC = {
         assessment: stageCAssessment,
+        samples: stageC.samples,
         browserContexts: stageC.browserContexts,
         pages: stageC.pages,
         measuredPeakDemandBytes,
@@ -284,10 +302,14 @@ async function main(arguments_) {
     },
     run: async () => {
       if (resourceProbeOnly) return [];
-      for (const group of groupSelection) {
-        const execution = await runPlaywrightGroup(group, invocation, services);
+      const selectedCases = groupSelection.flatMap((group) => groupCases[group]
+        .filter((name) => !remainingCases || /^(PF-16 |PF-18 SIMULATED edit and Feed|PF-19 SIMULATED lost-response|PF-20 controlled)/u.test(name))
+        .map((name) => ({ group, name })));
+      await runPostsSerialCases(selectedCases, async ({ group, name }) => {
+        const execution = await runPlaywrightGroup(name, invocation, services);
         const groupResult = {
           group,
+          scenario: name,
           status: execution.exitCode !== 0 || execution.reportStatus !== 'CAPTURED'
             ? 'FAIL' : execution.resourceStatus.safe ? 'PASS' : 'BLOCKED',
           exitCode: execution.exitCode,
@@ -317,8 +339,8 @@ async function main(arguments_) {
           throw Object.assign(error, { runnerStage: 'post-group-preservation', runId: invocation.runId });
         }
         await writeRunSummary(invocation, groupResults);
-        if (execution.exitCode !== 0 || !execution.resourceStatus.safe) break;
-      }
+        return execution;
+      });
       return groupResults;
     },
     stop: async () => {
@@ -365,9 +387,9 @@ function readGroup(args) {
   throw new Error('Unsupported Posts scenario runner arguments.');
 }
 
-async function runPlaywrightGroup(group, invocation, services) {
+async function runPlaywrightGroup(scenario, invocation, services) {
   const cli = resolve(root, 'node_modules/@playwright/test/cli.js');
-  const config = resolve(root, 'tests/e2e/posts.playwright.config.ts');
+  const config = resolve(root, 'tests/e2e/posts.playwright.config.mts');
   const childEnvironment = {
     ...process.env,
     ...invocation.authEnvironment,
@@ -379,7 +401,8 @@ async function runPlaywrightGroup(group, invocation, services) {
   };
   delete childEnvironment.NEO4J_USERNAME;
   delete childEnvironment.NEO4J_PASSWORD;
-  const child = spawn(process.execPath, [cli, 'test', '--config', config, '--grep', group, '--reporter=json'], {
+  const grep = `${scenario.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`;
+  const child = spawn(process.execPath, [cli, 'test', '--config', config, '--grep', grep, '--reporter=json'], {
     cwd: root, env: childEnvironment, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   const resourceMonitor = startResourceMonitor(invocation, getPostsScenarioOwnedPids(services, child.pid));
@@ -405,6 +428,7 @@ async function runPlaywrightGroup(group, invocation, services) {
   try {
     if (outputTruncated) throw new Error('report limit exceeded');
     report = summarizePostsPlaywrightReport(JSON.parse(output));
+    assert.equal(report.tests.length, 1, 'Each guarded invocation must execute exactly one scenario.');
   } catch {
     reportStatus = 'UNAVAILABLE';
     report = { stats: { expected: 0, skipped: 0, unexpected: 0, flaky: 0 }, tests: [] };
@@ -427,6 +451,7 @@ async function runPlaywrightGroup(group, invocation, services) {
 
 function startResourceMonitor(invocation, ownedPids) {
   return startPostsScenarioResourceMonitor({
+    onUnsafe: () => unlinkSync(invocation.markerPath),
     sample: () => {
       const inventory = collectPostsScenarioResourceInventory({
         sampleCount: 3,

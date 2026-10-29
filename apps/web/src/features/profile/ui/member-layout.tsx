@@ -66,7 +66,7 @@ export function MemberLayout({ children }: { children: ReactNode }) {
         </Button>
       </header>
       {logoutError && <div className="member-global-error"><Alert tone="error">{logoutError}</Alert></div>}
-      <main id="member-content" className="member-content skip-focus-target" tabIndex={-1}>{children}</main>
+      <main id="member-content" className="member-content skip-focus-target" tabIndex={-1} key={state.session.user.id}>{children}</main>
       <footer className="member-footer"><BrandLockup /><span>© {new Date().getFullYear()} Weylume</span></footer>
     </div>
   );

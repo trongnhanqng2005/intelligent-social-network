@@ -42,7 +42,7 @@ flowchart LR
   ProfileUI -->|feature requests| Vite
 ```
 
-This diagram includes the Posts & Feed source module and UI. Historical V1–V4 database and Friendship acceptance evidence remains unchanged. In the Owner-authorized ISN-C continuation, V5 and the reviewed Post grant delta were applied only on `isn-test`; the real Posts fixture/query suite passed and restored its baseline. Step 5 Scenario Testing was not performed. Interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
+This diagram includes the Posts & Feed source module and UI. Historical V1–V4 database and Friendship acceptance evidence remains unchanged. In the Owner-authorized ISN-C continuation, V5 and the reviewed Post grant delta were applied only on `isn-test`; the real Posts fixture/query suite passed and restored its baseline. Step 5 had not yet been performed at that point in the history; it was subsequently accepted by the Owner, and Step 6 is complete (see the [Posts acceptance report](../../tests/e2e/posts-feed-acceptance.md)). Interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
 
 ## Dependency direction
 

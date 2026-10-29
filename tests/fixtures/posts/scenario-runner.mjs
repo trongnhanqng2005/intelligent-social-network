@@ -99,6 +99,13 @@ export function getPostsScenarioOwnedPids(services, childPid) {
   ];
 }
 
+export async function runPostsSerialCases(cases, runCase) {
+  for (const scenario of cases) {
+    const result = await runCase(scenario);
+    if (!result.resourceStatus.safe || result.reportStatus !== 'CAPTURED') break;
+  }
+}
+
 export async function runPostsScenario({ preflight, prepare, start, run, stop, dispose }) {
   const gate = await preflight();
   let prepareAttempted = false;
