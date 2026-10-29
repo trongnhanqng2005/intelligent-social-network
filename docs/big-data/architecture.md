@@ -2,7 +2,7 @@
 
 ## Target responsibilities
 
-The project proposal separates interactive application transactions from batch data engineering and model work. This is conceptual only; no associated code, Neo4j instance, data store or integration exists today.
+The proposal separates interactive application transactions from batch data engineering and model work. The end-to-end application/data/model flow below remains a target architecture; only the isolated static graph-edge ingestion contract described in [ingestion ETL](ingestion-etl.md) exists today. It has no application, event, Neo4j, or model integration.
 
 ```mermaid
 flowchart LR

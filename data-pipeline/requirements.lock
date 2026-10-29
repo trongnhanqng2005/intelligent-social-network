@@ -1,0 +1,6 @@
+# Hash-pinned PySpark runtime for Python 3.12.
+# Install build tools first from requirements-build.lock, then use --no-build-isolation.
+pyspark==3.5.9 \
+    --hash=sha256:ea27adc39ddac9413b8951e45aa748cbed6c785971b81386efc41938f6243d93
+py4j==0.10.9.7 \
+    --hash=sha256:85defdfd2b2376eb3abf5ca6474b51ab7e0de341c75a02f46dc9b5976f5a5c1b

@@ -1,8 +1,11 @@
-# Planned Big Data and machine learning
+# Big Data and machine learning
 
-Every system described here is a **proposal target, not implemented or verified**. Source is the project proposal DOCX, sections 1 and 3–5. It gives conceptual responsibilities and initial model ideas, but does not settle deployment, operations, privacy, or production API contracts.
+The project proposal (DOCX, sections 1 and 3–5) describes conceptual responsibilities and initial model ideas; it does not settle deployment, operations, privacy, or production API contracts. A narrowly scoped, standalone synthetic graph-edge ETL is now implemented; the application-wide event, feature, ML, and serving lifecycle remains proposed and unimplemented.
 
+- [Implemented standalone graph ingestion and run contract](ingestion-etl.md)
+- [Dataset provenance and rights gate](dataset-provenance.md)
+- [Bronze/Silver/Gold Parquet contracts](parquet-contracts.md)
 - [Target architecture and information flow](architecture.md)
 - [Proposed data and model lifecycle](data-and-models.md)
 
-The proposal's preferred starting direction is NestJS modular monolith + React + Neo4j, batch PySpark processing and Parquet Bronze/Silver/Gold. Kafka is explicitly optional for later near-real-time ingestion. Do not create pipeline, ML or dataset directories until that work is approved and implemented.
+The proposal's preferred direction is NestJS modular monolith + React + Neo4j, batch PySpark processing and Parquet Bronze/Silver/Gold. The current ETL is an independent file-based edge-list tool, not an application integration. Kafka is optional for a later near-real-time path. ML, event ingestion, real-source acceptance, and production integration require separate approvals and contracts.

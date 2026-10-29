@@ -15,6 +15,13 @@ lib-cov/
 *.lcov
 *.tsbuildinfo
 
+# Local Python environments and generated runtime state
+data-pipeline/.venv/
+/datasets/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
 # Generated browser test output and local artifacts
 playwright-report/
 test-results/

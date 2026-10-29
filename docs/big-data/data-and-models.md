@@ -1,6 +1,6 @@
 # Proposed data and model lifecycle
 
-The requirements here are from the proposal; datasets, features and metrics have not yet been produced or validated.
+The event, feature-engineering and model requirements here are from the proposal and remain unimplemented. The standalone edge ETL produces only synthetic graph layers and data-quality counts; no real-source dataset, ML feature set, model metric or trained artifact has been accepted.
 
 ## Event and data processing
 

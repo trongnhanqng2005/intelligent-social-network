@@ -12,6 +12,8 @@
 | Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*.test.mjs` (only when justified) | Node `node:test`; no separate root unit scenario currently |
 | Real component/service boundary without a browser | `tests/integration/<boundary-or-feature>/*.test.mjs` | Node `node:test`; `npm run test:integration` |
 | Real Neo4j authentication/profile integration | `tests/integration/neo4j/*.test.mjs` | Node `node:test`; `npm run test:neo4j`, dedicated `isn-test` credentials required |
+| Standalone Spark ETL rules | `tests/unit/data_pipeline/test_*.py` | Python `unittest`; `scripts/data-pipeline.ps1 test-unit`, task-owned Docker runtime |
+| Standalone Spark/Parquet ETL integration | `tests/integration/data_pipeline/test_*.py` | Python `unittest` + real local Spark; `scripts/data-pipeline.ps1 test-integration`, task-owned Docker runtime. Approved full acceptance evidence: [`acceptance.md`](integration/data_pipeline/acceptance.md), driven by `acceptance.ps1` |
 | Complete user/system flow in a real browser | `tests/e2e/specs/<feature-or-journey>.spec.ts` | Playwright Test; `npm run test:e2e` |
 | Real-stack profile/discovery browser acceptance | `tests/e2e/specs/user-profile-discovery.spec.ts` | Playwright Test; `npm run test:e2e:profile`, restricted `isn-test` required |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
@@ -24,6 +26,7 @@ Current root tests:
 - `e2e/auth.playwright.config.ts` and `e2e/specs/authentication.spec.ts`: real registration/session journeys against restricted `isn-test`; excluded from ordinary dummy-database browser QA.
 - `e2e/profile.playwright.config.ts` and `e2e/specs/user-profile-discovery.spec.ts`: UPD-01–08 real-stack browser acceptance against restricted `isn-test`; excluded from ordinary dummy-database browser QA. See the [acceptance record](e2e/user-profile-discovery-acceptance.md).
 - `integration/neo4j/profile-readiness.test.mjs`: read-only UPD-00 identity/schema/data preflight; does not migrate or write fixtures.
+- `unit/data_pipeline/` and `integration/data_pipeline/`: isolated file-based edge ETL tests using the original checksummed synthetic fixture in `fixtures/data_pipeline/`; Docker Spark tests are separate from npm/Node tests and never access Neo4j or actual SNAP data.
 
 Use **unit** for isolated behavior, **integration** for a real boundary between components/services, and **E2E** for observable user/system behavior across the running application. A browser test is E2E, not an integration test. Do not create empty category directories or placeholder tests.
 

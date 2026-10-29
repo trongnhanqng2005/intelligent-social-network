@@ -1,0 +1,24 @@
+{
+  "manifest_version": 1,
+  "dataset_id": "snap-facebook-combined",
+  "source_file": "facebook_combined.txt.gz",
+  "source_format": "gzip",
+  "graph_semantics": "undirected_edge_list",
+  "source_sha256": null,
+  "uncompressed_sha256": null,
+  "source_bytes": null,
+  "content_bytes": null,
+  "acquired_at": null,
+  "source_url": "https://snap.stanford.edu/data/facebook_combined.txt.gz",
+  "citation": "J. McAuley and J. Leskovec, Learning to Discover Social Circles in Ego Networks, NIPS 2012.",
+  "rights_status": "unresolved",
+  "rights_evidence": null,
+  "schema_version": "1.0.0",
+  "transform_version": "1.0.0",
+  "quality_policy_version": "1.0.0",
+  "expected_reference_counts": {
+    "nodes": 4039,
+    "unique_undirected_edges": 88234,
+    "status": "published expectation only; not locally verified"
+  }
+}

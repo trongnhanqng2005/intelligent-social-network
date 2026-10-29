@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isn-data-pipeline"
+version = "0.1.0"
+description = "Standalone, file-based PySpark graph ingestion for ISN"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pyspark==3.5.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -16,7 +16,8 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
 | Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented; remaining social capabilities remain planned |
 | Posts, interactions, friendships, recommendations, admin, account recovery | Planned; not implemented |
-| Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
+| Standalone PySpark static edge-list ingestion; explicit Parquet Bronze/Silver/quarantine/Gold graph contracts | Implemented and verified with original synthetic fixtures in Docker; external-source acceptance remains blocked |
+| Application social graph/domain, event collection, feature engineering, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
 The current authentication, profile and foundation verification commands and results are recorded in [testing](development/testing.md). Real Neo4j tests use synthetic owned fixtures and prove test-database isolation; browser MCP implementation smoke remains distinct from saved Scenario Testing.
