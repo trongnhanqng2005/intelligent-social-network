@@ -21,7 +21,7 @@ const post: PostView = {
   updatedAt: '2026-10-15T10:00:00.000Z',
   version: 0,
   author: { id: 'viewer', displayName: 'Thành viên', bio: null, location: null },
-  permissions: { canEdit: true, canDelete: true },
+  permissions: { canEdit: true, canDelete: true }, likeCount: 0, commentCount: 0, likedByViewer: false,
 };
 const page: PostsPage = { items: [post], pagination: { limit: 20, hasMore: false, nextCursor: null } };
 const session = {

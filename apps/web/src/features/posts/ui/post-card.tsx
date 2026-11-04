@@ -5,7 +5,8 @@ import { useAuth } from '../../auth/model/auth-context';
 import { ProfileAvatar } from '../../profile/ui/profile-avatar';
 import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
-import { deletePost, getPost, PostsApiError, updatePost, type PostView } from '../api/posts-api';
+import { deletePost, getPost, PostsApiError, updatePost, setPostLike, type PostView } from '../api/posts-api';
+import { Heart } from 'lucide-react';
 import { countPostContentCodePoints } from '../model/post-content';
 
 export function PostCard({ post, onUpdated, onDeleted }: {
@@ -32,6 +33,8 @@ export function PostCard({ post, onUpdated, onDeleted }: {
   const [deleteConflict, setDeleteConflict] = useState(false);
   const [deleteUnknown, setDeleteUnknown] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState('');
+  const [likePending,setLikePending]=useState(false);
+  const [likeError,setLikeError]=useState('');
   const cardRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const confirmationRef = useRef<HTMLDivElement>(null);
@@ -223,6 +226,13 @@ export function PostCard({ post, onUpdated, onDeleted }: {
       ) : (
         <>
           <p className="post-card-content">{post.content}</p>
+          <div className="post-card-footer">
+            <Button variant="ghost" disabled={likePending || state.status !== 'authenticated'} aria-pressed={post.likedByViewer}
+              onClick={async()=>{setLikePending(true);setLikeError('');try{await setPostLike(post.id,!post.likedByViewer);onUpdated(await getPost(post.id));}catch(e){if(e instanceof PostsApiError&&e.status===401)retrySession();if(e instanceof PostsApiError&&e.status===404)onDeleted(post.id);setLikeError(e instanceof Error?e.message:'Không thể cập nhật lượt thích.');}finally{setLikePending(false);}}}>
+              <Heart size={16} aria-hidden="true" /> {post.likedByViewer?'Đã thích':'Thích'} · {post.likeCount}
+            </Button><span>{post.commentCount} bình luận</span>
+            {likeError&&<Alert tone="error">{likeError}</Alert>}
+          </div>
           {error && <Alert tone="error">{error}{unknownOutcome && <Button variant="ghost" onClick={() => void reloadLatest()}>Tải lại bài viết</Button>}</Alert>}
           {notice && <p className="posts-notice" role="status">{notice}</p>}
           <footer className="post-card-footer">

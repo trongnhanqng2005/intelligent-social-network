@@ -46,8 +46,8 @@ describe('Neo4jMigrationService', () => {
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
   });
 
-  it('preserves V1–V4 checksums and appends Posts migration as V5', () => {
-    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5]);
+  it('preserves V1–V5 checksums and appends likes/comments migration as V6', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(checksumMigration(migrationDefinitions[0])).toBe(
       'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
     );
@@ -73,6 +73,10 @@ describe('Neo4jMigrationService', () => {
     expect(migrationDefinitions[4].statements[0]).toContain('isn_post_id');
     expect(migrationDefinitions[4].statements[1]).toContain('isn_post_author_chronology');
     expect(migrationDefinitions[4].preflight).toContain('AUTHORED');
+    expect(migrationDefinitions[5].name).toBe('post-likes-comments');
+    expect(migrationDefinitions[5].statements).toHaveLength(3);
+    expect(migrationDefinitions[5].statements[0]).toContain('isn_comment_retry_key');
+    expect(migrationDefinitions[5].preflight).toContain('Comment');
     expect(checksumMigration({
       ...migrationDefinitions[2],
       dataStatements: ['RETURN 1'],
@@ -329,7 +333,7 @@ describe('Neo4jMigrationService', () => {
     expect(neo4j.executeWrite).not.toHaveBeenCalled();
   });
 
-  it('reports current only when verified V1–V5 history and the complete ONLINE catalog match', async () => {
+  it('reports current only when verified V1–V6 history and the complete ONLINE catalog match', async () => {
     const constraints = [
       ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['ISNSchema'], ['key']],
       ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['ISNSchemaMigration'], ['version']],
@@ -343,6 +347,8 @@ describe('Neo4jMigrationService', () => {
       ['isn_friendship_id', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', ['FRIEND_WITH'], ['id']],
       ['isn_friendship_edge_pair_key', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', ['FRIEND_WITH'], ['pairKey']],
       ['isn_post_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['Post'], ['id']],
+      ['isn_comment_retry_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['Comment'], ['retryKey']],
+      ['isn_comment_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['Comment'], ['id']],
     ].map(([name, type, entityType, labelsOrTypes, properties]) => record({
       name, type, entityType, labelsOrTypes, properties,
     }));
@@ -354,6 +360,7 @@ describe('Neo4jMigrationService', () => {
       ['isn_friendship_requests_sent', 'RANGE', ['FriendshipPair'], ['senderId', 'requestStatus', 'requestId']],
       ['isn_friendship_requests_received', 'RANGE', ['FriendshipPair'], ['recipientId', 'requestStatus', 'requestId']],
       ['isn_post_author_chronology', 'RANGE', ['Post'], ['authorId', 'createdAt', 'id']],
+      ['isn_comment_post_chronology', 'RANGE', ['Comment'], ['postId', 'createdAt', 'id']],
     ].map(([name, type, labelsOrTypes, properties]) => record({
       name, type, entityType: 'NODE', labelsOrTypes, properties,
       state: 'ONLINE',
@@ -363,12 +370,12 @@ describe('Neo4jMigrationService', () => {
       labelsOrTypes: ['Post'], properties: ['authorId', 'createdAt', 'id'],
     };
     const chronologyIndex = { get: (key: string) => key === 'state' ? postIndexState : chronologyValues[key as keyof typeof chronologyValues] };
-    indexes[indexes.length - 1] = chronologyIndex;
+    indexes[indexes.length - 2] = chronologyIndex;
     const run = transaction.run as unknown as jest.Mock;
     run.mockReset().mockImplementation(async (query: unknown) => {
       const queryText = String(query);
       if (queryText.includes('CALL db.info()')) return { records: [record({ database: 'isn-test' })] };
-      if (queryText.includes("MATCH (schema:ISNSchema")) return { records: [record({ version: 5 })] };
+      if (queryText.includes("MATCH (schema:ISNSchema")) return { records: [record({ version: 6 })] };
       if (queryText.includes('MATCH (migration:ISNSchemaMigration')) {
         return { records: migrationDefinitions.map((migration) => record({
           version: migration.version, name: migration.name, checksum: checksumMigration(migration),
@@ -381,9 +388,9 @@ describe('Neo4jMigrationService', () => {
       return { records: [] };
     });
 
-    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'current', version: 5 });
+    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'current', version: 6 });
     postIndexState = 'POPULATING';
-    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'drift', version: 5 });
+    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'drift', version: 6 });
   });
 
   it('reports checksum drift for an already recorded migration', async () => {

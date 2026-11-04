@@ -7,7 +7,7 @@ apps/api/src/
 ├── main.ts                    # Nest bootstrap, validated host/port, shutdown hooks
 ├── app.module.ts              # Root composition
 ├── config/env.validation.ts   # API and Neo4j configuration validation
-├── neo4j/                     # App-scoped driver, explicit sessions, V1–V5 source migrations and readiness
+├── neo4j/                     # App-scoped driver, explicit sessions, V1–V6 source migrations and readiness
 └── modules/
     ├── health/                # GET /health and GET /ready
     ├── auth/                  # Registration, login, durable sessions, CSRF/origin defense
@@ -16,7 +16,7 @@ apps/api/src/
     └── posts/                 # Authenticated Post CRUD, profile visibility and chronological Feed
 ```
 
-`AppModule` composes configuration, health, auth, users, friendships and Posts. `GET /health` remains dependency-independent liveness. `GET /ready` expects V5 migration history/catalog, including the Post constraint and ONLINE chronology index; it performs no startup migration or full Post-graph scan. V5 readiness was verified on restricted `isn-test` in a separately Owner-authorized continuation; no `isn-dev` or production readiness is inferred. `Neo4jModule` owns app-scoped sessions and a single-run explicit write helper used by Posts mutations to avoid managed-transaction callback retries. Posts queries derive identity from `AuthSessionGuard`, enforce current canonical Friendship state and visibility inside Neo4j, and project only approved author/Post fields. All unsafe writes retain CSRF and exact-Origin checks. See [Neo4j operations](../development/neo4j-operations.md). There is no global `/api` prefix; `/api` browser routing is development-proxy routing only.
+`AppModule` composes configuration, health, auth, users, friendships and Posts. `GET /health` remains dependency-independent liveness. Source `GET /ready` now expects V6 history/catalog; this Build did not run migration or readiness verification. Likes/comments are incomplete and must not be treated as acceptance-ready. `Neo4jModule` owns app-scoped sessions and a single-run explicit write helper used by Posts mutations to avoid managed-transaction callback retries. All unsafe writes retain CSRF and exact-Origin checks. See [Neo4j operations](../development/neo4j-operations.md). There is no global `/api` prefix; `/api` browser routing is development-proxy routing only.
 
 Configuration accepts `NODE_ENV` values `development`, `test`, `production`; `PORT` must be an integer 1–65535; `HOST` and Neo4j connection settings must be non-empty/valid. Development is pinned to `isn-dev`; test mode requires `isn-test` and separate test credentials. Defaults remain port 3000 and loopback `127.0.0.1`. Tests are API-local Jest; HTTP contracts use API-local Supertest E2E. See [Neo4j operations](../development/neo4j-operations.md) for schema and environment procedures.
 

@@ -53,3 +53,5 @@ The profile, discovery, and friendship screens reuse the documented
 source is implemented; the corrected Step 6 real-stack browser acceptance
 passed, including keyboard/focus, reduced-motion, and responsive viewport checks.
 The Posts feature owns Feed/profile pagination, literal text presentation, composition, editing and deletion UI. Its app-local tests cover API projection, Unicode counting, owner actions, conflicts, pagination/deduplication and route protection. A focused Playwright MCP visual inspection used synthetic GET responses through a temporary read-only mock at desktop and narrow viewports; it did not exercise the real API or constitute real-browser acceptance. See [testing](../development/testing.md).
+
+Post cards show server-confirmed like state and counts. Post detail owns the flat comment list, cursor, drafts and author actions. After an uncertain create response, retrying the same comment retains its client ID. A confirmed session or access loss clears protected comment state. See [Likes & Comments acceptance](../development/testing.md#likes--comments-acceptance).

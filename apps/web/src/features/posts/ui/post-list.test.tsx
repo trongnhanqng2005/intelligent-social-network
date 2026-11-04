@@ -18,7 +18,7 @@ const first: PostView = {
   id: 'one', content: 'Bài viết thứ nhất', visibility: 'friends', createdAt: '2026-10-15T10:00:00.000Z',
   updatedAt: '2026-10-15T10:00:00.000Z', version: 0,
   author: { id: 'author', displayName: 'Bạn', bio: null, location: null },
-  permissions: { canEdit: false, canDelete: false },
+  permissions: { canEdit: false, canDelete: false }, likeCount: 0, commentCount: 0, likedByViewer: false,
 };
 const second = { ...first, id: 'two', content: 'Bài viết thứ hai' };
 

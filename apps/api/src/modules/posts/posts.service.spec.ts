@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Neo4jWriteOutcomeUnknownError } from '../../neo4j/neo4j.service.js';
 import { encodePostsCursor } from './post-pagination.js';
-import { PostGraphInvariantError } from './posts.errors.js';
+import { PostActionOutcomeError, PostGraphInvariantError } from './posts.errors.js';
 import { PostsService } from './posts.service.js';
 import type { StoredPost } from './posts.types.js';
 
@@ -34,6 +34,7 @@ describe('PostsService', () => {
     delete: jest.Mock;
     listProfile: jest.Mock;
     listFeed: jest.Mock;
+    createComment: jest.Mock;
   };
   let service: PostsService;
 
@@ -45,6 +46,7 @@ describe('PostsService', () => {
       delete: jest.fn().mockResolvedValue('deleted'),
       listProfile: jest.fn().mockResolvedValue({ memberExists: true, posts: [] }),
       listFeed: jest.fn().mockResolvedValue([]),
+      createComment: jest.fn(),
     };
     service = new PostsService(repository as never);
   });
@@ -106,6 +108,16 @@ describe('PostsService', () => {
     repository.update.mockResolvedValue('forbidden');
     await expect(service.update(viewerId, storedPost().id, { content: 'Sửa', expectedVersion: 0 }))
       .rejects.toMatchObject({ status: HttpStatus.FORBIDDEN, response: { error: { code: 'POST_ACTION_FORBIDDEN' } } });
+  });
+
+  it('maps comment retry mismatch to a conflict instead of a graph invariant outage', async () => {
+    repository.createComment.mockRejectedValue(new PostActionOutcomeError('conflict'));
+    await expect(service.createComment(viewerId, storedPost().id, {
+      clientId: '55555555-5555-4555-8555-555555555555', content: 'different retry payload',
+    })).rejects.toMatchObject({
+      status: HttpStatus.CONFLICT,
+      response: { error: { code: 'POST_CONFLICT' } },
+    });
   });
 
   it('reports uncertain write outcomes without claiming success or definitive failure', async () => {

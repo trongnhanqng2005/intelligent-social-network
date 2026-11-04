@@ -17,7 +17,7 @@ const post = {
   id: '22222222-2222-4222-8222-222222222222',
   content: 'Xin chào\n🌱', visibility: 'friends',
   createdAt: '2026-10-15T10:00:00.000Z', updatedAt: '2026-10-15T10:00:00.000Z',
-  version: 0, author, permissions: { canEdit: true, canDelete: true },
+  version: 0, author, permissions: { canEdit: true, canDelete: true }, likeCount: 0, commentCount: 0, likedByViewer: false,
 };
 
 function response(body: unknown, options: { ok?: boolean; status?: number } = {}): Response {

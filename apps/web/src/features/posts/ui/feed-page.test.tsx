@@ -68,7 +68,7 @@ describe('FeedPage uncertain create reconciliation', () => {
   it('unlocks reconciliation as unsuccessful when an edit cancels the pending Feed refresh', async () => {
     const post = { id: 'post-1', content: 'Original', visibility: 'friends' as const,
       createdAt: '2026-10-15T10:00:00.000Z', updatedAt: '2026-10-15T10:00:00.000Z', version: 0,
-      author: { id: 'viewer', displayName: 'Viewer', bio: null, location: null }, permissions: { canEdit: true, canDelete: true } };
+      author: { id: 'viewer', displayName: 'Viewer', bio: null, location: null }, permissions: { canEdit: true, canDelete: true }, likeCount: 0, commentCount: 0, likedByViewer: false };
     mocks.listFeed.mockReset().mockResolvedValueOnce({ ...emptyPage, items: [post] })
       .mockImplementationOnce(() => new Promise<PostsPage>(() => {}));
     mocks.createPost.mockReset().mockRejectedValueOnce(new PostsApiError('Unknown', 503, 'WRITE_OUTCOME_UNKNOWN'));

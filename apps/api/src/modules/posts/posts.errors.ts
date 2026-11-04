@@ -29,3 +29,10 @@ export class PostGraphInvariantError extends Error {
     this.name = 'PostGraphInvariantError';
   }
 }
+
+export class PostActionOutcomeError extends Error {
+  constructor(readonly outcome: 'not-found' | 'forbidden' | 'conflict') {
+    super('Post action could not be completed');
+    this.name = 'PostActionOutcomeError';
+  }
+}

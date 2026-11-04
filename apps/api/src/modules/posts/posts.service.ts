@@ -9,15 +9,34 @@ import {
   parsePostsLimit,
   PostsPaginationError,
 } from './post-pagination.js';
-import { PostGraphInvariantError, PostsException } from './posts.errors.js';
+import { PostActionOutcomeError, PostGraphInvariantError, PostsException } from './posts.errors.js';
 import { PostsRepository } from './posts.repository.js';
 import type { PostPage, PostView, StoredPost } from './posts.types.js';
+import { decodeCommentsCursor, encodeCommentsCursor } from './comments-pagination.js';
 
 @Injectable()
 export class PostsService {
   private readonly limiter = new AuthRateLimiter();
 
   constructor(private readonly repository: PostsRepository) {}
+
+  like(viewerId: string, postId: string) { this.consumeMutation(viewerId); return this.withPostsError(() => this.repository.setLike(viewerId, postId, true)); }
+  async unlike(viewerId: string, postId: string) { this.consumeMutation(viewerId); await this.withPostsError(() => this.repository.setLike(viewerId, postId, false)); }
+  async listComments(viewerId: string, postId: string, input: { limit?: unknown; cursor?: unknown }) {
+    this.consumeRead(viewerId);
+    const limit = this.parseLimit(input.limit);
+    let cursor;
+    try { cursor = decodeCommentsCursor(input.cursor, viewerId, postId); }
+    catch { throw validationException('cursor', 'Trang bình luận không hợp lệ.'); }
+    const result = await this.withPostsError(() => this.repository.listComments(viewerId, postId, cursor, limit + 1));
+    const hasMore = result.length > limit;
+    const items = result.slice(0, limit);
+    const last = items.at(-1);
+    return { items, pagination: { limit, hasMore, nextCursor: hasMore && last ? encodeCommentsCursor({ createdAt: last.createdAt, id: last.id }, viewerId, postId) : null } };
+  }
+  createComment(viewerId: string, postId: string, input: { clientId: string; content: unknown }) { this.consumeMutation(viewerId); const content = this.normalizeContent(input.content); return this.withPostsError(() => this.repository.createComment(viewerId, postId, { ...input, content })); }
+  updateComment(viewerId: string, postId: string, commentId: string, input: { content: unknown; expectedVersion: number }) { this.consumeMutation(viewerId); return this.withPostsError(() => this.repository.updateComment(viewerId, postId, commentId, this.normalizeContent(input.content), input.expectedVersion)); }
+  async deleteComment(viewerId: string, postId: string, commentId: string, expectedVersion: number) { this.consumeMutation(viewerId); await this.withPostsError(() => this.repository.deleteComment(viewerId, postId, commentId, expectedVersion)); }
 
   async create(authorId: string, input: { content: unknown; visibility?: unknown }): Promise<{ post: PostView }> {
     this.consumeMutation(authorId);
@@ -159,6 +178,11 @@ export class PostsService {
     try {
       return await work();
     } catch (error) {
+      if (error instanceof PostActionOutcomeError) {
+        if (error.outcome === 'not-found') throw postNotFound();
+        if (error.outcome === 'forbidden') throw postForbidden();
+        throw postConflict();
+      }
       if (error instanceof Neo4jWriteOutcomeUnknownError) {
         throw new PostsException(
           HttpStatus.SERVICE_UNAVAILABLE,
@@ -225,6 +249,9 @@ function toPostView(post: StoredPost, viewerId: string): PostView {
       location: post.location,
     },
     permissions: { canEdit, canDelete: canEdit },
+    likeCount: post.likeCount ?? 0,
+    commentCount: post.commentCount ?? 0,
+    likedByViewer: post.likedByViewer ?? false,
   };
 }
 

@@ -18,6 +18,16 @@ export interface PostView {
   version: number;
   author: PostAuthor;
   permissions: { canEdit: boolean; canDelete: boolean };
+  likeCount: number;
+  commentCount: number;
+  likedByViewer: boolean;
+}
+
+export interface PostComment { id: string; clientId: string; postId: string; content: string; createdAt: string; updatedAt: string; version: number; deleted: boolean; author: { id: string; displayName: string }; permissions: { canEdit: boolean; canDelete: boolean } }
+
+export interface CommentsPage {
+  items: PostComment[];
+  pagination: { limit: number; hasMore: boolean; nextCursor: string | null };
 }
 
 export interface PostsPage {
@@ -51,7 +61,8 @@ function parsePost(value: unknown): PostView {
       !(typeof value.author.bio === 'string' || value.author.bio === null) ||
       !(typeof value.author.location === 'string' || value.author.location === null) ||
       !isRecord(value.permissions) || typeof value.permissions.canEdit !== 'boolean' ||
-      typeof value.permissions.canDelete !== 'boolean') {
+      typeof value.permissions.canDelete !== 'boolean' || !Number.isSafeInteger(value.likeCount) ||
+      !Number.isSafeInteger(value.commentCount) || typeof value.likedByViewer !== 'boolean') {
     throw new PostsApiError('Bài viết nhận được không hợp lệ.');
   }
   return {
@@ -68,7 +79,72 @@ function parsePost(value: unknown): PostView {
       location: value.author.location,
     },
     permissions: { canEdit: value.permissions.canEdit, canDelete: value.permissions.canDelete },
+    likeCount: value.likeCount as number, commentCount: value.commentCount as number, likedByViewer: value.likedByViewer,
   };
+}
+
+export async function setPostLike(postId: string, liked: boolean): Promise<void> {
+  const csrfToken = await getCsrfToken();
+  const response = await fetch(resolveApiUrl(`/posts/${encodeURIComponent(postId)}/like`), {
+    method: liked ? 'PUT' : 'DELETE', credentials: 'same-origin', cache: 'no-store',
+    headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  });
+  if (!response.ok) throw await readMutationError(response);
+}
+
+function parseComment(value: unknown): PostComment {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.clientId !== 'string' ||
+      typeof value.postId !== 'string' || typeof value.content !== 'string' || typeof value.createdAt !== 'string' ||
+      typeof value.updatedAt !== 'string' || !Number.isSafeInteger(value.version) || (value.version as number) < 0 ||
+      typeof value.deleted !== 'boolean' || !isRecord(value.author) || typeof value.author.id !== 'string' ||
+      typeof value.author.displayName !== 'string' || !isRecord(value.permissions) ||
+      typeof value.permissions.canEdit !== 'boolean' || typeof value.permissions.canDelete !== 'boolean') {
+    throw new PostsApiError('Bình luận nhận được không hợp lệ.');
+  }
+  return { id: value.id, clientId: value.clientId, postId: value.postId, content: value.content,
+    createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version as number, deleted: value.deleted,
+    author: { id: value.author.id, displayName: value.author.displayName },
+    permissions: { canEdit: value.permissions.canEdit, canDelete: value.permissions.canDelete } };
+}
+
+function parseCommentsPage(value: unknown): CommentsPage {
+  if (!isRecord(value) || !Array.isArray(value.items) || !isRecord(value.pagination)) throw new PostsApiError('Danh sách bình luận nhận được không hợp lệ.');
+  const { limit, hasMore, nextCursor } = value.pagination;
+  if (!Number.isInteger(limit) || (limit as number) < 1 || (limit as number) > 50 || typeof hasMore !== 'boolean' ||
+      !(typeof nextCursor === 'string' || nextCursor === null) || (hasMore && typeof nextCursor !== 'string')) {
+    throw new PostsApiError('Phân trang bình luận nhận được không hợp lệ.');
+  }
+  return { items: value.items.map(parseComment), pagination: { limit: limit as number, hasMore, nextCursor } };
+}
+
+function parseCommentEnvelope(value: unknown): { comment: PostComment } {
+  if (!isRecord(value)) throw new PostsApiError('Bình luận nhận được không hợp lệ.');
+  return { comment: parseComment(value.comment) };
+}
+
+export async function listComments(postId: string, input: { limit?: number; cursor?: string } = {}, signal?: AbortSignal): Promise<CommentsPage> {
+  const query = new URLSearchParams();
+  if (input.limit !== undefined) query.set('limit', String(input.limit));
+  if (input.cursor !== undefined) query.set('cursor', input.cursor);
+  return parseCommentsPage(await requestJson(`/posts/${encodeURIComponent(postId)}/comments?${query}`, { signal }));
+}
+export async function createComment(postId: string, clientId: string, content: string): Promise<{ comment: PostComment }> {
+  const csrfToken = await getCsrfToken();
+  return parseCommentEnvelope(await requestJson(`/posts/${encodeURIComponent(postId)}/comments`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ clientId, content }),
+  }));
+}
+export async function updateComment(postId: string, commentId: string, content: string, expectedVersion: number): Promise<{ comment: PostComment }> {
+  const csrfToken = await getCsrfToken();
+  return parseCommentEnvelope(await requestJson(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ content, expectedVersion }),
+  }));
+}
+export async function deleteComment(postId: string, commentId: string, expectedVersion: number): Promise<void> {
+  const csrfToken = await getCsrfToken();
+  const path = `/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}?${new URLSearchParams({ expectedVersion: String(expectedVersion) })}`;
+  const response = await fetch(resolveApiUrl(path), { method: 'DELETE', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken } });
+  if (!response.ok) throw await readMutationError(response);
 }
 
 async function requestJson(path: string, init: RequestInit = {}): Promise<unknown> {
