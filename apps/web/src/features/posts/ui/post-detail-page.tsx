@@ -6,6 +6,7 @@ import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
 import { getPost, PostsApiError, type PostView } from '../api/posts-api';
 import { PostCard } from './post-card';
+import { PostComments } from './post-comments';
 import './posts.css';
 
 export function PostDetailPage() {
@@ -42,6 +43,7 @@ function PostDetailForViewer() {
 
     getPost(postId, controller.signal).then((value) => {
       if (controller.signal.aborted || requestId !== readRequestId.current || currentPostId.current !== postId) return;
+      if (postRef.current && value.version < postRef.current.version) { setLoading(false); return; }
       postRef.current = value;
       setPost(value);
       setLoading(false);
@@ -88,15 +90,15 @@ function PostDetailForViewer() {
       {loading && <p role="status">Đang tải bài viết…</p>}
       {!loading && error && <div className="posts-list-error">
         <Alert tone={error.status === 404 ? 'info' : 'error'}>
-          {error.status === 404 ? 'Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.' : error.message}
+          {error.status === 401 || error.status === 404 ? 'Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.' : error.message}
         </Alert>
-        {error.status !== 404 && <Button variant="secondary" onClick={() => readPost('retry')}>
+        {error.status !== 404 && error.status !== 401 && <Button variant="secondary" onClick={() => readPost('retry')}>
           <RefreshCw size={16} aria-hidden="true" /> Thử tải lại
         </Button>}
       </div>}
-      {!loading && !error && post && <PostCard post={post}
+      {!loading && !error && post && <><PostCard post={post}
         onUpdated={(updated) => {
-          if (currentPostId.current === updated.id) {
+          if (currentPostId.current === updated.id && (!postRef.current || updated.version >= postRef.current.version)) {
             readRequestId.current += 1;
             readController.current?.abort();
             postRef.current = updated;
@@ -110,7 +112,11 @@ function PostDetailForViewer() {
             postRef.current = undefined;
             navigate('/bang-tin', { replace: true });
           }
-        }} />}
+        }} /><PostComments postId={post.id} onPostRefreshed={(updated) => {
+          if (currentPostId.current === updated.id && (!postRef.current || updated.version >= postRef.current.version)) { postRef.current = updated; setPost(updated); }
+        }} onUnavailable={() => {
+          if (currentPostId.current === post.id) { postRef.current = undefined; setPost(undefined); setError(new PostsApiError('Không tìm thấy bài viết hoặc bạn không có quyền xem bài viết này.', 404)); }
+        }} /></>}
     </section>
   );
 }

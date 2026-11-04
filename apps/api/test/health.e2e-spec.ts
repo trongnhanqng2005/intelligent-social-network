@@ -60,7 +60,7 @@ describe('GET /ready', () => {
   });
 });
 
-describe('GET /ready with an incomplete V5 schema (isolated)', () => {
+describe('GET /ready with an incomplete V6 schema (isolated)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -70,7 +70,7 @@ describe('GET /ready with an incomplete V5 schema (isolated)', () => {
     } as unknown as Neo4jService;
     const migrations = {
       getStatus: jest.fn().mockResolvedValue({
-        database: 'isn-test', status: 'incomplete', version: 4, migrations: [],
+        database: 'isn-test', status: 'incomplete', version: 5, migrations: [],
       }),
     } as unknown as Neo4jMigrationService;
     const schemaService = new Neo4jSchemaService(neo4j, migrations);
@@ -87,7 +87,7 @@ describe('GET /ready with an incomplete V5 schema (isolated)', () => {
     await app.close();
   });
 
-  it('returns HTTP 503 and the V5 migration-incomplete reason without accessing Neo4j', async () => {
+  it('returns HTTP 503 and the V6 migration-incomplete reason without accessing Neo4j', async () => {
     await request(app.getHttpServer())
       .get('/ready')
       .expect(503)
@@ -95,8 +95,8 @@ describe('GET /ready with an incomplete V5 schema (isolated)', () => {
         status: 'not_ready',
         database: 'isn-test',
         reason: 'SCHEMA_MIGRATION_INCOMPLETE',
-        expectedSchemaVersion: 5,
-        actualSchemaVersion: 4,
+        expectedSchemaVersion: 6,
+        actualSchemaVersion: 5,
       });
   });
 });

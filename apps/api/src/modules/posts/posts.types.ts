@@ -16,6 +16,22 @@ export interface PostView {
   version: number;
   author: PostAuthor;
   permissions: { canEdit: boolean; canDelete: boolean };
+  likeCount: number;
+  commentCount: number;
+  likedByViewer: boolean;
+}
+
+export interface PostComment {
+  id: string;
+  clientId: string;
+  postId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  deleted: boolean;
+  author: { id: string; displayName: string };
+  permissions: { canEdit: boolean; canDelete: boolean };
 }
 
 export interface StoredPost {
@@ -31,6 +47,9 @@ export interface StoredPost {
   version: number;
   authorLinks: number;
   authorCount: number;
+  likeCount?: number;
+  commentCount?: number;
+  likedByViewer?: boolean;
   relationshipCount?: number;
 }
 

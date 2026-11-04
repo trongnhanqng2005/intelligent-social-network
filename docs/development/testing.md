@@ -6,6 +6,22 @@ Authenticated member content is scoped to the user identity: a changed identity 
 
 **Posts & Feed phase status (2026-10-29):** The Project Owner accepted Step 5 Functional Acceptance and completed Step 6. The Step 5 PF-00–PF-23 evidence and its limitations remain in the [acceptance report](../../tests/e2e/posts-feed-acceptance.md). Step 6 addressed Finding #6 with a runner/resource-monitor integration test using a real Node child and synthetic resource assessments, and addressed R4 with refresh-key-scoped reconciliation waiters. Targeted evidence was 14/14 Web tests, 23/23 Node tests, workspace typecheck, and `git diff --check` passing. The child integration test does not connect to Neo4j or replace a full guarded Playwright acceptance run. Step 7 is publication preparation only; changes remain uncommitted pending separate Owner authorization.
 
+## Likes & Comments acceptance
+
+On 2026-11-04, the restricted `isn-test` account verified V6 and `GET /ready`. The rollback test exercised the real repository Cypher. The HTTP scenario verified session and CSRF checks, concurrent like and same-key comment requests, unlike idempotency, author-only edits, hidden posts, cursor scope, counts and deletion. Chromium exercised sign-in, like/unlike and comment create/edit/delete against the built React app, NestJS and Neo4j. The harness verified fixture removal and retained a recovery manifest on cleanup failure.
+
+Run the checks serially after the [restricted V6 preflight](neo4j-operations.md) and Owner-confirmed exclusive window. The browser step uses the built frontend, one Chromium page, a strict loopback port and the Posts resource inventory gate.
+
+```powershell
+npm run build
+$env:ISN_TEST_WRITE_WINDOW = 'owner-approved'
+node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integration/neo4j/interactions.test.mjs
+$env:ISN_INTERACTIONS_BROWSER = '1'
+node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integration/neo4j/interactions-http.test.mjs
+```
+
+These checks cover the listed interactions on the restricted test database. The V4/V5-specific acceptance records below describe their original environments.
+
 ## Test ownership
 
 - **App-local tests (existing):** Nest Jest unit tests and Supertest API E2E remain under `apps/api`; React Vitest/RTL tests remain beside source under `apps/web/src`. Keep framework-specific behavior, component rendering and API-internal HTTP contract tests there. Do not migrate/duplicate them.
@@ -32,6 +48,7 @@ Authenticated member content is scoped to the user identity: a changed identity 
 | `npm run neo4j:provision-posts-test-role` | Adds only the approved 14 Post/AUTHORED grants after the read-only gate and an Owner-confirmed exclusive write window |
 | `npm run neo4j:migrate:posts-test` | Repeats the read-only gate, provisions only the Post grant delta, repeats the gate, then explicitly applies/validates V5; requires an invocation-only Owner approval flag |
 | `npm run test:neo4j:posts` | Focused real-Neo4j Posts/Feed suite against already-current V5; exact synthetic fixture ownership, cleanup and preservation comparison; requires the same approval flag |
+| `node apps/api/scripts/provision-interactions-test-role.mjs` | Read-only V5→V6 interactions role gate; appending `--apply` requires the invocation-only Owner-approved test write window and applies exactly 32 grants plus the scoped V6 schema tokens |
 | `npm run test:neo4j:profile-preflight` | Read-only restricted `isn-test` UPD-00 identity/schema/data gate; no writes |
 | `npm run test:neo4j:friendship-acceptance-preflight` | Read-only restricted `isn-test` current-V4 FS-00 identity/schema/data/ownership gate; no writes |
 | `npm run test:neo4j:friendships` | Rechecks FS-00, builds API, then runs the focused real-Neo4j Friendship writer; requires the exclusive approved test-database write window |
@@ -135,6 +152,10 @@ For the User Profile & Discovery Build (2026-10-14): cumulative V3 was verified 
 - Historical nonempty V3 backfill remains explicitly untested under the Owner-approved exception; no legacy state was recreated. `npm run test:neo4j` was not run because its preserved `schema.test.mjs` scenario calls `migrations.migrate()` twice against the configured database. See the [full acceptance matrix](../../tests/e2e/user-profile-discovery-acceptance.md); final regression/build/cleanup evidence is in the feature task handoff.
 
 For future scenarios: unit tests should isolate one owned rule; integration tests should cross a real component boundary and use real services where repeatable/available (otherwise document boundary doubles); E2E tests should exercise a critical user/system flow against running components. Avoid calling an in-memory mock an integration test. Plan tests for privacy, deterministic fixtures, cleanup, and network/resource requirements before writing them.
+
+## V6 interactions evidence
+
+The V5→V6 dry-run and exact 32-grant application passed on restricted `isn-test`; V6 is VERIFIED with checksum `3e8e51157695d25e64ba23196cd93d03d7be36913afb0fcf40ce372116cba6b3`. The real transaction rollback test initially failed to create `LIKED` until exact graph tokens were initialized by the privileged scoped setup; it passed afterward. The application preservation fingerprint remained unchanged before and after token preparation. Feature tests used restricted test credentials, not admin credentials. This rollback test does not cover HTTP behavior or concurrency, and is not evidence of those properties. Do not rerun provisioning or alter the immutable V6 migration definition based on this record.
 
 ## Weylume Scenario Testing acceptance record (2026-10-14)
 

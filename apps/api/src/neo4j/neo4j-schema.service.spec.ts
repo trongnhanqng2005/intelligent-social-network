@@ -32,7 +32,7 @@ describe('Neo4jSchemaService', () => {
     });
     await expect(service.checkReadiness()).resolves.toMatchObject({
       status: 'not_ready', reason: 'SCHEMA_MIGRATION_INCOMPLETE',
-      expectedSchemaVersion: 5, actualSchemaVersion: 4,
+      expectedSchemaVersion: 6, actualSchemaVersion: 4,
     });
   });
 

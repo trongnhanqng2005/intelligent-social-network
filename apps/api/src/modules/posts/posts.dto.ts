@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, ValidateIf, MaxLength } from 'class-validator';
 
 export class CreatePostDto {
   @IsString()
@@ -52,3 +52,31 @@ export class DeletePostQueryDto {
   @Max(Number.MAX_SAFE_INTEGER)
   expectedVersion!: number;
 }
+
+export class LikePostParamsDto extends PostIdParamsDto {}
+
+export class CommentCreateDto {
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase() : value)
+  @IsUUID('all')
+  clientId!: string;
+
+  @IsString()
+  @MaxLength(2000)
+  content!: string;
+}
+
+export class CommentIdParamsDto {
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase() : value)
+  @IsUUID('all')
+  postId!: string;
+
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase() : value)
+  @IsUUID('all')
+  commentId!: string;
+}
+
+export class CommentUpdateDto extends UpdatePostDto {}
+
+export class CommentDeleteQueryDto extends DeletePostQueryDto {}
+
+export class CommentsListQueryDto extends PostsListQueryDto {}

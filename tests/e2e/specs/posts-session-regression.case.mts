@@ -4,7 +4,7 @@ const post = {
   id: '33333333-3333-4333-8333-333333333333', content: 'Private original', visibility: 'friends',
   createdAt: '2026-10-15T10:00:00.000Z', updatedAt: '2026-10-15T10:00:00.000Z', version: 0,
   author: { id: '11111111-1111-4111-8111-111111111111', displayName: 'Owner', bio: null, location: null },
-  permissions: { canEdit: true, canDelete: true },
+  permissions: { canEdit: true, canDelete: true }, likeCount: 0, commentCount: 0, likedByViewer: false,
 };
 
 for (const outcome of ['same', 'revoked', 'different'] as const) {
@@ -21,6 +21,7 @@ for (const outcome of ['same', 'revoked', 'different'] as const) {
         if (sessionState === 'different') return route.fulfill({ status: 404, json: { error: { code: 'POST_NOT_FOUND' } } });
         return route.fulfill({ json: { post } });
       }
+      if (path === `/api/posts/${post.id}/comments`) return route.fulfill({ json: { items: [], pagination: { limit: 20, hasMore: false, nextCursor: null } } });
       return route.fulfill({ status: 404, json: { error: { code: 'NOT_FOUND' } } });
     });
     await page.goto(`/bai-viet/${post.id}`);

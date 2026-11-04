@@ -22,7 +22,7 @@
 | Administration (ADMIN) | View aggregate statistics/alerts and mark reviewed | Not implemented |
 | Data processing (PIPE) | Ingest, clean, aggregate features, update batch predictions | Not implemented |
 
-Implemented source HTTP contracts include process liveness/readiness, Authentication, User Profile & Discovery, Friendship, and Posts & Feed. Focused Posts V5 and real-Neo4j behavior are verified on restricted `isn-test`; this does not establish `isn-dev` or production readiness. See [Posts & Feed](../api/posts-feed.md), [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Interactions and other proposal capabilities remain planned.
+Implemented source HTTP contracts include process liveness/readiness, Authentication, User Profile & Discovery, Friendship, and Posts & Feed. Focused Posts V5 and real-Neo4j behavior are verified on restricted `isn-test`; this does not establish `isn-dev` or production readiness. See [Posts & Feed](../api/posts-feed.md), [API integration](../architecture/integration.md) and the [API contract index](../api/README.md). Likes & Comments add authenticated, visibility-gated interactions with author-only comment changes. The team verified V6 and repository behavior on restricted `isn-test` in a rollback-isolated scenario, then exercised the interaction journey through real HTTP and Chromium. Other proposal capabilities remain planned.
 
 ## Core proposal rules
 

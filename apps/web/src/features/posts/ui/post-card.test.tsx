@@ -22,7 +22,7 @@ const initialPost: PostView = {
   id: 'post-1', content: '<img src=x onerror=alert(1)>\nXin chào 🌱', visibility: 'friends',
   createdAt: '2026-10-15T10:00:00.000Z', updatedAt: '2026-10-15T10:00:00.000Z', version: 0,
   author: { id: 'author-1', displayName: 'Nguyễn An', bio: null, location: null },
-  permissions: { canEdit: true, canDelete: true },
+  permissions: { canEdit: true, canDelete: true }, likeCount: 0, commentCount: 0, likedByViewer: false,
 };
 
 function Harness({ onDeleted = vi.fn() }: { onDeleted?: (id: string) => void }) {

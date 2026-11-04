@@ -114,6 +114,16 @@ export const migrationDefinitions = [
       CALL { MATCH ()-[authored:AUTHORED]->() RETURN count(authored) AS relationships }
       RETURN posts + relationships AS conflicts`,
   },
+  {
+    version: 6,
+    name: 'post-likes-comments',
+    statements: [
+      `CREATE CONSTRAINT isn_comment_retry_key IF NOT EXISTS FOR (comment:Comment) REQUIRE comment.retryKey IS UNIQUE`,
+      `CREATE CONSTRAINT isn_comment_id IF NOT EXISTS FOR (comment:Comment) REQUIRE comment.id IS UNIQUE`,
+      `CREATE RANGE INDEX isn_comment_post_chronology IF NOT EXISTS FOR (comment:Comment) ON (comment.postId, comment.createdAt, comment.id)`,
+    ],
+    preflight: `CALL { MATCH (comment:Comment) RETURN count(comment) AS comments } RETURN comments AS conflicts`,
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -168,6 +178,13 @@ const postConstraints = [
 
 const postIndexes = [
   { name: 'isn_post_author_chronology', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['authorId', 'createdAt', 'id'] },
+] as const;
+const commentConstraints = [
+  { name: 'isn_comment_retry_key', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['retryKey'] },
+  { name: 'isn_comment_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['id'] },
+] as const;
+const commentIndexes = [
+  { name: 'isn_comment_post_chronology', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['postId', 'createdAt', 'id'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -265,6 +282,10 @@ export class Neo4jMigrationService {
     if (recordedV5 && recordedV5.status !== 'VERIFIED') {
       throw new Error('An interrupted V5 migration requires manual read-only inspection; no migration writes were made');
     }
+    const recordedV6 = priorStatus.migrations.find((migration) => migration.version === 6);
+    if (recordedV6 && recordedV6.status !== 'VERIFIED') {
+      throw new Error('An interrupted V6 migration requires manual read-only inspection; no migration writes were made');
+    }
     if (priorStatus.version === 4) await this.assertVerifiedV4Baseline();
     const verifiedV3 = priorStatus.version === 3 && priorStatus.migrations.length === 3 &&
       migrationDefinitions.slice(0, 3).every((definition) => {
@@ -308,6 +329,9 @@ export class Neo4jMigrationService {
           if (migration.version === 5) {
             throw new Error('Posts migration found existing Post data that requires manual review; no V5 writes were made');
           }
+          if (migration.version === 6) {
+            throw new Error('Likes and comments migration found existing Comment data that requires manual review; no V6 writes were made');
+          }
         }
       }
 
@@ -315,6 +339,10 @@ export class Neo4jMigrationService {
       if (migration.version === 5) {
         await this.assertVerifiedV4Baseline();
         await this.preflightPostSchema();
+      }
+      if (migration.version === 6) {
+        await this.assertVerifiedV5Baseline();
+        await this.preflightCommentSchema();
       }
 
       if (migration.version === 3) {
@@ -454,6 +482,19 @@ export class Neo4jMigrationService {
     }
   }
 
+  private async preflightCommentSchema(): Promise<void> {
+    const existing = await this.neo4jService.executeRead(async (transaction) => {
+      const constraints = await transaction.run('SHOW CONSTRAINTS YIELD name, labelsOrTypes RETURN name, labelsOrTypes');
+      const indexes = await transaction.run('SHOW INDEXES YIELD name, labelsOrTypes RETURN name, labelsOrTypes');
+      return [...constraints.records, ...indexes.records].filter((record) => {
+        const labels = record.get('labelsOrTypes');
+        return ['isn_comment_retry_key', 'isn_comment_id', 'isn_comment_post_chronology'].includes(String(record.get('name'))) ||
+          (Array.isArray(labels) && labels.includes('Comment'));
+      }).map((record) => String(record.get('name')));
+    });
+    if (existing.length) throw new Error(`Unexpected Comment schema objects exist (${existing.join(', ')}); no V6 writes were made`);
+  }
+
   private async assertVerifiedV4Baseline(): Promise<void> {
     const inspection = await this.neo4jService.executeRead((transaction) => this.inspect(transaction));
     const expectedHistory = migrationDefinitions.slice(0, 4);
@@ -465,6 +506,19 @@ export class Neo4jMigrationService {
     if (inspection.database !== this.neo4jService.database || inspection.markerVersion !== 4 ||
         !historyValid || !inspection.schemaValid) {
       throw new Error('Posts migration requires a verified V1–V4 schema baseline; no V5 writes were made');
+    }
+  }
+
+  private async assertVerifiedV5Baseline(): Promise<void> {
+    const inspection = await this.neo4jService.executeRead((transaction) => this.inspect(transaction));
+    const expected = migrationDefinitions.slice(0, 5);
+    const valid = inspection.history.length === expected.length && expected.every((definition) => {
+      const record = inspection.history.find((entry) => entry.version === definition.version);
+      return record?.name === definition.name && record.checksum === checksumMigration(definition) &&
+        record.status === 'VERIFIED' && record.appliedAt !== null && record.verifiedAt !== null;
+    });
+    if (inspection.database !== this.neo4jService.database || inspection.markerVersion !== 5 || !valid || !inspection.schemaValid) {
+      throw new Error('Likes and comments migration requires a verified V1–V5 schema baseline; no V6 writes were made');
     }
   }
 
@@ -535,6 +589,7 @@ export class Neo4jMigrationService {
       : markerVersion >= 1 ? [...requiredConstraints] : [];
     if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
     if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
+    if (markerVersion >= 6) expectedConstraints.push(...commentConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);
@@ -555,6 +610,10 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const commentIndexesValid = markerVersion < 6 || commentIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const profileVerification = markerVersion < 3
       ? undefined
       : await transaction.run(migrationDefinitions[2].verification);
@@ -565,7 +624,7 @@ export class Neo4jMigrationService {
       markerVersion,
       history: historyRecords,
       schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid &&
-        postIndexesValid && profilesValid,
+        postIndexesValid && commentIndexesValid && profilesValid,
     };
   }
 
