@@ -10,7 +10,8 @@ apps/web/src/
 │   ├── auth/                 # Auth API, session state, Vietnamese account UI/tests
 │   ├── profile/              # Own/member profiles, edit flow and authenticated layout
 │   ├── discovery/            # Authenticated member search and cursor navigation
-│   └── friendships/          # Friends/requests lists and member-profile relationship actions
+│   ├── friendships/          # Friends/requests lists and member-profile relationship actions
+│   └── posts/                # Feed, profile Posts, detail, composer and versioned owner actions
 ├── pages/
 │   ├── home/                 # Weylume public homepage and responsive presentation
 │   └── not-found/            # Unknown-route screen
@@ -22,7 +23,7 @@ apps/web/src/
 ```
 
 `App` owns one `BrowserRouter`; `AppRoutes` maps the public/authentication routes
-and protected `/ho-so`, `/kham-pha`, `/ban-be`, `/ban-be/loi-moi`, and `/thanh-vien/:id` routes, with unknown
+and protected `/ho-so`, `/kham-pha`, `/ban-be`, `/ban-be/loi-moi`, `/bang-tin`, `/bai-viet/:postId`, and `/thanh-vien/:id` routes, with unknown
 paths to not-found. Profile and Discovery use the authenticated layout and keep
 loading, anonymous, authenticated, and unavailable session states distinct. The
 auth feature owns request/response validation, session expiry, cross-tab
@@ -51,4 +52,4 @@ The profile, discovery, and friendship screens reuse the documented
 [Weylume design system](../design/frontend-design-system.md). Friendship UI
 source is implemented; the corrected Step 6 real-stack browser acceptance
 passed, including keyboard/focus, reduced-motion, and responsive viewport checks.
-Feed and recommendation experiences remain planned.
+The Posts feature owns Feed/profile pagination, literal text presentation, composition, editing and deletion UI. Its app-local tests cover API projection, Unicode counting, owner actions, conflicts, pagination/deduplication and route protection. A focused Playwright MCP visual inspection used synthetic GET responses through a temporary read-only mock at desktop and narrow viewports; it did not exercise the real API or constitute real-browser acceptance. See [testing](../development/testing.md).

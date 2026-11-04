@@ -26,6 +26,16 @@ describe('Neo4jSchemaService', () => {
     });
   });
 
+  it('does not report a V4 database ready for the V5 Posts implementation', async () => {
+    migrations.getStatus.mockResolvedValueOnce({
+      database: 'isn-dev', status: 'incomplete', version: 4, migrations: [],
+    });
+    await expect(service.checkReadiness()).resolves.toMatchObject({
+      status: 'not_ready', reason: 'SCHEMA_MIGRATION_INCOMPLETE',
+      expectedSchemaVersion: 5, actualSchemaVersion: 4,
+    });
+  });
+
   it('sanitizes unavailable database and schema inspection errors', async () => {
     neo4j.verifyConnectivity.mockRejectedValueOnce(new Error('private connection detail'));
     await expect(service.checkReadiness()).resolves.toMatchObject({ reason: 'DATABASE_UNAVAILABLE' });

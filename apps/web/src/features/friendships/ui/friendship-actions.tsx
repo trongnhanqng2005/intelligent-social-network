@@ -13,7 +13,10 @@ import {
 } from '../api/friendships-api';
 import './friendships.css';
 
-export function FriendshipActions({ memberId }: { memberId: string }) {
+export function FriendshipActions({ memberId, onRelationshipChanged }: {
+  memberId: string;
+  onRelationshipChanged?(): void;
+}) {
   const { retry: retrySession } = useAuth();
   const [relationship, setRelationship] = useState<FriendshipRelationship>();
   const [loading, setLoading] = useState(true);
@@ -70,9 +73,11 @@ export function FriendshipActions({ memberId }: { memberId: string }) {
         const result = await createFriendshipRequest(memberId);
         setRelationship(result.relationship);
         setMessage('Đã gửi lời mời kết bạn.');
+        onRelationshipChanged?.();
       } else if (action === 'unfriend') {
         if (!relationship.friendshipId) return;
         await unfriend(relationship.friendshipId);
+        onRelationshipChanged?.();
         setConfirmUnfriend(false);
         setMessage('Đã hủy kết bạn.');
         const current = await getFriendshipRelationship(memberId);
@@ -81,6 +86,7 @@ export function FriendshipActions({ memberId }: { memberId: string }) {
         if (!relationship.requestId) return;
         const result = await actOnFriendshipRequest(relationship.requestId, action);
         setRelationship(result.relationship);
+        onRelationshipChanged?.();
         setConfirmUnfriend(false);
         setMessage(action === 'accept'
           ? 'Hai bạn đã trở thành bạn bè.'
@@ -92,6 +98,7 @@ export function FriendshipActions({ memberId }: { memberId: string }) {
       if (!(cause instanceof FriendshipApiError) || cause.status === 409 || cause.status === undefined) {
         try {
           setRelationship(await getFriendshipRelationship(memberId));
+          onRelationshipChanged?.();
         } catch {
           reload();
         }

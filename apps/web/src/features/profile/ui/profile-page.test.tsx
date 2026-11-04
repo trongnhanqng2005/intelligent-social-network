@@ -4,10 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getOwnProfile, updateOwnProfile, UserApiError, type OwnProfile } from '../api/profile-api';
 import { ProfilePage } from './profile-page';
 
+const postMocks = vi.hoisted(() => ({ listMemberPosts: vi.fn(), retry: vi.fn() }));
 vi.mock('../api/profile-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/profile-api')>();
   return { ...actual, getOwnProfile: vi.fn(), updateOwnProfile: vi.fn() };
 });
+vi.mock('../../auth/model/auth-context', () => ({ useAuth: () => ({ retry: postMocks.retry }) }));
+vi.mock('../../posts/api/posts-api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../posts/api/posts-api')>(),
+  listMemberPosts: postMocks.listMemberPosts,
+}));
 
 const profile: OwnProfile = {
   id: 'd723b01f-7048-4efd-80c7-2d59cfb88319', displayName: 'Nguyễn An',
@@ -18,6 +24,9 @@ const profile: OwnProfile = {
 beforeEach(() => {
   vi.mocked(getOwnProfile).mockReset().mockResolvedValue(profile);
   vi.mocked(updateOwnProfile).mockReset();
+  postMocks.listMemberPosts.mockReset().mockResolvedValue({
+    items: [], pagination: { limit: 20, hasMore: false, nextCursor: null },
+  });
 });
 afterEach(cleanup);
 

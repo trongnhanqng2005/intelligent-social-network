@@ -1,5 +1,5 @@
 import type { Driver, ManagedTransaction, Session } from 'neo4j-driver';
-import { Neo4jService } from './neo4j.service.js';
+import { Neo4jService, Neo4jWriteOutcomeUnknownError } from './neo4j.service.js';
 
 describe('Neo4jService', () => {
   const tx = {} as ManagedTransaction;
@@ -38,6 +38,51 @@ describe('Neo4jService', () => {
       'transaction failed',
     );
     expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs an explicit write callback once and commits without managed retries', async () => {
+    const transaction = {
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+    };
+    session.beginTransaction = jest.fn().mockResolvedValue(transaction) as never;
+    const work = jest.fn().mockResolvedValue('created');
+
+    await expect(service.executeWriteOnce(work)).resolves.toBe('created');
+
+    expect(work).toHaveBeenCalledTimes(1);
+    expect(transaction.commit).toHaveBeenCalledTimes(1);
+    expect(transaction.rollback).not.toHaveBeenCalled();
+    expect(session.executeWrite).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back a pre-commit failure and preserves its known error', async () => {
+    const transaction = {
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+    };
+    session.beginTransaction = jest.fn().mockResolvedValue(transaction) as never;
+
+    await expect(service.executeWriteOnce(async () => { throw new Error('rejected before commit'); }))
+      .rejects.toThrow('rejected before commit');
+
+    expect(transaction.commit).not.toHaveBeenCalled();
+    expect(transaction.rollback).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an ambiguous commit failure as unknown instead of a definitive write failure', async () => {
+    const transaction = {
+      commit: jest.fn().mockRejectedValue(new Error('connection closed')),
+      rollback: jest.fn().mockResolvedValue(undefined),
+    };
+    session.beginTransaction = jest.fn().mockResolvedValue(transaction) as never;
+
+    await expect(service.executeWriteOnce(async () => 'result'))
+      .rejects.toBeInstanceOf(Neo4jWriteOutcomeUnknownError);
+
+    expect(transaction.commit).toHaveBeenCalledTimes(1);
+    expect(transaction.rollback).not.toHaveBeenCalled();
   });
 
   it('runs static schema statements in the configured database and consumes them', async () => {

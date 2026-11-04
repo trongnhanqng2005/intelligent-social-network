@@ -10,17 +10,18 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 |---|---|
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
-| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, cumulative migrations and `GET /ready` | Build records V1–V4 verified against both approved databases; resumed Step 6 read-only gates verified current restricted `isn-test` V4 state and preservation baseline |
+| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, cumulative migrations and `GET /ready` | V1–V5 history/catalog and readiness verified on restricted `isn-test`; no `isn-dev` Posts status is inferred. |
 | Vite `/api` development proxy forwarding the API health contract | Implemented and verified independently of the public homepage |
 | Email/password registration, RS256-backed 24-hour Neo4j sessions, CSRF/origin defense, restoration and logout/revocation | Implemented and verified; event retention policy remains pending |
 | Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
 | Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented and verified |
 | Friendship request/friend lifecycle API and Vietnamese UI | Implemented; corrected real-Neo4j lifecycle/concurrency suite and real-stack browser acceptance passed during Step 6; exact `isn-test` baseline restored |
-| Posts, interactions, recommendations, admin, account recovery | Planned; not implemented |
+| Posts & Feed | Implemented; focused real-Neo4j behavior/query plan and Owner-accepted Step 5 Functional Acceptance are recorded. Step 6 resource-safety evidence and Feed reconciliation fix are complete; production readiness remains separate. |
+| Likes/comments, recommendations, admin, account recovery | Planned; not implemented |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 
-The current authentication, profile, Friendship and foundation verification commands and results are recorded in [testing](development/testing.md). Real Neo4j tests use synthetic owned fixtures and prove test-database isolation when their gates pass; see the Step 6 review record for fresh restricted `isn-test` evidence.
+The current authentication, profile, Friendship, foundation and Posts verification commands and results are recorded in [testing](development/testing.md). Posts records distinguish source behavior, separately authorized `isn-test` evidence, Owner-accepted Step 5 acceptance, and Step 6 targeted follow-up. Real Neo4j tests use synthetic owned fixtures and exact cleanup; this verification does not establish production readiness.
 
 ## Technology
 

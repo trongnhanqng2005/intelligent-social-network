@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('read-only profile acceptance preflight verifies restricted isn-test V4 readiness', async () => {
+test('read-only profile acceptance preflight verifies restricted isn-test V5 readiness', async () => {
   assert.equal(process.env.NODE_ENV, 'test');
   assert.equal(process.env.NEO4J_DATABASE, 'isn-test');
   assert.ok(process.env.NEO4J_URI && process.env.NEO4J_TEST_USERNAME && process.env.NEO4J_TEST_PASSWORD);
@@ -31,6 +31,7 @@ test('read-only profile acceptance preflight verifies restricted isn-test V4 rea
         [2, 'authentication-schema', 'ce22db8398514d8caa2c9d93a7107750c84507af737decb9a5a001b5311137de'],
         [3, 'user-profile-discovery', 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee'],
         [4, 'friendship-system', '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2'],
+        [5, 'posts-feed', '48613d31278476128f0d904ad40c76c21c68d61d20b2b3fa526f423de63be523'],
       ];
       const history = await session.run(
         `MATCH (migration:ISNSchemaMigration)
@@ -47,7 +48,7 @@ test('read-only profile acceptance preflight verifies restricted isn-test V4 rea
       const marker = await session.run(
         "MATCH (schema:ISNSchema {key:'application'}) RETURN schema.version AS version LIMIT 1",
       );
-       assert.equal(asNumber(marker.records[0]?.get('version')), 4);
+       assert.equal(asNumber(marker.records[0]?.get('version')), 5);
 
       const expectedConstraints = [
         ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchema', 'key'],
@@ -61,11 +62,12 @@ test('read-only profile acceptance preflight verifies restricted isn-test V4 rea
         ['isn_friendship_request_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', 'requestId'],
         ['isn_friendship_id', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', 'id'],
         ['isn_friendship_edge_pair_key', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', 'pairKey'],
+        ['isn_post_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'Post', 'id'],
       ];
       const constraints = await session.run(
        'SHOW CONSTRAINTS YIELD name, type, entityType, labelsOrTypes, properties RETURN name, type, entityType, labelsOrTypes, properties',
       );
-      assert.equal(constraints.records.length, expectedConstraints.length, 'Constraint catalog must match V1/V2 exactly');
+      assert.equal(constraints.records.length, expectedConstraints.length, 'Constraint catalog must match V1–V5 exactly');
       for (const [name, type, entityType, label, property] of expectedConstraints) {
         assert.ok(constraints.records.some((record) => record.get('name') === name &&
           record.get('type') === type && record.get('entityType') === entityType &&
@@ -91,12 +93,14 @@ test('read-only profile acceptance preflight verifies restricted isn-test V4 rea
         ['isn_friendship_edge_pair_key', 'RANGE', 'FRIEND_WITH', 'pairKey'],
         ['isn_friendship_requests_sent', 'RANGE', 'FriendshipPair', ['senderId', 'requestStatus', 'requestId']],
         ['isn_friendship_requests_received', 'RANGE', 'FriendshipPair', ['recipientId', 'requestStatus', 'requestId']],
+        ['isn_post_id', 'RANGE', 'Post', ['id']],
+        ['isn_post_author_chronology', 'RANGE', 'Post', ['authorId', 'createdAt', 'id']],
       ];
       const indexes = await session.run(
         'SHOW INDEXES YIELD name, type, entityType, labelsOrTypes, properties, state RETURN name, type, entityType, labelsOrTypes, properties, state',
       );
       const applicationIndexes = indexes.records.filter((record) => record.get('type') !== 'LOOKUP');
-      assert.equal(applicationIndexes.length, expectedIndexes.length, 'Application index catalog must match V2/V3 exactly');
+      assert.equal(applicationIndexes.length, expectedIndexes.length, 'Application index catalog must match V2–V5 exactly');
       for (const [name, type, label, property] of expectedIndexes) {
         assert.ok(applicationIndexes.some((record) => record.get('name') === name &&
           record.get('type') === type && record.get('entityType') === (label === 'FRIEND_WITH' ? 'RELATIONSHIP' : 'NODE') &&
@@ -130,8 +134,8 @@ test('read-only profile acceptance preflight verifies restricted isn-test V4 rea
         databaseIdVerified: true,
         principal: 'isn_test_runner',
         rolesVerified: true,
-        migrationsVerified: 4,
-        schemaVersion: 4,
+        migrationsVerified: 5,
+        schemaVersion: 5,
         constraintsVerified: expectedConstraints.length,
         indexesVerified: expectedIndexes.length,
         profileInvariant: 'valid',

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Intelligent Social Network API
   version: 0.1.0
-  description: Implemented liveness, readiness, browser authentication, authenticated user profile/discovery, and Friendship contracts. Build records report V4 applied to both approved databases; Step 6 freshly verified the restricted isn-test database and real-stack Friendship acceptance.
+  description: Implemented liveness, readiness, browser authentication, authenticated profile/discovery, Friendship, and Posts & Feed contracts. V5 and focused real Posts behavior are verified on restricted isn-test under separate Owner authorization; this does not establish isn-dev or production readiness.
 servers:
   - url: http://127.0.0.1:3000
     description: Local API; the Vite development proxy adds and strips /api.
@@ -11,6 +11,8 @@ tags:
   - name: Authentication
   - name: Users
   - name: Friendships
+  - name: Posts
+  - name: Feed
 paths:
   /health:
     get:
@@ -34,7 +36,7 @@ paths:
       summary: Neo4j identity and migration readiness
       responses:
         '200':
-          description: Configured database is reachable and current at schema V4.
+          description: Configured database is reachable and current at schema V5. The V5 migration is implemented but has not been applied by this Build.
           content:
             application/json:
               schema:
@@ -43,7 +45,7 @@ paths:
                 properties:
                   status: { const: ready }
                   database: { type: string, example: isn-dev }
-                  schemaVersion: { const: 4 }
+                  schemaVersion: { const: 5 }
         '503':
           description: Configured database unavailable, identity mismatch, or schema not ready.
           content:
@@ -595,6 +597,198 @@ paths:
               schema: { type: string }
         '403': { $ref: '#/components/responses/CsrfFailed' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /posts:
+    post:
+      tags: [Posts]
+      operationId: createPost
+      summary: Create a plain-text Post as the authenticated member
+      description: Author identity is session-derived. Visibility defaults to friends and cannot be changed after creation. Content is NFC-normalized plain text, limited to 2,000 Unicode code points after normalization. A commit transport failure returns WRITE_OUTCOME_UNKNOWN; clients must reconcile before any manual retry.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePost' }
+      responses:
+        '201':
+          description: Post created with server-owned timestamps and version zero.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [post]
+                properties:
+                  post: { $ref: '#/components/schemas/Post' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CsrfFailed' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503':
+          description: Service unavailable, inconsistent graph state, or commit outcome could not be confirmed. No automatic write retry is performed.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /posts/{postId}:
+    parameters:
+      - name: postId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Posts]
+      operationId: getPost
+      summary: Read a Post visible to the authenticated member
+      description: The owner can always read their Post. Members visibility is available to any authenticated member; friends visibility requires a current accepted canonical friendship. Missing and invisible Posts both return POST_NOT_FOUND.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Explicit caller-visible Post and author projection.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [post]
+                properties:
+                  post: { $ref: '#/components/schemas/Post' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404':
+          description: Post is missing, deleted, or invisible to the caller.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    patch:
+      tags: [Posts]
+      operationId: updatePost
+      summary: Edit the authenticated owner's Post
+      description: Only the owner may edit content. expectedVersion is required; stale concurrent updates return POST_CONFLICT. Visibility is immutable.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePost' }
+      responses:
+        '200':
+          description: Updated Post with incremented version.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [post]
+                properties:
+                  post: { $ref: '#/components/schemas/Post' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: CSRF/Origin failure or a visible Post mutation by a non-owner (POST_ACTION_FORBIDDEN).
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '404': { description: Post is missing, deleted, or invisible; response uses POST_NOT_FOUND. }
+        '409': { description: expectedVersion is stale; response uses POST_CONFLICT. }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [Posts]
+      operationId: deletePost
+      summary: Permanently delete the authenticated owner's Post
+      description: Requires expectedVersion as a query parameter and an empty request body. Only the owner may delete; a visible non-owner receives POST_ACTION_FORBIDDEN, while missing/invisible Posts return POST_NOT_FOUND. Deletion is permanent.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - name: expectedVersion
+          in: query
+          required: true
+          schema: { type: integer, minimum: 0, maximum: 9007199254740991 }
+      responses:
+        '204':
+          description: Post and its verified sole AUTHORED edge permanently deleted.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: CSRF/Origin failure or visible non-owner mutation; response is no-store. }
+        '404': { description: Post is missing, deleted, or invisible; response uses POST_NOT_FOUND. }
+        '409': { description: expectedVersion is stale; response uses POST_CONFLICT. }
+        '422': { description: Invalid version or a request body was supplied; response is no-store. }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /users/{memberId}/posts:
+    get:
+      tags: [Posts]
+      operationId: listMemberPosts
+      summary: List Posts visible on one member's profile
+      description: Only authenticated members may read. Owner/current accepted friends may see friends Posts; any authenticated member may see members Posts. Visibility is filtered before chronological keyset pagination.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/PostsLimit'
+        - $ref: '#/components/parameters/PostsCursor'
+      responses:
+        '200':
+          description: Bounded caller-visible page, ordered by createdAt DESC then id DESC.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostsPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { description: Member does not exist; response is no-store. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /feed:
+    get:
+      tags: [Feed]
+      operationId: getFeed
+      summary: Get the authenticated member's chronological Home Feed
+      description: Includes the viewer and currently accepted canonical friends only. Both visibility levels are shown for these authors; friendship-only Posts are included retroactively after acceptance and excluded after unfriend. Visibility is enforced in Neo4j before bounded keyset pagination. Ordering is createdAt DESC, id DESC; OFFSET is not used.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PostsLimit'
+        - $ref: '#/components/parameters/PostsCursor'
+      responses:
+        '200':
+          description: Bounded chronological Home Feed page.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostsPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
     csrfToken:
@@ -619,6 +813,17 @@ components:
       in: header
       required: true
       schema: { type: string }
+    PostsLimit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    PostsCursor:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string, maxLength: 512 }
+      description: Versioned base64url keyset cursor bound to the scope, authenticated viewer and, for profile Posts, profile member. It is not an authorization token.
     FriendshipRequestId:
       name: requestId
       in: path
@@ -694,6 +899,73 @@ components:
           type: array
           maxItems: 50
           items: { $ref: '#/components/schemas/PublicProfile' }
+        pagination:
+          type: object
+          additionalProperties: false
+          required: [limit, hasMore, nextCursor]
+          properties:
+            limit: { type: integer, minimum: 1, maximum: 50 }
+            hasMore: { type: boolean }
+            nextCursor: { type: [string, 'null'], maxLength: 512 }
+    PostVisibility:
+      type: string
+      enum: [members, friends]
+    PostAuthor:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, bio, location]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        bio: { type: [string, 'null'] }
+        location: { type: [string, 'null'] }
+    PostPermissions:
+      type: object
+      additionalProperties: false
+      required: [canEdit, canDelete]
+      properties:
+        canEdit: { type: boolean, description: UI hint only; server always reauthorizes mutations. }
+        canDelete: { type: boolean, description: UI hint only; server always reauthorizes mutations. }
+    Post:
+      type: object
+      additionalProperties: false
+      required: [id, content, visibility, createdAt, updatedAt, version, author, permissions]
+      properties:
+        id: { type: string, format: uuid }
+        content: { type: string, minLength: 1, maxLength: 2000, description: NFC-normalized plain text; maximum is Unicode code points, not UTF-16 units. }
+        visibility: { $ref: '#/components/schemas/PostVisibility' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        author: { $ref: '#/components/schemas/PostAuthor' }
+        permissions: { $ref: '#/components/schemas/PostPermissions' }
+    CreatePost:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, description: "NFC-normalized plain text; the 2,000-code-point maximum applies after normalization." }
+        visibility:
+          allOf: [{ $ref: '#/components/schemas/PostVisibility' }]
+          default: friends
+      description: Content is normalized to NFC and LF newlines, outer whitespace is trimmed, and a normalized 2,000-code-point limit applies. Markup is stored/rendered as literal plain text; media is not accepted.
+    UpdatePost:
+      type: object
+      additionalProperties: false
+      required: [content, expectedVersion]
+      properties:
+        content: { type: string, minLength: 1, description: "NFC-normalized plain text; the 2,000-code-point maximum applies after normalization." }
+        expectedVersion: { type: integer, minimum: 0, maximum: 9007199254740991 }
+      description: Visibility is immutable. A stale expectedVersion returns 409 POST_CONFLICT.
+    PostsPage:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/Post' }
         pagination:
           type: object
           additionalProperties: false

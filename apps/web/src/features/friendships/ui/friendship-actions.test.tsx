@@ -72,6 +72,7 @@ describe('FriendshipActions', () => {
 
   it('accepts an incoming request and updates from the server result', async () => {
     const user = userEvent.setup();
+    const onRelationshipChanged = vi.fn();
     vi.mocked(getFriendshipRelationship).mockResolvedValueOnce({ ...none, state: 'incoming_pending', requestId });
     vi.mocked(actOnFriendshipRequest).mockResolvedValueOnce({
       request: {
@@ -80,11 +81,12 @@ describe('FriendshipActions', () => {
       },
       relationship: { ...none, state: 'friends', friendshipId, friendsSince: 'then' },
     });
-    render(<FriendshipActions memberId={memberId} />);
+    render(<FriendshipActions memberId={memberId} onRelationshipChanged={onRelationshipChanged} />);
     await user.click(await screen.findByRole('button', { name: /Chấp nhận/ }));
     expect(await screen.findByText('Hai bạn đã trở thành bạn bè.')).toBeVisible();
     expect(actOnFriendshipRequest).toHaveBeenCalledWith(requestId, 'accept');
     expect(screen.getByText('Hai bạn là bạn bè.')).toBeVisible();
+    expect(onRelationshipChanged).toHaveBeenCalledTimes(1);
   });
 
   it('requires an explicit accessible confirmation before unfriending', async () => {

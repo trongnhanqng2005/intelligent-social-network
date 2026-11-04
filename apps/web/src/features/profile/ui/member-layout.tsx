@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Compass, LogOut, UserRound, UsersRound } from 'lucide-react';
+import { Compass, LogOut, Newspaper, UserRound, UsersRound } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../auth/model/auth-context';
 import { Alert } from '../../../shared/ui/alert';
@@ -51,6 +51,9 @@ export function MemberLayout({ children }: { children: ReactNode }) {
           <Link to="/ho-so" aria-current={location.pathname === '/ho-so' ? 'page' : undefined}>
             <UserRound size={17} aria-hidden="true" /> Hồ sơ của tôi
           </Link>
+          <Link to="/bang-tin" aria-current={location.pathname.startsWith('/bang-tin') ? 'page' : undefined}>
+            <Newspaper size={17} aria-hidden="true" /> Bảng tin
+          </Link>
           <Link to="/kham-pha" aria-current={location.pathname.startsWith('/kham-pha') ? 'page' : undefined}>
             <Compass size={17} aria-hidden="true" /> Khám phá
           </Link>
@@ -63,7 +66,7 @@ export function MemberLayout({ children }: { children: ReactNode }) {
         </Button>
       </header>
       {logoutError && <div className="member-global-error"><Alert tone="error">{logoutError}</Alert></div>}
-      <main id="member-content" className="member-content skip-focus-target" tabIndex={-1}>{children}</main>
+      <main id="member-content" className="member-content skip-focus-target" tabIndex={-1} key={state.session.user.id}>{children}</main>
       <footer className="member-footer"><BrandLockup /><span>© {new Date().getFullYear()} Weylume</span></footer>
     </div>
   );

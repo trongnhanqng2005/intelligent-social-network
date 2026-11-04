@@ -8,7 +8,7 @@ const authEnvironment = createAuthTestKeyEnvironment('http://127.0.0.1:3301');
 
 export default defineConfig({
   testDir: './specs',
-  testIgnore: ['**/authentication.spec.ts', '**/user-profile-discovery.spec.ts', '**/friendship-system.spec.ts'],
+  testIgnore: ['**/authentication.spec.ts', '**/user-profile-discovery.spec.ts', '**/friendship-system.spec.ts', '**/posts-feed.spec.ts'],
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,

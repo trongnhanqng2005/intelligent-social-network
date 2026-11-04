@@ -57,6 +57,7 @@ describe('application routes', () => {
     expect(screen.queryByRole('link', { name: 'Tạo tài khoản' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Hồ sơ của tôi' })).toHaveAttribute('href', '/ho-so');
     expect(screen.getByRole('link', { name: 'Khám phá' })).toHaveAttribute('href', '/kham-pha');
+    expect(screen.getByRole('link', { name: 'Bảng tin' })).toHaveAttribute('href', '/bang-tin');
   });
 
   it('protects member routes and preserves a local return destination for login', async () => {
@@ -66,6 +67,16 @@ describe('application routes', () => {
       '/dang-nhap?returnTo=%2Fho-so%3Ftab%3Dgioi-thieu',
     );
   });
+
+  it.each(['/bang-tin', '/bai-viet/22222222-2222-4222-8222-222222222222'])(
+    'protects the authenticated Posts route %s and preserves it for login', async (path) => {
+      renderAt(path);
+      expect(await screen.findByRole('heading', { name: 'Chào mừng bạn trở lại' })).toBeVisible();
+      expect(screen.getByTestId('current-location')).toHaveTextContent(
+        `/dang-nhap?returnTo=${encodeURIComponent(path)}`,
+      );
+    },
+  );
 
   it('does not interpret an unavailable session check as an anonymous session', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('offline'));
