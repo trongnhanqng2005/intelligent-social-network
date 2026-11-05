@@ -10,14 +10,15 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 |---|---|
 | npm workspace with NestJS API and React web client | Implemented and verified |
 | `GET /health` returning HTTP 200 and `{"status":"ok"}` | Implemented and verified |
-| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, cumulative migrations and `GET /ready` | V1–V6 history and catalog verified on restricted `isn-test`. The V6 interaction test rolled back its fixtures. |
+| Neo4j driver, authenticated Server 2026.09.0 Enterprise access, isolated `isn-test` identity, cumulative migrations and `GET /ready` | V1–V7 history and catalog verified on restricted `isn-test` (V7 checksum and Nov 5 acceptance details in [Neo4j operations](development/neo4j-operations.md)). V6 definitions remain unchanged. |
 | Vite `/api` development proxy forwarding the API health contract | Implemented and verified independently of the public homepage |
 | Email/password registration, RS256-backed 24-hour Neo4j sessions, CSRF/origin defense, restoration and logout/revocation | Implemented and verified; event retention policy remains pending |
 | Authenticated profiles, optimistic profile editing, member search/directory and member-visible profiles | Implemented; real `isn-test` persistence, privacy, search and concurrent-update behavior verified |
 | Weylume public homepage, authentication/profile/discovery presentation and not-found screen | Implemented and verified |
 | Friendship request/friend lifecycle API and Vietnamese UI | Implemented; corrected real-Neo4j lifecycle/concurrency suite and real-stack browser acceptance passed during Step 6; exact `isn-test` baseline restored |
 | Posts & Feed | Implemented; focused real-Neo4j behavior/query plan and Owner-accepted Step 5 Functional Acceptance are recorded. Step 6 resource-safety evidence and Feed reconciliation fix are complete; production readiness remains separate. |
-| Likes & Comments | Feature branch implementation verified on restricted `isn-test` with V6, rollback-isolated Cypher, real HTTP and a Chromium journey. |
+| Likes & Comments | Integrated implementation verified on restricted `isn-test` with V6, rollback-isolated Cypher, real HTTP and a Chromium journey. |
+| Activity Logging v1 | Research-only implementation acceptance passed on restricted `isn-test` with verified V7 and serial real-Neo4j capture, concurrency and operator scenarios (2026-11-05); awaiting independent final review. No real-user or production-readiness claim. |
 | Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
 | Production deployment, production routing, operational security policy | Not configured |
 

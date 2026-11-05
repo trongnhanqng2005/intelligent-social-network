@@ -22,6 +22,31 @@ node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integ
 
 These checks cover the listed interactions on the restricted test database. The V4/V5-specific acceptance records below describe their original environments.
 
+## Activity Logging v1
+
+On 2026-11-05, typecheck, build, API unit 199/199, API E2E 13/13 and root integration 3/3 passed (unchanged from the prior verification). V7 was verified on restricted `isn-test`; migration and preflight evidence is in [Neo4j operations](neo4j-operations.md). The three serial real-Neo4j scenarios passed: rollback/event semantics, concurrent likes/comments, and export/purge/erasure operator behavior. The operator exported two pseudonymous rows including Auth, with session/email/content excluded; purged one >30-day raw event and one snapshot; deletion of the fixture user exported zero rows; erasure revoked three matching snapshots and erased one raw event. Operational Auth was retained until exact fixture cleanup. All test fixtures were removed and the application fingerprint restored. The first operator-fixture attempt failed because its fixture omitted an email parameter; the corrected fixture passed on rerun, with no production issue. No new browser run occurred, and no real-user data was used.
+
+```powershell
+npm run typecheck
+npm run build
+npm run test:api
+npm run test:api:e2e
+node --test tests/unit/activity-*.test.mjs
+```
+
+These were serial real-Neo4j tests, run only after a fresh Owner-confirmed exclusive window and passing read-only V6 preflight. The invocation-only environment settings below are required; do not persist them or treat them as authorization for a later run. `NODE_ENV=test` prevents loading development dotenv configuration, and `--env-file` selects the restricted test credentials. The commands do not start a browser and do not target `isn-dev`.
+
+```powershell
+$env:NODE_ENV = 'test'
+$env:ACTIVITY_CAPTURE_ENABLED = 'true'
+$env:ISN_TEST_WRITE_WINDOW = 'owner-approved'
+node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integration/neo4j/activity-logging.test.mjs
+node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integration/neo4j/activity-concurrency.test.mjs
+node --env-file=apps/api/.env.test.local --test --test-concurrency=1 tests/integration/neo4j/activity-operator.test.mjs
+```
+
+Implementation acceptance is complete. Independent code review of frozen candidate base `5b0f614` plus complete staged tree `e0c45e1e3a6c93650ee942dafa03de52221c3c64` returned **PASS**, with no confirmed blockers or required changes. This was source review only; supplied test evidence was not rerun by the reviewer. The activity export/operator unit tests passed 19/19, and the actual Windows ACL check passed. The candidate is ready for the already Owner-authorized commit, push, and PR; merge is not authorized here. There was no new browser run, no real-user data, and no automated scheduling. Watermarks describe the requested window end: two reads do not guarantee point-in-time consistency or completeness. Reproducibility applies to the same input, not an arbitrary future database reread. Research retention is 30 days; operational Auth retention is separate.
+
 ## Test ownership
 
 - **App-local tests (existing):** Nest Jest unit tests and Supertest API E2E remain under `apps/api`; React Vitest/RTL tests remain beside source under `apps/web/src`. Keep framework-specific behavior, component rendering and API-internal HTTP contract tests there. Do not migrate/duplicate them.

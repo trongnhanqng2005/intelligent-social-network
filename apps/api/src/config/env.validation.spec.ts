@@ -126,6 +126,19 @@ describe('validateEnvironment', () => {
     ).toThrow('NEO4J_TEST_USERNAME must be configured');
   });
 
+  it('allows activity capture only on loopback with the invocation write window', () => {
+    const testConfig = {
+      ...developmentDatabaseConfig, NEO4J_DATABASE: 'isn-test', NEO4J_TEST_USERNAME: 'test-user',
+      NEO4J_TEST_PASSWORD: 'test-password', NODE_ENV: 'test', ACTIVITY_CAPTURE_ENABLED: 'true',
+      ISN_TEST_WRITE_WINDOW: 'owner-approved',
+    };
+    expect(validateEnvironment(testConfig).NEO4J_DATABASE).toBe('isn-test');
+    expect(() => validateEnvironment({ ...testConfig, ISN_TEST_WRITE_WINDOW: undefined }))
+      .toThrow('invocation-only ISN_TEST_WRITE_WINDOW=owner-approved');
+    expect(() => validateEnvironment({ ...testConfig, NEO4J_URI: 'neo4j://db.example:7687' }))
+      .toThrow('requires a loopback NEO4J_URI');
+  });
+
   it('rejects any database other than isn-dev for development', () => {
     expect(() =>
       validateEnvironment({ ...developmentDatabaseConfig, NEO4J_DATABASE: 'isn-test' }),

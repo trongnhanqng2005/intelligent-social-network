@@ -89,6 +89,22 @@ export function validateNeo4jEnvironment(
   }
 
   const database = neo4jDatabase.trim();
+  const activityCapture = config.ACTIVITY_CAPTURE_ENABLED ?? 'false';
+  if (activityCapture !== 'true' && activityCapture !== 'false') {
+    throw new Error('ACTIVITY_CAPTURE_ENABLED must be true or false');
+  }
+  if (activityCapture === 'true' && (nodeEnv !== 'test' || database !== 'isn-test')) {
+    throw new Error('ACTIVITY_CAPTURE_ENABLED=true requires NODE_ENV=test and NEO4J_DATABASE=isn-test');
+  }
+  if (activityCapture === 'true') {
+    const host = parsedNeo4jUri.hostname;
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host)) {
+      throw new Error('ACTIVITY_CAPTURE_ENABLED=true requires a loopback NEO4J_URI');
+    }
+    if (config.ISN_TEST_WRITE_WINDOW !== 'owner-approved') {
+      throw new Error('ACTIVITY_CAPTURE_ENABLED=true requires invocation-only ISN_TEST_WRITE_WINDOW=owner-approved');
+    }
+  }
   if (nodeEnv === 'development' && database !== 'isn-dev') {
     throw new Error('NODE_ENV=development requires NEO4J_DATABASE=isn-dev');
   }

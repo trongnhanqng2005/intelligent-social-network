@@ -124,6 +124,14 @@ export const migrationDefinitions = [
     ],
     preflight: `CALL { MATCH (comment:Comment) RETURN count(comment) AS comments } RETURN comments AS conflicts`,
   },
+  {
+    version: 7,
+    name: 'activity-events',
+    statements: [
+      `CREATE CONSTRAINT isn_activity_event_id IF NOT EXISTS FOR (event:ActivityEvent) REQUIRE event.eventId IS UNIQUE`,
+      `CREATE RANGE INDEX isn_activity_event_occurred_at IF NOT EXISTS FOR (event:ActivityEvent) ON (event.occurredAt)`,
+    ],
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -185,6 +193,12 @@ const commentConstraints = [
 ] as const;
 const commentIndexes = [
   { name: 'isn_comment_post_chronology', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Comment'], properties: ['postId', 'createdAt', 'id'] },
+] as const;
+const activityConstraints = [
+  { name: 'isn_activity_event_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['ActivityEvent'], properties: ['eventId'] },
+] as const;
+const activityIndexes = [
+  { name: 'isn_activity_event_occurred_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['ActivityEvent'], properties: ['occurredAt'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -286,6 +300,10 @@ export class Neo4jMigrationService {
     if (recordedV6 && recordedV6.status !== 'VERIFIED') {
       throw new Error('An interrupted V6 migration requires manual read-only inspection; no migration writes were made');
     }
+    const recordedV7 = priorStatus.migrations.find((migration) => migration.version === 7);
+    if (recordedV7 && recordedV7.status !== 'VERIFIED') {
+      throw new Error('An interrupted V7 migration requires manual read-only inspection; no migration writes were made');
+    }
     if (priorStatus.version === 4) await this.assertVerifiedV4Baseline();
     const verifiedV3 = priorStatus.version === 3 && priorStatus.migrations.length === 3 &&
       migrationDefinitions.slice(0, 3).every((definition) => {
@@ -344,6 +362,7 @@ export class Neo4jMigrationService {
         await this.assertVerifiedV5Baseline();
         await this.preflightCommentSchema();
       }
+      if (migration.version === 7) await this.assertVerifiedV6Baseline();
 
       if (migration.version === 3) {
         const usersWithoutId = await this.neo4jService.executeRead((transaction) =>
@@ -522,6 +541,19 @@ export class Neo4jMigrationService {
     }
   }
 
+  private async assertVerifiedV6Baseline(): Promise<void> {
+    const inspection = await this.neo4jService.executeRead((transaction) => this.inspect(transaction));
+    const expected = migrationDefinitions.slice(0, 6);
+    const valid = inspection.history.length === expected.length && expected.every((definition) => {
+      const record = inspection.history.find((entry) => entry.version === definition.version);
+      return record?.name === definition.name && record.checksum === checksumMigration(definition) &&
+        record.status === 'VERIFIED' && record.appliedAt !== null && record.verifiedAt !== null;
+    });
+    if (inspection.database !== this.neo4jService.database || inspection.markerVersion !== 6 || !valid || !inspection.schemaValid) {
+      throw new Error('Activity Events migration requires a verified V1–V6 schema baseline; no V7 writes were made');
+    }
+  }
+
   private async findHistory(version: number): Promise<HistoryRecord | undefined> {
     return this.neo4jService.executeRead(async (transaction) => {
       const result = await transaction.run(
@@ -590,6 +622,7 @@ export class Neo4jMigrationService {
     if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
     if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
     if (markerVersion >= 6) expectedConstraints.push(...commentConstraints);
+    if (markerVersion >= 7) expectedConstraints.push(...activityConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);
@@ -614,6 +647,10 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const activityIndexesValid = markerVersion < 7 || activityIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const profileVerification = markerVersion < 3
       ? undefined
       : await transaction.run(migrationDefinitions[2].verification);
@@ -624,7 +661,7 @@ export class Neo4jMigrationService {
       markerVersion,
       history: historyRecords,
       schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid &&
-        postIndexesValid && commentIndexesValid && profilesValid,
+        postIndexesValid && commentIndexesValid && activityIndexesValid && profilesValid,
     };
   }
 
