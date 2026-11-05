@@ -60,7 +60,7 @@ describe('GET /ready', () => {
   });
 });
 
-describe('GET /ready with an incomplete V6 schema (isolated)', () => {
+describe('GET /ready with an incomplete V7 schema (isolated)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -87,7 +87,7 @@ describe('GET /ready with an incomplete V6 schema (isolated)', () => {
     await app.close();
   });
 
-  it('returns HTTP 503 and the V6 migration-incomplete reason without accessing Neo4j', async () => {
+  it('returns HTTP 503 and the V7 migration-incomplete reason without accessing Neo4j', async () => {
     await request(app.getHttpServer())
       .get('/ready')
       .expect(503)
@@ -95,7 +95,7 @@ describe('GET /ready with an incomplete V6 schema (isolated)', () => {
         status: 'not_ready',
         database: 'isn-test',
         reason: 'SCHEMA_MIGRATION_INCOMPLETE',
-        expectedSchemaVersion: 6,
+        expectedSchemaVersion: 7,
         actualSchemaVersion: 5,
       });
   });

@@ -39,6 +39,11 @@ describe('PostsRepository', () => {
   let transaction: { run: jest.Mock };
   let neo4j: { executeRead: jest.Mock; executeWriteOnce: jest.Mock };
   let repository: PostsRepository;
+  const originalActivityEnvironment = {
+    nodeEnv: process.env.NODE_ENV, database: process.env.NEO4J_DATABASE,
+    enabled: process.env.ACTIVITY_CAPTURE_ENABLED, uri: process.env.NEO4J_URI,
+    writeWindow: process.env.ISN_TEST_WRITE_WINDOW,
+  };
 
   beforeEach(() => {
     transaction = { run: jest.fn() };
@@ -47,6 +52,17 @@ describe('PostsRepository', () => {
       executeWriteOnce: jest.fn(async (work) => work(transaction)),
     };
     repository = new PostsRepository(neo4j as never);
+  });
+
+  afterEach(() => {
+    const restore = (key: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    };
+    restore('NODE_ENV', originalActivityEnvironment.nodeEnv);
+    restore('NEO4J_DATABASE', originalActivityEnvironment.database);
+    restore('ACTIVITY_CAPTURE_ENABLED', originalActivityEnvironment.enabled);
+    restore('NEO4J_URI', originalActivityEnvironment.uri);
+    restore('ISN_TEST_WRITE_WINDOW', originalActivityEnvironment.writeWindow);
   });
 
   it('creates through the single-run transaction using stable supplied values and verifies one author edge', async () => {
@@ -144,6 +160,47 @@ describe('PostsRepository', () => {
 
     expect(neo4j.executeWriteOnce).toHaveBeenCalledTimes(2);
     expect(transaction.run).toHaveBeenCalledTimes(3);
+  });
+
+  it('reuses the same activity event ID when a managed write callback is retried', async () => {
+    process.env.NODE_ENV = 'test'; process.env.NEO4J_DATABASE = 'isn-test';
+    process.env.ACTIVITY_CAPTURE_ENABLED = 'true'; process.env.NEO4J_URI = 'neo4j://127.0.0.1:7687';
+    process.env.ISN_TEST_WRITE_WINDOW = 'owner-approved';
+    neo4j.executeWriteOnce.mockImplementation(async (work) => {
+      await work(transaction);
+      return work(transaction);
+    });
+    transaction.run.mockImplementation(async (query: string) => {
+      if (query.includes('CREATE (:ActivityEvent')) return { records: [] };
+      if (query.includes('MERGE (viewer)-[:LIKED]')) {
+        return { records: [], summary: { counters: { updates: () => ({ relationshipsCreated: 1, relationshipsDeleted: 0 }) } } };
+      }
+      if (query.includes('SET post.version = post.version + 1')) return { records: [record({ id: postId })] };
+      return { records: [storedRecord({ authorId: viewerId, visibility: 'members' })] };
+    });
+
+    await expect(repository.setLike(viewerId, postId, true)).resolves.toEqual({ liked: true });
+
+    const eventCalls = transaction.run.mock.calls.filter(([query]) => String(query).includes('CREATE (:ActivityEvent'));
+    expect(eventCalls).toHaveLength(2);
+    expect(eventCalls[0]?.[1]).toMatchObject({ eventId: expect.any(String) });
+    expect(eventCalls[1]?.[1]).toEqual(eventCalls[0]?.[1]);
+  });
+
+  it('does not log an idempotent like no-op', async () => {
+    process.env.NODE_ENV = 'test'; process.env.NEO4J_DATABASE = 'isn-test';
+    process.env.ACTIVITY_CAPTURE_ENABLED = 'true'; process.env.NEO4J_URI = 'neo4j://127.0.0.1:7687';
+    process.env.ISN_TEST_WRITE_WINDOW = 'owner-approved';
+    transaction.run.mockImplementation(async (query: string) => {
+      if (query.includes('MERGE (viewer)-[:LIKED]')) {
+        return { records: [], summary: { counters: { updates: () => ({ relationshipsCreated: 0, relationshipsDeleted: 0 }) } } };
+      }
+      if (query.includes('SET post.version = post.version + 1')) return { records: [record({ id: postId })] };
+      return { records: [storedRecord({ authorId: viewerId, visibility: 'members' })] };
+    });
+
+    await expect(repository.setLike(viewerId, postId, true)).resolves.toEqual({ liked: true });
+    expect(transaction.run.mock.calls.some(([query]) => String(query).includes('CREATE (:ActivityEvent'))).toBe(false);
   });
 
   it('does not retry unknown or non-deadlock failures for a like mutation', async () => {

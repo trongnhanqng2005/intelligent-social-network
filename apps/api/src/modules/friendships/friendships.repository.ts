@@ -13,6 +13,7 @@ import type {
   RepositoryMutationOutcome,
 } from './friendships.types.js';
 import type { FriendshipRequestDirection } from './friendship-pagination.js';
+import { activityCaptureEnabled, newActivityEvent, recordActivityEvent } from '../activity/activity-event.js';
 
 interface PairRecord extends FriendshipPairState {
   pairKey: string;
@@ -34,6 +35,10 @@ export class FriendshipsRepository {
   }): Promise<RepositoryMutationOutcome> {
     const canonical = canonicalizeFriendshipPair(input.senderId, input.recipientId);
     if (!canonical) return { kind: 'conflict', reason: 'self' };
+    const event = activityCaptureEnabled() ? newActivityEvent({
+      eventType: 'FRIEND_REQUEST_CREATED', occurredAt: input.now, actorId: input.senderId,
+      targetUserId: input.recipientId, objectType: 'FRIENDSHIP_REQUEST', objectId: input.requestId,
+    }) : undefined;
 
     return this.neo4j.executeWrite(async (transaction) => {
       const locked = await transaction.run(
@@ -74,6 +79,7 @@ export class FriendshipsRepository {
       const record = result.records[0];
       if (!record) return { kind: 'not-found' };
       const request = readRequest(record);
+      if (event) await recordActivityEvent(transaction, event);
       return {
         kind: 'success',
         result: {
@@ -98,6 +104,10 @@ export class FriendshipsRepository {
     friendshipId: string;
     now: string;
   }): Promise<RepositoryMutationOutcome> {
+    const event = activityCaptureEnabled() ? newActivityEvent({
+      eventType: input.action === 'accept' ? 'FRIEND_REQUEST_ACCEPTED' : input.action === 'reject' ? 'FRIEND_REQUEST_REJECTED' : 'FRIEND_REQUEST_CANCELLED',
+      occurredAt: input.now, actorId: input.actorId, objectType: 'FRIENDSHIP_REQUEST', objectId: input.requestId,
+    }) : undefined;
     return this.neo4j.executeWrite(async (transaction) => {
       const located = await transaction.run(
         'MATCH (pair:FriendshipPair {requestId: $requestId}) RETURN pair.pairKey AS pairKey',
@@ -153,6 +163,7 @@ export class FriendshipsRepository {
         const record = accepted.records[0];
         if (!record) return { kind: 'conflict', reason: 'state' };
         const pair = readPairRecord(record, pairKey);
+         if (event) await recordActivityEvent(transaction, { ...event, targetUserId: input.actorId === pair.senderId ? pair.recipientId : pair.senderId, objectType: 'FRIENDSHIP', objectId: input.friendshipId });
         return { kind: 'success', result: mutationResult(input.actorId, pair) };
       }
 
@@ -170,6 +181,7 @@ export class FriendshipsRepository {
       const record = resolved.records[0];
       if (!record) return { kind: 'not-found' };
       const request = readRequest(record);
+       if (event) await recordActivityEvent(transaction, { ...event, targetUserId: input.actorId === request.senderId ? request.recipientId : request.senderId });
       return {
         kind: 'success',
         result: {
@@ -281,14 +293,20 @@ export class FriendshipsRepository {
   }
 
   async unfriend(actorId: string, friendshipId: string): Promise<void> {
+    const event = activityCaptureEnabled() ? newActivityEvent({
+      eventType: 'FRIENDSHIP_REMOVED', occurredAt: new Date().toISOString(), actorId,
+      objectType: 'FRIENDSHIP', objectId: friendshipId,
+    }) : undefined;
     await this.neo4j.executeWrite(async (transaction) => {
       const located = await transaction.run(
-        `MATCH (:User)-[friendship:FRIEND_WITH {id: $friendshipId}]->(:User)
-         RETURN friendship.pairKey AS pairKey`,
+         `MATCH (first:User)-[friendship:FRIEND_WITH {id: $friendshipId}]->(second:User)
+          RETURN friendship.pairKey AS pairKey, first.id AS firstUserId, second.id AS secondUserId`,
         { friendshipId },
       );
       const pairKey = nullableString(located.records[0]?.get('pairKey'));
       if (!pairKey) return;
+      const firstUserId = String(located.records[0]!.get('firstUserId'));
+      const secondUserId = String(located.records[0]!.get('secondUserId'));
 
       const locked = await transaction.run(
         `MATCH (pair:FriendshipPair {pairKey: $pairKey})
@@ -308,15 +326,18 @@ export class FriendshipsRepository {
       );
       if (!locatedEdge.records[0]) return;
       if (actorId !== lowUserId && actorId !== highUserId) return;
-      await transaction.run(
+      const deleted = await transaction.run(
         `MATCH (pair:FriendshipPair {pairKey: $pairKey})
          MATCH (low:User {id: $lowUserId})-[friendship:FRIEND_WITH {
            id: $friendshipId, pairKey: $pairKey
          }]->(high:User {id: $highUserId})
-         DELETE friendship
-         SET pair.friendshipId = null, pair.friendsSince = null`,
+          DELETE friendship
+          SET pair.friendshipId = null, pair.friendsSince = null`,
         { lowUserId, highUserId, pairKey, friendshipId },
       );
+      if (event && deleted.summary.counters.updates().relationshipsDeleted > 0) {
+        await recordActivityEvent(transaction, { ...event, targetUserId: actorId === firstUserId ? secondUserId : firstUserId });
+      }
     });
   }
 }
