@@ -12,7 +12,7 @@ This is synthetic Build verification, not real SNAP acceptance. SNAP rights and 
 
 ## Runtime and launcher
 
-`scripts/data-pipeline.ps1` exposes `doctor`, `prepare-source`, `run`, `test-unit`, and `test-integration`; usage and invocation limits are in [`data-pipeline/README.md`](../../data-pipeline/README.md). The verified runtime is Docker Desktop Linux/amd64, Python 3.12.15, PySpark 3.5.9, Py4J 0.10.9.7 and OpenJDK 17.0.20.1+1. Spark is `local[2]`, Snappy remains the Parquet codec, container networking is disabled, and the source/repository mounts are read-only. The Snappy native library uses only `/run/isn-etl-snappy`, a dedicated executable tmpfs with mode 0700 and UID/GID 10001; `/tmp` is not remounted executable.
+`scripts/data-pipeline.ps1` exposes `doctor`, `prepare-source`, `run`, `test-unit`, and `test-integration`; usage and invocation limits are in [`data-pipeline/README.md`](../../data-pipeline/README.md). The verified runtime is Docker Desktop Linux/amd64, Python 3.12.15, PySpark 3.5.9, Py4J 0.10.9.7 and OpenJDK 17.0.21+9. Spark is `local[2]`, Snappy remains the Parquet codec, container networking is disabled, and the source/repository mounts are read-only. The Snappy native library uses only `/run/isn-etl-snappy`, a dedicated executable tmpfs with mode 0700 and UID/GID 10001; `/tmp` is not remounted executable.
 
 The launcher refuses a missing image rather than pulling/building or changing system runtimes. Its `doctor` runs Spark startup, an actual Python worker, Snappy native loading, Parquet footer/read-back/schema/data/null checks, and Spark shutdown.
 

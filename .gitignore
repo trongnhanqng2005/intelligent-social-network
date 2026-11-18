@@ -36,6 +36,7 @@ playwright/.cache/
 /.codegraph/
 /task/
 /AGENTS.md
+.agents/
 
 # Environment files and credentials
 .env

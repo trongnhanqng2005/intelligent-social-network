@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -30,19 +32,25 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn('"records": 10', stdout.getvalue())
 
     def test_prepare_source_keeps_unresolved_snap_candidate_blocked(self) -> None:
-        config = Path(__file__).parents[3] / "data-pipeline" / "config" / "snap-facebook-combined.json"
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            status = main(
-                [
-                    "prepare-source",
-                    "--source",
-                    "facebook_combined.txt.gz",
-                    "--manifest",
-                    str(config),
-                ]
-            )
+        base_config = Path(__file__).parents[3] / "data-pipeline" / "config" / "snap-facebook-combined.json"
+        data = json.loads(base_config.read_text(encoding="utf-8"))
+        data["rights_status"] = "unresolved"
+        data["rights_evidence"] = None
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "unresolved-snap.json"
+            config.write_text(json.dumps(data), encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = main(
+                    [
+                        "prepare-source",
+                        "--source",
+                        "facebook_combined.txt.gz",
+                        "--manifest",
+                        str(config),
+                    ]
+                )
 
         self.assertEqual(status, 2)
         self.assertIn("rights", stderr.getvalue().lower())

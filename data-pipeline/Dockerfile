@@ -23,7 +23,7 @@ RUN set -eux; \
 
 FROM python:3.12-slim-bookworm@sha256:2ed6491b93cd49272ee6de2b5a38440c3448360322c089fc23e370722d74179d AS runtime
 
-ARG OPENJDK17_VERSION=17.0.20.1+1-1~deb12u1
+ARG OPENJDK17_VERSION=17.0.21+9-1~deb12u1
 
 # Keep Snappy's native library off Docker's commonly noexec /tmp mount.
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \

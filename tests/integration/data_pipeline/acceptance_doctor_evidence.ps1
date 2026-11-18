@@ -256,7 +256,7 @@ function Test-DoctorEvidence {
         }
     }
     if ($document.runtime_dependencies.python -ne '3.12.15' -or $document.runtime_dependencies.pyspark -ne '3.5.9' -or
-        $document.runtime_dependencies.py4j -ne '0.10.9.7' -or $document.runtime_dependencies.java -ne '17.0.20.1' -or
+        $document.runtime_dependencies.py4j -ne '0.10.9.7' -or $document.runtime_dependencies.java -ne '17.0.21' -or
         $document.runtime_dependencies.spark -ne '3.5.9' -or $document.runtime_dependencies.master -ne 'local[2]') {
         $reasons.Add('Doctor evidence runtime dependency versions do not match the approved runtime contract.')
     } else { $checks.Add('Required Python, PySpark, Py4J, Java, and Spark versions match.') }
@@ -321,7 +321,7 @@ function Test-DoctorEvidence {
             if ((Get-DoctorEvidenceSha256 -Path $logPath) -ne $document.logs.$hashField.ToLowerInvariant()) { throw 'SHA-256 does not match' }
             if ($kind -eq 'stdout') {
                 $text = [System.IO.File]::ReadAllText($logPath, [System.Text.UTF8Encoding]::new($false, $true))
-                foreach ($requiredText in @('DOCKER_SPARK_PARQUET_SMOKE=PASS', 'Python: 3.12.15', 'PySpark: 3.5.9; Py4J: 0.10.9.7', 'Java: 17.0.20.1; Spark: 3.5.9; master=local[2]', 'Python worker: PASS', 'Snappy Parquet footer/readback: PASS')) {
+                foreach ($requiredText in @('DOCKER_SPARK_PARQUET_SMOKE=PASS', 'Python: 3.12.15', 'PySpark: 3.5.9; Py4J: 0.10.9.7', 'Java: 17.0.21; Spark: 3.5.9; master=local[2]', 'Python worker: PASS', 'Snappy Parquet footer/readback: PASS')) {
                     if (-not $text.Contains($requiredText)) { throw "required Doctor output is absent: $requiredText" }
                 }
             }
@@ -358,7 +358,7 @@ function Test-LegacyDoctorEvidence {
                 $stderrPath = Get-DoctorEvidenceArtifactPath -Root $root -RelativePath ([string]$command.stderr)
                 if (-not (Test-Path -LiteralPath $stdoutPath -PathType Leaf) -or -not (Test-Path -LiteralPath $stderrPath -PathType Leaf)) { throw 'Doctor stdout or stderr file is missing' }
                 $stdout = [System.IO.File]::ReadAllText($stdoutPath, [System.Text.UTF8Encoding]::new($false, $true))
-                foreach ($requiredText in @('DOCKER_SPARK_PARQUET_SMOKE=PASS', 'Python: 3.12.15', 'PySpark: 3.5.9; Py4J: 0.10.9.7', 'Java: 17.0.20.1; Spark: 3.5.9; master=local[2]', 'Python worker: PASS', 'Snappy Parquet footer/readback: PASS')) {
+                foreach ($requiredText in @('DOCKER_SPARK_PARQUET_SMOKE=PASS', 'Python: 3.12.15', 'PySpark: 3.5.9; Py4J: 0.10.9.7', 'Java: 17.0.21; Spark: 3.5.9; master=local[2]', 'Python worker: PASS', 'Snappy Parquet footer/readback: PASS')) {
                     if (-not $stdout.Contains($requiredText)) { throw "required Doctor output is absent: $requiredText" }
                 }
                 $checks.Add('Historical Doctor exit 0, linked stdout/stderr, smoke marker, dependency versions, and container record were verified.')

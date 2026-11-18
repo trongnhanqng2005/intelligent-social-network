@@ -19,7 +19,7 @@ function New-TestEvidenceBundle {
 Linux: 6.18.33.2-microsoft-standard-WSL2 x86_64
 Python: 3.12.15
 PySpark: 3.5.9; Py4J: 0.10.9.7
-Java: 17.0.20.1; Spark: 3.5.9; master=local[2]
+Java: 17.0.21; Spark: 3.5.9; master=local[2]
 Python worker: PASS
 Snappy Parquet footer/readback: PASS codec=['SNAPPY']
 DOCKER_SPARK_PARQUET_SMOKE=PASS
@@ -40,7 +40,7 @@ DOCKER_SPARK_PARQUET_SMOKE=PASS
         image = [pscustomobject]@{ reference = 'isn-b-data-pipeline:py3.12-pyspark3.5.9-runtime-snappy'; id = 'sha256:' + ('b' * 64); os = 'linux'; architecture = 'amd64'; user = '10001:10001' }
         docker = [pscustomobject]@{ context_name = 'desktop-linux'; configuration_sha256 = 'c' * 64; daemon_id = 'docker-daemon-test'; server_version = '29.8.2'; client_version = '29.8.2'; docker_cli_sha256 = 'f' * 64; powershell_version = '5.1.19041.5247'; powershell_executable_sha256 = '9' * 64; launcher_powershell_executable_sha256 = '8' * 64; cpus = 24; memory_bytes = 8176463872; os = 'linux'; architecture = 'x86_64' }
         limits = [pscustomobject]@{ cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network = 'none' }
-        runtime_dependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.20.1'; spark = '3.5.9'; master = 'local[2]' }
+        runtime_dependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.21'; spark = '3.5.9'; master = 'local[2]' }
         source_fingerprints = $sourceFingerprints
         command = [pscustomobject]@{ name = 'doctor'; arguments = @('doctor'); exit_code = 0; started_at_utc = $finishedAt.AddMinutes(-1).ToString('o'); finished_at_utc = $finishedAt.ToString('o'); command_id = 'c001'; container_id = 'd' * 64 }
         container = [pscustomobject]@{ command_id = 'c001'; container_id = 'd' * 64; image_id = 'sha256:' + ('b' * 64); status = 'running'; cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network_mode = 'none'; labels = [pscustomobject]@{ invocation_id = '11111111111111111111111111111111'; command_id = 'c001' }; mounts = @([pscustomobject]@{ destination = '/workspace'; read_write = $false }) }
@@ -291,7 +291,7 @@ try {
 $bundle = New-TestEvidenceBundle
 try {
     $arguments = New-TestValidationArguments $bundle
-    $arguments.CurrentRuntimeDependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.8'; py4j = '0.10.9.7'; java = '17.0.20.1'; spark = '3.5.9'; master = 'local[2]' }
+    $arguments.CurrentRuntimeDependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.8'; py4j = '0.10.9.7'; java = '17.0.21'; spark = '3.5.9'; master = 'local[2]' }
     $mismatch = Test-DoctorEvidence @arguments
     Assert-True (-not $mismatch.eligible -and ($mismatch.reasons -join ' ') -match 'dependency') 'Required runtime dependency mismatch must be rejected.'
 } finally { Remove-TestBundle $bundle.root }

@@ -30,7 +30,7 @@ $doctorOutcome = $null
 $doctorReuseOutcome = $null
 $doctorValidation = $null
 $doctorSourceFingerprints = @()
-$doctorRuntimeDependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.20.1'; spark = '3.5.9'; master = 'local[2]' }
+$doctorRuntimeDependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.21'; spark = '3.5.9'; master = 'local[2]' }
 $doctorLimits = [pscustomobject]@{ cpus = 2; memory_bytes = [long]4294967296; pids_limit = 256; network = 'none' }
 $etl00Status = 'NOT VERIFIED'
 $sparkLaunchMeasurements = [System.Collections.Generic.List[object]]::new()
