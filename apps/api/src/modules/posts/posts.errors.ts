@@ -7,6 +7,8 @@ export type PostErrorCode =
   | 'COMMENT_NOT_FOUND'
   | 'COMMENT_FORBIDDEN'
   | 'RATE_LIMITED'
+  | 'MEDIA_INVALID'
+  | 'MEDIA_NOT_FOUND'
   | 'SERVICE_UNAVAILABLE';
 
 export class PostException extends HttpException {

@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
+import { resolveApiUrl } from '../../../shared/config/env';
 import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
-import { createComment, createPost, deleteComment, deletePost, listComments, listFeed, PostsApiError, toggleLike, toggleShare, updatePost, type FeedComment, type FeedPost } from '../api/posts-api';
+import { createComment, createPost, deleteComment, deletePost, listComments, listFeed, listRanking, PostsApiError, toggleLike, toggleShare, updatePost, uploadPostMedia, type FeedComment, type FeedPost } from '../api/posts-api';
 import './feed.css';
 
 export function FeedPage() {
@@ -19,11 +20,28 @@ export function FeedPage() {
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [commentOpen, setCommentOpen] = useState<Record<string, boolean>>({});
   const [interactionPending, setInteractionPending] = useState<string>();
+  const [ranking, setRanking] = useState(false);
+  const [mediaFile, setMediaFile] = useState<File>();
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string>();
+
+  useEffect(() => {
+    if (!mediaFile) {
+      setMediaPreviewUrl(undefined);
+      return;
+    }
+    const url = URL.createObjectURL(mediaFile);
+    setMediaPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mediaFile]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    listFeed(cursor, controller.signal).then((page) => {
+    const load = ranking ? listRanking(20, controller.signal).then((result) => ({
+      items: result.items.map((item) => item.post),
+      pagination: { nextCursor: null },
+    })) : listFeed(cursor, controller.signal);
+    load.then((page) => {
       if (controller.signal.aborted) return;
       setItems(page.items);
       setNextCursor(page.pagination.nextCursor);
@@ -34,7 +52,7 @@ export function FeedPage() {
       setLoading(false);
     });
     return () => controller.abort();
-  }, [cursor]);
+  }, [cursor, ranking]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -47,12 +65,18 @@ export function FeedPage() {
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
         setNotice('Bài viết đã được cập nhật.');
       } else {
-        const created = await createPost(content);
+        let created = await createPost(content);
+        if (mediaFile) {
+          const media = await uploadPostMedia(created.id, mediaFile);
+          created = { ...created, media: [...created.media, media] };
+        }
         setItems((current) => [created, ...current]);
         setNotice('Đã đăng bài viết.');
       }
       setContent('');
       setEditing(undefined);
+      setMediaFile(undefined);
+      setMediaPreviewUrl(undefined);
     } catch (cause) {
       setError(cause instanceof PostsApiError ? cause.message : 'Không thể lưu bài viết.');
     } finally {
@@ -131,11 +155,23 @@ export function FeedPage() {
         <h1 id="feed-title">Bảng tin</h1>
         <p>Cập nhật mới nhất từ bạn và những người bạn đã kết nối.</p>
       </header>
+      <div className="feed-view-switcher">
+        <Button type="button" variant={ranking ? 'secondary' : 'ghost'} onClick={() => { setRanking(false); setCursor(undefined); }}>Mới nhất</Button>
+        <Button type="button" variant={ranking ? 'ghost' : 'secondary'} onClick={() => { setRanking(true); setCursor(undefined); }}>Xếp hạng tương tác</Button>
+      </div>
       {notice && <Alert tone="success">{notice}</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
       <form className="feed-composer" onSubmit={submit}>
         <label htmlFor="post-content">{editing ? 'Chỉnh sửa bài viết' : 'Bạn đang nghĩ gì?'}</label>
         <textarea id="post-content" value={content} maxLength={2000} onChange={(event) => setContent(event.target.value)} placeholder="Chia sẻ điều có ý nghĩa với bạn…" />
+        {!editing && <label className="feed-media-picker" htmlFor="post-media">Đính kèm ảnh/video (tối đa 10 MB)</label>}
+        {!editing && <input id="post-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" onChange={(event) => setMediaFile(event.target.files?.[0])} />}
+        {mediaFile && mediaPreviewUrl && <div className="feed-media-preview">
+          {mediaFile.type.startsWith('video/')
+            ? <video controls muted src={mediaPreviewUrl} aria-label={`Xem trước ${mediaFile.name}`} />
+            : <img src={mediaPreviewUrl} alt={`Xem trước ${mediaFile.name}`} />}
+          <Button type="button" variant="ghost" onClick={() => setMediaFile(undefined)}>Bỏ ảnh/video</Button>
+        </div>}
         <div className="feed-composer__actions">
           <span>{content.length}/2000</span>
           {editing && <Button type="button" variant="secondary" onClick={() => { setEditing(undefined); setContent(''); }}>Hủy</Button>}
@@ -150,6 +186,9 @@ export function FeedPage() {
             {item.mine && <div className="feed-card__actions"><Button variant="ghost" disabled={pending} onClick={() => { setEditing(item.id); setContent(item.content); }}>Sửa</Button><Button variant="ghost" disabled={pending} onClick={() => void remove(item)}>Xóa</Button></div>}
           </header>
           <p>{item.content}</p>
+          {item.media.map((media) => media.mediaType === 'video'
+            ? <video className="feed-media" key={media.id} controls preload="metadata" src={resolveApiUrl(media.url)} />
+            : <img className="feed-media" key={media.id} src={resolveApiUrl(media.url)} alt={media.originalName} />)}
           {item.updatedAt !== item.createdAt && <small>Đã chỉnh sửa</small>}
           <div className="feed-card__interactions">
             <Button variant="ghost" disabled={Boolean(interactionPending)} onClick={() => void react(item, 'like')}>{item.likedByMe ? 'Bỏ thích' : 'Thích'} ({item.likeCount})</Button>

@@ -12,6 +12,12 @@
 .feed-card time, .feed-card small { color: #63736f; font-size: .8rem; }
 .feed-card p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
 .feed-card__actions { display: flex; gap: .25rem; }
+.feed-view-switcher { display: flex; gap: .25rem; margin: 1rem 0; }
+.feed-media-picker { font-size: .9rem; color: #48635d; }
+.feed-composer input[type="file"] { max-width: 100%; }
+.feed-media { display: block; width: 100%; max-height: 32rem; object-fit: contain; border-radius: .6rem; background: #edf3f1; margin: .8rem 0; }
+.feed-media-preview { display: grid; gap: .5rem; margin: .7rem 0; }
+.feed-media-preview img, .feed-media-preview video { display: block; width: min(100%, 28rem); max-height: 18rem; object-fit: contain; border-radius: .6rem; background: #edf3f1; }
 .feed-card__interactions { display: flex; flex-wrap: wrap; gap: .25rem; border-top: 1px solid #e5ecea; padding-top: .6rem; }
 .feed-comments { display: grid; gap: .6rem; margin-top: .8rem; }
 .feed-comment { display: flex; align-items: center; gap: .6rem; background: #f5f8f7; border-radius: .5rem; padding: .55rem .7rem; }

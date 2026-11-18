@@ -40,8 +40,10 @@ baseline. See
 The authenticated browser calls `/api/posts/feed` for the chronological feed
 and `/api/posts` for text-post creation. Like, comment, and share routes use the same
 development proxy and CSRF/origin protection. The feed includes the caller and
-accepted friends; it does not include pending-request members. Media and
-recommendations remain unimplemented. Do not use the
+accepted friends; it does not include pending-request members. Media uploads
+use multipart requests and are served only to viewers of the owning post.
+Ranking is a deterministic API mode; member recommendations remain
+unimplemented. Do not use the
 health endpoint as a business API template beyond its deliberately minimal
 contract.
 

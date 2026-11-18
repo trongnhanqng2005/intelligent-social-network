@@ -33,6 +33,15 @@ export class PostsQueryDto {
   cursor?: string;
 }
 
+export class RankingQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export class CommentDto {
   @IsString()
   @MaxLength(1000)

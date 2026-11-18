@@ -6,6 +6,7 @@ web_modules/
 
 # Build and coverage output
 dist/
+var/uploads/
 build/
 build/Release/
 out/

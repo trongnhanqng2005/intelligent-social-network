@@ -15,6 +15,7 @@ export interface Post {
   shareCount: number;
   likedByMe: boolean;
   sharedByMe: boolean;
+  media: PostMedia[];
 }
 
 export interface PostPage {
@@ -30,4 +31,28 @@ export interface Comment {
   updatedAt: string;
   author: PostAuthor;
   mine: boolean;
+}
+
+export interface PostMedia {
+  id: string;
+  postId: string;
+  mediaType: 'image' | 'video';
+  mimeType: string;
+  sizeBytes: number;
+  originalName: string;
+  createdAt: string;
+  url: string;
+}
+
+export interface UploadedMedia {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+export interface RankedPost {
+  post: Post;
+  score: number;
+  reasons: string[];
 }

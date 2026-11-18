@@ -4,10 +4,11 @@ import { Neo4jModule } from '../../neo4j/neo4j.module.js';
 import { PostsController } from './posts.controller.js';
 import { PostsRepository } from './posts.repository.js';
 import { PostsService } from './posts.service.js';
+import { MediaStorageService } from './media-storage.service.js';
 
 @Module({
   imports: [AuthModule, Neo4jModule],
   controllers: [PostsController],
-  providers: [PostsRepository, PostsService],
+  providers: [PostsRepository, PostsService, MediaStorageService],
 })
 export class PostsModule {}

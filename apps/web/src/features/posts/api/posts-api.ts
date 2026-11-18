@@ -12,6 +12,24 @@ export interface FeedPost {
   shareCount: number;
   likedByMe: boolean;
   sharedByMe: boolean;
+  media: PostMedia[];
+}
+
+export interface PostMedia {
+  id: string;
+  postId: string;
+  mediaType: 'image' | 'video';
+  mimeType: string;
+  sizeBytes: number;
+  originalName: string;
+  createdAt: string;
+  url: string;
+}
+
+export interface RankedPost {
+  post: FeedPost;
+  score: number;
+  reasons: string[];
 }
 
 export interface FeedComment {
@@ -69,6 +87,10 @@ export async function listFeed(cursor?: string, signal?: AbortSignal): Promise<F
   return request<FeedPage>(`/posts/feed${query}`, { signal });
 }
 
+export async function listRanking(limit = 20, signal?: AbortSignal): Promise<{ items: RankedPost[] }> {
+  return request<{ items: RankedPost[] }>(`/posts/ranking?limit=${limit}`, { signal });
+}
+
 export async function createPost(content: string): Promise<FeedPost> {
   const token = await csrf();
   const result = await request<{ post: FeedPost }>('/posts', {
@@ -77,6 +99,18 @@ export async function createPost(content: string): Promise<FeedPost> {
     body: JSON.stringify({ content }),
   });
   return result.post;
+}
+
+export async function uploadPostMedia(postId: string, file: File): Promise<PostMedia> {
+  const token = await csrf();
+  const body = new FormData();
+  body.append('media', file);
+  const result = await request<{ media: PostMedia }>(`/posts/${encodeURIComponent(postId)}/media`, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': token },
+    body,
+  });
+  return result.media;
 }
 
 export async function updatePost(id: string, content: string): Promise<FeedPost> {

@@ -3,8 +3,8 @@
 ## Scope
 
 The Posts increment provides authenticated text posts, a chronological feed,
-and friend-only likes, comments, and shares. Media, ranking, recommendations,
-and moderation are separate planned increments.
+and friend-only likes, comments, and shares. It also supports local development
+media attachments and deterministic interaction ranking.
 
 All responses use `Cache-Control: no-store`. Every route requires the durable
 session cookie. `POST`, `PATCH` and `DELETE` require the configured Origin and a
@@ -19,7 +19,10 @@ email addresses are never included.
 | Method and path | Behavior |
 |---|---|
 | `GET /posts/feed?limit=20&cursor=` | Lists the caller's posts and posts by accepted friends, newest first. |
+| `GET /posts/ranking?limit=20` | Ranks visible posts using deterministic engagement and freshness heuristics. |
 | `POST /posts` | Creates a post with `{ "content": "..." }`; returns `201` and `{ post }`. |
+| `POST /posts/{id}/media` | Uploads one image/video as multipart field `media`; maximum 10 MiB. |
+| `GET /posts/media/{mediaId}` | Streams media when the caller can view the owning post. |
 | `PATCH /posts/{id}` | Replaces content; only the author may update it. |
 | `DELETE /posts/{id}` | Deletes the author's post and returns `204`. |
 | `POST /posts/{id}/like` | Likes a visible post; idempotently returns `{ "active": true }`. |
@@ -46,6 +49,9 @@ Neo4j V5 adds a unique `Post.id` constraint and indexes for chronological and
 author-scoped feed access. Posts reference their author by the immutable
 `authorId` property. The application feed includes accepted `FRIEND_WITH`
 relationships only; pending requests do not expose posts.
+V7 adds `PostMedia` metadata; file bytes are stored under `MEDIA_STORAGE_PATH`
+or the development default `var/uploads`, never in Neo4j. Uploads validate
+allowed image/video MIME types and file signatures before persistence.
 
 ## Errors and limits
 
@@ -54,9 +60,9 @@ relationships only; pending requests do not expose posts.
 | 401 | `UNAUTHENTICATED` | No valid session. |
 | 403 | `CSRF_FAILED`, `POST_FORBIDDEN` | Request security or ownership failure. |
 | 404 | `POST_NOT_FOUND` | Post does not exist. |
-| 413 | `PAYLOAD_TOO_LARGE` | JSON body exceeds the application limit. |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | A mutation is not JSON. |
-| 422 | `VALIDATION_ERROR` | Empty, oversized or malformed content/cursor. |
+| 413 | `PAYLOAD_TOO_LARGE` | JSON body or multipart file exceeds its limit. |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | A JSON mutation has an unsupported content type. |
+| 422 | `VALIDATION_ERROR`, `MEDIA_INVALID` | Empty, oversized or malformed content/cursor/media. |
 | 429 | `RATE_LIMITED` | More than 20 writes or 120 reads per user per minute. |
 
 Feed post projections include `likeCount`, `commentCount`, `shareCount`,

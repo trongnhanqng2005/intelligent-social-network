@@ -1,7 +1,7 @@
 import { int } from 'neo4j-driver';
 import { Injectable } from '@nestjs/common';
 import { Neo4jService } from '../../neo4j/neo4j.service.js';
-import type { Comment, Post } from './posts.types.js';
+import type { Comment, Post, PostMedia } from './posts.types.js';
 
 @Injectable()
 export class PostsRepository {
@@ -15,7 +15,8 @@ export class PostsRepository {
            createdAt: datetime($now), updatedAt: datetime($now)})
          RETURN post.id AS id, post.content AS content, toString(post.createdAt) AS createdAt,
                 toString(post.updatedAt) AS updatedAt, author.id AS authorId, author.displayName AS displayName,
-                0 AS likeCount, 0 AS commentCount, 0 AS shareCount, false AS likedByMe, false AS sharedByMe`,
+                0 AS likeCount, 0 AS commentCount, 0 AS shareCount, false AS likedByMe, false AS sharedByMe,
+                [] AS media`,
         input,
       );
       return result.records[0] ? readPost(result.records[0], input.authorId) : undefined;
@@ -32,7 +33,8 @@ export class PostsRepository {
          SET post.content = $content, post.updatedAt = datetime($now)
          RETURN post.id AS id, post.content AS content, toString(post.createdAt) AS createdAt,
                 toString(post.updatedAt) AS updatedAt, author.id AS authorId, author.displayName AS displayName,
-                0 AS likeCount, 0 AS commentCount, 0 AS shareCount, false AS likedByMe, false AS sharedByMe`,
+                0 AS likeCount, 0 AS commentCount, 0 AS shareCount, false AS likedByMe, false AS sharedByMe,
+                [] AS media`,
         input,
       );
       if (result.records[0]) return readPost(result.records[0], input.authorId);
@@ -67,13 +69,25 @@ export class PostsRepository {
          })
          AND ($cursorCreatedAt IS NULL OR post.createdAt < datetime($cursorCreatedAt) OR
            (post.createdAt = datetime($cursorCreatedAt) AND post.id < $cursorId))
+         CALL {
+           WITH post
+           MATCH (media:PostMedia)
+           WHERE media.postId = post.id
+           RETURN collect({
+             id: media.id, postId: media.postId, mediaType: media.mediaType,
+             mimeType: media.mimeType, sizeBytes: media.sizeBytes,
+             originalName: media.originalName, createdAt: toString(media.createdAt),
+             url: '/posts/media/' + media.id
+           }) AS media
+         }
          RETURN post.id AS id, post.content AS content, toString(post.createdAt) AS createdAt,
                 toString(post.updatedAt) AS updatedAt, author.id AS authorId, author.displayName AS displayName,
                 count { (post)<-[:LIKED]-() } AS likeCount,
                 count { MATCH (comment:Comment) WHERE comment.postId = post.id RETURN comment } AS commentCount,
                 count { (post)<-[:SHARED]-() } AS shareCount,
                 EXISTS { MATCH (viewer:User {id: $userId})-[:LIKED]->(post) } AS likedByMe,
-                EXISTS { MATCH (viewer:User {id: $userId})-[:SHARED]->(post) } AS sharedByMe
+                EXISTS { MATCH (viewer:User {id: $userId})-[:SHARED]->(post) } AS sharedByMe,
+                media AS media
          ORDER BY post.createdAt DESC, post.id DESC LIMIT $fetchLimit`,
         {
           userId: input.userId,
@@ -83,6 +97,56 @@ export class PostsRepository {
         },
       );
       return result.records.map((record) => readPost(record, input.userId));
+    });
+  }
+
+  async createMedia(input: {
+    id: string; postId: string; userId: string; mediaType: 'image' | 'video';
+    mimeType: string; sizeBytes: number; originalName: string; storageExtension: string; now: string;
+  }): Promise<PostMedia | 'not-found' | 'forbidden'> {
+    return this.neo4j.executeWrite(async (transaction) => {
+      const visible = await transaction.run(
+        `MATCH (post:Post {id: $postId})
+         MATCH (author:User {id: post.authorId})
+         WHERE post.authorId = $userId OR EXISTS { MATCH (viewer:User {id: $userId})-[:FRIEND_WITH]-(author) }
+         RETURN post.id AS id`,
+        { postId: input.postId, userId: input.userId },
+      );
+      if (!visible.records.length) {
+        const exists = await transaction.run('MATCH (post:Post {id: $postId}) RETURN post.id AS id', { postId: input.postId });
+        return exists.records.length ? 'forbidden' : 'not-found';
+      }
+      const result = await transaction.run(
+        `CREATE (media:PostMedia {
+           id: $id, postId: $postId, ownerId: $userId, mediaType: $mediaType,
+           mimeType: $mimeType, sizeBytes: $sizeBytes, originalName: $originalName,
+           storageExtension: $storageExtension, createdAt: datetime($now)
+         })
+         RETURN media.id AS id, media.postId AS postId, media.mediaType AS mediaType,
+                media.mimeType AS mimeType, media.sizeBytes AS sizeBytes,
+                media.originalName AS originalName, toString(media.createdAt) AS createdAt`,
+        input,
+      );
+      return readMedia(result.records[0]!, input.userId);
+    });
+  }
+
+  async getMedia(id: string, userId: string): Promise<PostMedia | 'not-found' | 'forbidden'> {
+    return this.neo4j.executeRead(async (transaction) => {
+      const result = await transaction.run(
+        `MATCH (media:PostMedia {id: $id})
+         MATCH (post:Post {id: media.postId})
+         MATCH (author:User {id: post.authorId})
+         WHERE post.authorId = $userId OR EXISTS { MATCH (viewer:User {id: $userId})-[:FRIEND_WITH]-(author) }
+         RETURN media.id AS id, media.postId AS postId, media.mediaType AS mediaType,
+                media.mimeType AS mimeType, media.sizeBytes AS sizeBytes,
+                media.originalName AS originalName, media.storageExtension AS storageExtension,
+                toString(media.createdAt) AS createdAt`,
+        { id, userId },
+      );
+      if (result.records[0]) return readMedia(result.records[0], userId);
+      const exists = await transaction.run('MATCH (media:PostMedia {id: $id}) RETURN media.id AS id', { id });
+      return exists.records.length ? 'forbidden' : 'not-found';
     });
   }
 
@@ -216,7 +280,25 @@ function readPost(record: { get(key: string): unknown }, userId: string): Post {
     shareCount: asNumber(record.get('shareCount')),
     likedByMe: record.get('likedByMe') === true,
     sharedByMe: record.get('sharedByMe') === true,
+    media: readMediaList(record.get('media')),
   };
+}
+
+function readMediaList(value: unknown): PostMedia[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const media = item as Record<string, unknown>;
+    return {
+      id: String(media.id),
+      postId: String(media.postId),
+      mediaType: media.mediaType === 'video' ? 'video' : 'image',
+      mimeType: String(media.mimeType),
+      sizeBytes: asNumber(media.sizeBytes),
+      originalName: String(media.originalName),
+      createdAt: String(media.createdAt),
+      url: String(media.url),
+    };
+  });
 }
 
 function readComment(record: { get(key: string): unknown }, userId: string): Comment {
@@ -229,6 +311,19 @@ function readComment(record: { get(key: string): unknown }, userId: string): Com
     updatedAt: String(record.get('updatedAt')),
     author: { id: authorId, displayName: String(record.get('displayName')) },
     mine: authorId === userId,
+  };
+}
+
+function readMedia(record: { get(key: string): unknown }, _userId: string): PostMedia {
+  return {
+    id: String(record.get('id')),
+    postId: String(record.get('postId')),
+    mediaType: record.get('mediaType') === 'video' ? 'video' : 'image',
+    mimeType: String(record.get('mimeType')),
+    sizeBytes: asNumber(record.get('sizeBytes')),
+    originalName: String(record.get('originalName')),
+    createdAt: String(record.get('createdAt')),
+    url: `/posts/media/${String(record.get('id'))}`,
   };
 }
 

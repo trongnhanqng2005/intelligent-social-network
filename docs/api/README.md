@@ -3,7 +3,7 @@
 This directory documents HTTP behavior implemented by the NestJS API. The
 contract covers liveness/readiness, Authentication, User Profile & Discovery,
 the Friendship System, and the Posts/feed interaction increment. The current
-application schema is V6; migration evidence is environment-specific.
+application schema is V7; migration evidence is environment-specific.
 both approved databases; resumed Step 6 gates and real-stack tests verified the
 restricted `isn-test` V4 state and restored its baseline. See the Friendship
 acceptance and database-operation records for scope and evidence.

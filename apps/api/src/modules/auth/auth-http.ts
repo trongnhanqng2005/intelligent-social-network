@@ -151,7 +151,9 @@ class AuthHttpExceptionFilter implements ExceptionFilter {
             ? { code: 'SERVICE_UNAVAILABLE', message: 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại.' }
             : status === HttpStatus.BAD_REQUEST
               ? { code: 'BAD_REQUEST', message: 'Yêu cầu không hợp lệ.' }
-              : { code: 'INTERNAL_ERROR', message: 'Đã xảy ra lỗi. Vui lòng thử lại.' };
+                : status === HttpStatus.PAYLOAD_TOO_LARGE
+                  ? { code: 'PAYLOAD_TOO_LARGE', message: 'File media vượt quá giới hạn 10 MB.' }
+                : { code: 'INTERNAL_ERROR', message: 'Đã xảy ra lỗi. Vui lòng thử lại.' };
     response.status(status).json({ error });
   }
 }
@@ -173,6 +175,7 @@ function refererOrigin(value?: string): string | undefined {
 
 function statusFromError(error: unknown): number {
   if (typeof error === 'object' && error !== null) {
+    if ('code' in error && error.code === 'LIMIT_FILE_SIZE') return HttpStatus.PAYLOAD_TOO_LARGE;
     if ('status' in error && typeof error.status === 'number') return error.status === 400 ? 400 : 500;
     if ('code' in error && typeof error.code === 'string' && error.code.startsWith('Neo.')) {
       return HttpStatus.SERVICE_UNAVAILABLE;

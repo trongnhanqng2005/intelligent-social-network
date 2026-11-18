@@ -39,7 +39,7 @@ flowchart LR
   ProfileUI -->|feature requests| Vite
 ```
 
-This diagram includes the Friendship and Posts/feed interaction implementations. Media, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
+This diagram includes the Friendship and Posts/feed interaction, local media, and deterministic ranking implementations. Member recommendations, moderation, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
 
 ## Dependency direction
 

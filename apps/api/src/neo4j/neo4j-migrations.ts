@@ -126,6 +126,16 @@ export const migrationDefinitions = [
        FOR (comment:Comment) ON (comment.postId, comment.createdAt)`,
     ],
   },
+  {
+    version: 7,
+    name: 'post-media',
+    statements: [
+      `CREATE CONSTRAINT isn_media_id IF NOT EXISTS
+       FOR (media:PostMedia) REQUIRE media.id IS UNIQUE`,
+      `CREATE RANGE INDEX isn_media_post_created_at IF NOT EXISTS
+       FOR (media:PostMedia) ON (media.postId, media.createdAt)`,
+    ],
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -181,6 +191,14 @@ const postConstraints = [
 const postIndexes = [
   { name: 'isn_post_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['createdAt'] },
   { name: 'isn_post_author_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['Post'], properties: ['authorId', 'createdAt'] },
+] as const;
+
+const mediaConstraints = [
+  { name: 'isn_media_id', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['PostMedia'], properties: ['id'] },
+] as const;
+
+const mediaIndexes = [
+  { name: 'isn_media_post_created_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['PostMedia'], properties: ['postId', 'createdAt'] },
 ] as const;
 
 const interactionConstraints = [
@@ -512,6 +530,7 @@ export class Neo4jMigrationService {
       : markerVersion >= 1 ? [...requiredConstraints] : [];
     if (markerVersion >= 4) expectedConstraints.push(...friendshipConstraints);
     if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
+    if (markerVersion >= 7) expectedConstraints.push(...mediaConstraints);
     if (markerVersion >= 6) expectedConstraints.push(...interactionConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
@@ -533,6 +552,10 @@ export class Neo4jMigrationService {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
     });
+    const mediaIndexesValid = markerVersion < 7 || mediaIndexes.every((expected) => {
+      const actual = indexRows.find((index) => index.name === expected.name);
+      return actual !== undefined && matchesIndex(actual, expected);
+    });
     const interactionIndexesValid = markerVersion < 6 || interactionIndexes.every((expected) => {
       const actual = indexRows.find((index) => index.name === expected.name);
       return actual !== undefined && matchesIndex(actual, expected);
@@ -546,7 +569,7 @@ export class Neo4jMigrationService {
       database: identity.records[0]?.get('database'),
       markerVersion,
       history: historyRecords,
-      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && postIndexesValid && interactionIndexesValid && profilesValid,
+      schemaValid: constraintsValid && indexesValid && profileIndexesValid && friendshipIndexesValid && postIndexesValid && interactionIndexesValid && mediaIndexesValid && profilesValid,
     };
   }
 

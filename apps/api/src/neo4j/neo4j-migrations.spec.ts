@@ -46,8 +46,8 @@ describe('Neo4jMigrationService', () => {
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
   });
 
-  it('preserves V1–V5 checksums and appends interaction migration as V6', () => {
-    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6]);
+  it('preserves V1–V5 checksums and appends media migration as V7', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(checksumMigration(migrationDefinitions[0])).toBe(
       'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
     );
@@ -66,6 +66,8 @@ describe('Neo4jMigrationService', () => {
     expect(migrationDefinitions[4].statements).toHaveLength(3);
     expect(migrationDefinitions[5].name).toBe('post-interactions');
     expect(migrationDefinitions[5].statements).toHaveLength(4);
+    expect(migrationDefinitions[6].name).toBe('post-media');
+    expect(migrationDefinitions[6].statements).toHaveLength(2);
     expect(checksumMigration({
       ...migrationDefinitions[2],
       dataStatements: ['RETURN 1'],
