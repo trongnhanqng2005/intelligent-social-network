@@ -7,6 +7,7 @@ from pyspark.sql.types import LongType, StringType, StructField, StructType
 
 from tests.integration.data_pipeline.acceptance_verify import (
     _check_manifest_schema,
+    _check_worker_report,
     _check_schema,
     _logical_digest,
     _table_read_schema,
@@ -24,6 +25,44 @@ class IndependentVerifierLogicalDigestTests(unittest.TestCase):
             producer_digest.update(row.encode("utf-8"))
             producer_digest.update(b"\n")
         self.assertEqual(_logical_digest(rows), producer_digest.hexdigest())
+
+    def test_worker_requires_clean_teardown_and_resource_counters(self) -> None:
+        report = {
+            "resources": {
+                "spark_context_stopped": True,
+                "active_spark_session_after_stop": False,
+                "before_spark": {
+                    "cgroup_pids_events": {"max": 0},
+                    "cgroup_memory_events": {"oom": 0, "oom_kill": 0},
+                },
+                "after_spark_stop": {
+                    "cgroup_pids_events": {"max": 0},
+                    "cgroup_memory_events": {"oom": 0, "oom_kill": 0},
+                },
+            }
+        }
+        _check_worker_report(report, "case")
+        report["resources"]["after_spark_stop"]["cgroup_pids_events"]["max"] = 1
+        with self.assertRaisesRegex(AssertionError, "resource/teardown"):
+            _check_worker_report(report, "case")
+
+    def test_worker_rejects_memory_oom_and_unclean_spark_context(self) -> None:
+        report = {
+            "resources": {
+                "spark_context_stopped": True,
+                "active_spark_session_after_stop": False,
+                "before_spark": {
+                    "cgroup_pids_events": {"max": 0},
+                    "cgroup_memory_events": {"oom": 0, "oom_kill": 0},
+                },
+                "after_spark_stop": {
+                    "cgroup_pids_events": {"max": 0},
+                    "cgroup_memory_events": {"oom": 1, "oom_kill": 0},
+                },
+            }
+        }
+        with self.assertRaisesRegex(AssertionError, "resource/teardown"):
+            _check_worker_report(report, "case")
 
 
 class IndependentVerifierSchemaTests(unittest.TestCase):

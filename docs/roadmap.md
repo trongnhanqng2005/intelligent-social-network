@@ -13,7 +13,7 @@ This roadmap distinguishes completed foundation work from proposal requirements.
 | 7. Prediction integration and admin review | Publish recommendation scores and anomaly alerts for API/UI; human review remains in control | Not started; depends on stable model output contract, refresh cadence, and authorization/privacy design. |
 | 8. Production readiness | Production routing, security headers/TLS, secrets, deployment, monitoring, recovery and CI decisions | Not started; separate from the loopback foundation. |
 
-Standalone Spark ETL is implemented. Remaining acceptance work includes the full-driver run on the pinned runtime and authorized real-source reproduction. [Spark ETL acceptance](../tests/integration/data_pipeline/acceptance.md).
+Standalone Spark ETL is implemented. The integration gate is synthetic full-driver acceptance on the pinned runtime. SNAP real-source reproduction requires a separate data-use review. [Spark ETL acceptance](../tests/integration/data_pipeline/acceptance.md).
 
 ## Immediate prerequisite and questions
 

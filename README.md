@@ -67,7 +67,7 @@ Open `http://127.0.0.1:5173`. The API defaults to `127.0.0.1:3000`; Vite proxies
 
 Install the browser once with `npx playwright install chromium`. Full setup and test guidance: [Development docs](docs/development/README.md). Root test placement rules: [tests/README.md](tests/README.md).
 
-The standalone edge-list ETL is implemented. Full acceptance remains pending the pinned runtime, sufficient host RAM, and verification of the applicable SNAP-use terms. [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md).
+The standalone edge-list ETL is implemented. This PR gates the standalone pipeline on synthetic acceptance. SNAP real-source acceptance and its data-use review are separate work. [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md).
 
 ## Documentation
 

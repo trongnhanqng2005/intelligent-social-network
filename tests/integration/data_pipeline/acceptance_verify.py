@@ -6,6 +6,9 @@ import hashlib
 import json
 import os
 import re
+import signal
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -67,6 +70,16 @@ def _resource_snapshot() -> dict[str, Any]:
                 )
         except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError):
             continue
+    memory_events = _read_cgroup_events(cgroup / "memory.events")
+    pids_events = _read_cgroup_events(cgroup / "pids.events")
+    required = {
+        "memory.peak": read_cgroup("memory.peak"),
+        "memory.events": memory_events,
+        "pids.peak": read_cgroup("pids.peak"),
+        "pids.events": pids_events,
+    }
+    if any(value is None for value in required.values()):
+        _fail("Required cgroup v2 resource evidence is unavailable")
     return {
         "pid": os.getpid(),
         "python_thread_count": threading.active_count(),
@@ -78,6 +91,19 @@ def _resource_snapshot() -> dict[str, Any]:
         "cgroup_memory_limit_bytes": read_cgroup("memory.max"),
         "cgroup_pids_current": read_cgroup("pids.current"),
         "cgroup_pids_limit": read_cgroup("pids.max"),
+        "cgroup_memory_peak_bytes": required["memory.peak"],
+        "cgroup_memory_events": memory_events,
+        "cgroup_pids_peak": required["pids.peak"],
+        "cgroup_pids_events": pids_events,
+    }
+
+
+def _read_cgroup_events(path: Path) -> dict[str, int] | None:
+    if not path.is_file():
+        return None
+    return {
+        key: int(value)
+        for key, value in (line.split() for line in path.read_text(encoding="ascii").splitlines())
     }
 
 
@@ -779,35 +805,114 @@ def _spark_session() -> SparkSession:
     return spark
 
 
+def _run_case_worker(case: dict[str, Any], expected_path: Path) -> dict[str, Any]:
+    before = _resource_snapshot()
+    spark = _spark_session()
+    gateway_process = SparkContext._gateway.proc
+    if gateway_process is None or gateway_process.stdin is None:
+        _fail("Verifier worker does not own its Spark JVM")
+    try:
+        report = verify_run(
+            spark,
+            Path(case["run_path"]),
+            Path(case["source_path"]),
+            Path(case["source_manifest_path"]),
+            expected_path,
+            case["kind"],
+            case.get("variant"),
+        )
+    finally:
+        try:
+            spark.stop()
+            active_context = SparkSession.getActiveSession()
+        finally:
+            # PySpark owns the gateway through this pipe on Linux. Reap it before
+            # the parent can start another worker under the same container cap.
+            gateway_process.stdin.close()
+            try:
+                gateway_exit = gateway_process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                gateway_process.kill()
+                gateway_process.wait()
+                _fail(f"Spark JVM did not shut down for {case['case_name']}")
+            if gateway_exit:
+                _fail(f"Spark JVM exited with code {gateway_exit} for {case['case_name']}")
+    report["case_name"] = case["case_name"]
+    report["resources"] = {
+        "before_spark": before,
+        "after_spark_stop": _resource_snapshot(),
+        "spark_context_stopped": spark.sparkContext._jsc is None
+        and SparkContext._active_spark_context is None,
+        "active_spark_session_after_stop": active_context is not None,
+    }
+    return report
+
+
+def _invoke_worker(case: dict[str, Any], expected_path: Path) -> dict[str, Any]:
+    command = [
+        sys.executable, str(Path(__file__).resolve()), "--worker-case",
+        json.dumps(case), "--expected", str(expected_path),
+    ]
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=180)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        _fail(f"Verifier worker timed out and was killed: {case['case_name']}")
+    if process.returncode != 0:
+        _fail(
+            f"Verifier worker failed/non-clean for {case['case_name']} "
+            f"(exit {process.returncode}): {stderr[-4000:]}"
+        )
+    try:
+        report = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        _fail(f"Verifier worker emitted no valid report for {case['case_name']}: {error}")
+    _check_worker_report(report, case["case_name"])
+    return report
+
+
+def _check_worker_report(report: dict[str, Any], case_name: str) -> None:
+    resources = report.get("resources", {})
+    if (
+        resources.get("spark_context_stopped") is not True
+        or resources.get("active_spark_session_after_stop") is not False
+        or resources.get("after_spark_stop", {}).get("cgroup_pids_events", {}).get("max", 0)
+        > resources.get("before_spark", {}).get("cgroup_pids_events", {}).get("max", 0)
+        or any(
+            resources.get("after_spark_stop", {}).get("cgroup_memory_events", {}).get(key, 0)
+            > resources.get("before_spark", {}).get("cgroup_memory_events", {}).get(key, 0)
+            for key in ("oom", "oom_kill", "oom_group_kill")
+        )
+    ):
+        _fail(f"Verifier worker resource/teardown checks failed: {case_name}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--case-manifest", type=Path, required=True)
+    parser.add_argument("--case-manifest", type=Path)
     parser.add_argument("--expected", type=Path, required=True)
+    parser.add_argument("--worker-case")
     args = parser.parse_args()
+    if args.worker_case:
+        case = json.loads(args.worker_case)
+        print(json.dumps(_run_case_worker(case, args.expected), ensure_ascii=False))
+        return 0
+    if args.case_manifest is None:
+        parser.error("--case-manifest is required outside worker mode")
     case_manifest = _read_json(args.case_manifest)
     resources_before = _resource_snapshot()
-    spark = _spark_session()
     reports: list[dict[str, Any]] = []
-    try:
-        for case in case_manifest["cases"]:
-            report = verify_run(
-                spark,
-                Path(case["run_path"]),
-                Path(case["source_path"]),
-                Path(case["source_manifest_path"]),
-                args.expected,
-                case["kind"],
-                case.get("variant"),
-            )
-            report["case_name"] = case["case_name"]
-            reports.append(report)
-    finally:
-        spark.stop()
-    spark_context_stopped = (
-        spark.sparkContext._jsc is None and SparkContext._active_spark_context is None
-    )
-    active_context = SparkSession.getActiveSession()
+    if not case_manifest["cases"]:
+        _fail("No synthetic verifier cases were supplied")
+    for case in case_manifest["cases"]:
+        reports.append(_invoke_worker(case, args.expected))
     resources_after = _resource_snapshot()
+    if any(p["pid"] != os.getpid() for p in resources_after["spark_processes"]):
+        _fail("A Spark worker or JVM remained after verification")
     print(
         json.dumps(
             {
@@ -816,8 +921,8 @@ def main() -> int:
                 "resources": {
                     "before_spark": resources_before,
                     "after_spark_stop": resources_after,
-                    "spark_context_stopped": spark_context_stopped,
-                    "active_spark_session_after_stop": active_context is not None,
+                    "spark_context_stopped": True,
+                    "active_spark_session_after_stop": False,
                 },
             },
             indent=2,

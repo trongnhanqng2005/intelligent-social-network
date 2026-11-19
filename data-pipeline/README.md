@@ -6,7 +6,7 @@ This folder contains the approved, standalone PySpark batch pipeline. It process
 
 ## Status and source gate
 
-The SNAP manifest records SHA-256 and byte-size pins and a declared rights decision. Independent checks verified source hashes and all eight Parquet schemas, rows and logical hashes of the preserved publication. The dataset page and a coauthor’s download and citation guidance establish the source and expected attribution. The scope for reuse and retention of derived outputs remains unverified. The [acceptance report](../tests/integration/data_pipeline/acceptance.md) records the evidence and current runtime.
+The SNAP manifest records SHA-256 and byte-size pins; `rights_status` is unresolved because authorized use and retention remain unverified. SNAP processing is blocked. Historical read-only artifact checks do not constitute authorization. The [acceptance report](../tests/integration/data_pipeline/acceptance.md) records the evidence and current runtime.
 
 Only original synthetic data under `tests/fixtures/data_pipeline/` is used by the committed tests. Do not put source datasets or generated Parquet in Git.
 

@@ -2,7 +2,7 @@
 
 ## Manifest version 1
 
-Every processed source must be accompanied by a UTF-8 JSON manifest. The supplied SNAP candidate at `data-pipeline/config/snap-facebook-combined.json` has pinned hashes and byte sizes, and its `rights_status: approved` field records the manifest's declared decision. That field and the cited SNAP page do not establish authorized-use evidence: explicit rights authorization remains unavailable, so SNAP processing remains blocked. Do not change the manifest status or infer authorization from its pins.
+Every processed source must be accompanied by a UTF-8 JSON manifest. The supplied SNAP candidate at `data-pipeline/config/snap-facebook-combined.json` has pinned hashes and byte sizes, but its `rights_status: unresolved` records that authorized rights evidence and permitted use/retention remain unverified. SNAP processing remains blocked; pins and provenance do not establish authorization.
 
 Required fields:
 
