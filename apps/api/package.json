@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "neo4j:schema": "nest build && node dist/neo4j/migrate.js apply",
     "auth:keys": "node scripts/generate-auth-keys.mjs",
+    "social-demo": "npm run build && node --env-file=.env dist/social-demo/cli.js",
     "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand",
     "test:e2e": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config ./test/jest-e2e.config.cjs --runInBand",
     "start:prod": "node dist/main.js"
