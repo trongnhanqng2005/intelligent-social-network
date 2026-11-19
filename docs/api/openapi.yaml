@@ -970,6 +970,37 @@ paths:
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ml-demo/recommendations:
+    get:
+      tags: [Synthetic ML Demo]
+      operationId: getSyntheticRecommendations
+      summary: Read bounded synthetic recommendation results
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Recommendation rows and reviewer capability indicator.
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/MlRecommendations' } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ml-demo/anomalies:
+    get:
+      tags: [Synthetic ML Demo]
+      operationId: getSyntheticAnomalyAlerts
+      summary: Read synthetic anomaly results for an allowlisted reviewer
+      description: Reviewer access is determined solely by the server-side exact UUID allowlist; denied requests are rejected before bundle IO.
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Evaluated actor count and threshold-filtered alerts.
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/MlAnomalies' } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: Authenticated member is not in the reviewer allowlist.
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
     csrfToken:
@@ -1021,6 +1052,47 @@ components:
       description: Response must not be stored by caches.
       schema: { type: string, const: no-store }
   schemas:
+    MlRecommendations:
+      type: object
+      additionalProperties: false
+      required: [source, canViewAlerts, modelVersion, computedAt, items]
+      properties:
+        source: { const: synthetic }
+        canViewAlerts: { type: boolean }
+        modelVersion: { type: [string, 'null'] }
+        computedAt: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          maxItems: 2000
+          items:
+            type: object
+            additionalProperties: false
+            required: [sourceNodeId, candidateNodeId, rank, score]
+            properties:
+              sourceNodeId: { type: string, pattern: '^synthetic-friend-rec-v1:(0|[1-9][0-9]*)$' }
+              candidateNodeId: { type: string, pattern: '^synthetic-friend-rec-v1:(0|[1-9][0-9]*)$' }
+              rank: { type: integer, minimum: 1, maximum: 10 }
+              score: { type: number, minimum: 0, maximum: 1 }
+    MlAnomalies:
+      type: object
+      additionalProperties: false
+      required: [source, modelVersion, threshold, evaluatedCount, alerts]
+      properties:
+        source: { const: synthetic }
+        modelVersion: { type: string }
+        threshold: { type: number, minimum: 0, maximum: 1 }
+        evaluatedCount: { type: integer, minimum: 0, maximum: 1000 }
+        alerts:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            additionalProperties: false
+            required: [actorId, evaluatedAt, anomalyScore]
+            properties:
+              actorId: { type: string, pattern: '^synthetic-test-actor-[0-9]{3}$' }
+              evaluatedAt: { type: string, format: date-time }
+              anomalyScore: { type: number, minimum: 0, maximum: 1 }
     Credentials:
       type: object
       additionalProperties: false

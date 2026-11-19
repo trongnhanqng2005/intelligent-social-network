@@ -1,5 +1,9 @@
 # Weylume Frontend Design System
 
+## Synthetic research surface
+
+The authenticated `/nghien-cuu` member route uses the existing member shell and Be Vietnam Pro typography. It presents separate Synthetic Friend Recommendations and Synthetic Anomaly Alerts panels on the warm canvas, with restrained teal data accents, compact responsive tables, and shared semantic controls. The page is explicitly synthetic/research-only and has no invitation or relationship action.
+
 ## Product identity
 
 Weylume is the user-facing community product identity. `intelligent-social-network`
@@ -96,4 +100,4 @@ Their domain state stays in the owning features, and loading, empty and error
 states follow the documented API contract. Friendship source implementation is
 present; Build records report V4 applied, and resumed Step 6 gates verified
 restricted `isn-test` V4 while corrected interactive Friendship UI acceptance
-passed. Feeds and recommendations remain planned and should reuse these rules.
+passed. Feeds remain planned and should reuse these rules.

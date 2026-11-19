@@ -20,7 +20,7 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | Likes & Comments | Integrated implementation verified on restricted `isn-test` with V6, rollback-isolated Cypher, real HTTP and a Chromium journey. |
 | Activity Logging v1 | Research-only implementation acceptance passed on restricted `isn-test` with verified V7 and serial real-Neo4j capture, concurrency and operator scenarios (2026-11-05); independent review passed and PR #10 merged. Production rollout requires a separate operational decision. |
 | Standalone PySpark edge-list ETL and Parquet Bronze/Silver/Gold | Implemented. Offline row verification is recorded and full acceptance is pending. |
-| Application event integration, feature engineering, ML, recommendations and alerts | Planned |
+| Synthetic ML demo integration | Implemented as a bounded precomputed bundle API and member UI; not live model inference, production recommendations, or Neo4j-backed scoring |
 | Production deployment, production routing, operational security policy | Not configured |
 
 The current authentication, profile, Friendship, foundation and Posts verification commands and results are recorded in [testing](development/testing.md). Posts records distinguish source behavior, separately authorized `isn-test` evidence, Owner-accepted Step 5 acceptance, and Step 6 targeted follow-up. Real Neo4j tests use synthetic owned fixtures and exact cleanup; this verification does not establish production readiness.
