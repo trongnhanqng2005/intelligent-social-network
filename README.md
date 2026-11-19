@@ -11,7 +11,7 @@ A university Big Data project foundation for an intelligent social network. The 
 - npm workspaces: `apps/api` (NestJS 12, TypeScript) and `apps/web` (React 19, TypeScript, Vite 8, React Router 7).
 - API: NestJS Modular Monolith; root composition includes validated configuration, Neo4j migrations, health, authentication, users, and friendship modules.
 - Web: Feature-Based organization with one router, auth/profile/discovery/friendship features, and shared HTTP/config boundaries.
-- Planned direction: Neo4j for social graph/application data, PySpark batch processing over Parquet Bronze/Silver/Gold layers, and Python/scikit-learn models for friend recommendation and anomaly detection. These are requirements and proposals, not existing services.
+- Data stack: Neo4j for application data and a standalone PySpark pipeline for static edge lists and Bronze/Silver/Gold Parquet. Application event integration and Python/scikit-learn models for recommendations and anomaly detection remain planned.
 
 ```text
 apps/api/  NestJS application and API-local Jest/Supertest tests
@@ -66,8 +66,6 @@ Open `http://127.0.0.1:5173`. The API defaults to `127.0.0.1:3000`; Vite proxies
 | `npm run start:api` / `npm run preview:web` | Serve built API / Vite frontend preview |
 
 Install the browser once with `npx playwright install chromium`. Full setup and test guidance: [Development docs](docs/development/README.md). Root test placement rules: [tests/README.md](tests/README.md).
-
-
 
 The standalone edge-list ETL is implemented. Full acceptance remains pending the pinned runtime, sufficient host RAM, and explicit SNAP-use approval. [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md).
 

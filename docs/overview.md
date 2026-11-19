@@ -18,18 +18,17 @@ The project is a university Intelligent Social Network / Big Data system. Its ap
 | Friendship request/friend lifecycle API and Vietnamese UI | Implemented; corrected real-Neo4j lifecycle/concurrency suite and real-stack browser acceptance passed during Step 6; exact `isn-test` baseline restored |
 | Posts & Feed | Implemented; focused real-Neo4j behavior/query plan and Owner-accepted Step 5 Functional Acceptance are recorded. Step 6 resource-safety evidence and Feed reconciliation fix are complete; production readiness remains separate. |
 | Likes & Comments | Feature branch implementation verified on restricted `isn-test` with V6, rollback-isolated Cypher, real HTTP and a Chromium journey. |
-| Social graph/domain, event collection, PySpark, Parquet layers, ML, recommendation/alert integration | Planned direction; not implemented |
+| Standalone PySpark edge-list ETL and Parquet Bronze/Silver/Gold | Implemented. Offline row verification is recorded and full acceptance is pending. |
+| Application event integration, feature engineering, ML, recommendations and alerts | Planned |
 | Production deployment, production routing, operational security policy | Not configured |
 
 The current authentication, profile, Friendship, foundation and Posts verification commands and results are recorded in [testing](development/testing.md). Posts records distinguish source behavior, separately authorized `isn-test` evidence, Owner-accepted Step 5 acceptance, and Step 6 targeted follow-up. Real Neo4j tests use synthetic owned fixtures and exact cleanup; this verification does not establish production readiness.
-
-
 
 The standalone Spark ETL has row-level verification evidence for the supplied SNAP publication. Full acceptance remains pending. [Spark ETL acceptance](../tests/integration/data_pipeline/acceptance.md).
 
 ## Technology
 
-Current: Node.js 24 / npm 11 workspaces; NestJS 12, TypeScript 6, Jest 30 and Supertest; React 19, React Router 7, Vite 8, Vitest 5 and React Testing Library. Planned: Neo4j/Cypher and optional GDS, PySpark, Parquet and Python/scikit-learn. The proposal mentions Kafka only as a possible later streaming extension.
+Current: Node.js 24 / npm 11 workspaces; NestJS 12, TypeScript 6, Jest 30 and Supertest; React 19, React Router 7, Vite 8, Vitest 5 and React Testing Library. Data stack: Neo4j/Cypher for application data and PySpark/Parquet for standalone ETL. Optional GDS and Python/scikit-learn model work remain planned. The proposal mentions Kafka only as a possible later streaming extension.
 
 ## Principles
 

@@ -8,12 +8,10 @@ This roadmap distinguishes completed foundation work from proposal requirements.
 | 2. Documentation and testing foundation | Project docs, root test policy and executable cross-component test | Complete: docs/indexes, root HTTP integration test, and Playwright desktop/mobile QA (12 browser tests) verified. |
 | 3. Social-network domain foundation | Agree API/data contracts, authentication/security, user/profile, post/interactions and friendship rules; implement in thin slices | Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented. V5/focused Posts behavior was verified on restricted `isn-test`; Likes & Comments are implemented on the feature branch. V6 and real rollback-isolated repository tests passed on restricted `isn-test`. Focused React, NestJS and Neo4j V6 acceptance passed on restricted `isn-test`. Account recovery remains unimplemented. Production readiness remains separate. |
 | 4. Events and graph data | Define event/privacy contract and Neo4j schema/transaction semantics; ingest selected source data | Not started; depends on domain identifiers, event model, dataset rights and Neo4j deployment choice. |
-| 5. Batch data platform | Reproducible ingestion/cleaning/features; Parquet Bronze/Silver/Gold and quarantine | Not started; depends on source schemas, storage and data-quality policies. |
+| 5. Batch data platform | Static edge-list ingestion, Parquet Bronze/Silver/Gold and quarantine, then feature processing | Standalone ETL implemented. Full acceptance and feature processing remain pending. |
 | 6. ML experiments | Link prediction and anomaly experiments, leakage-safe splits, baselines, evaluation and reproducibility | Not started; depends on usable graph/events and agreed metrics. No model result exists. |
 | 7. Prediction integration and admin review | Publish recommendation scores and anomaly alerts for API/UI; human review remains in control | Not started; depends on stable model output contract, refresh cadence, and authorization/privacy design. |
 | 8. Production readiness | Production routing, security headers/TLS, secrets, deployment, monitoring, recovery and CI decisions | Not started; separate from the loopback foundation. |
-
-
 
 Standalone Spark ETL is implemented. Remaining acceptance work includes the full-driver run on the pinned runtime and authorized real-source reproduction. [Spark ETL acceptance](../tests/integration/data_pipeline/acceptance.md).
 
