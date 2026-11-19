@@ -1,6 +1,6 @@
 # Standalone graph-edge ETL
 
-> **Current status (2026-11-19)** Standalone ETL is implemented. The pinned Java 17.0.21 image built successfully. Current Doctor and synthetic full-driver acceptance remain pending a safe launch. Independent verification covers the preserved SNAP publication. Real-source reproduction remains pending verification of the applicable data-use terms. See the [acceptance report](../tests/integration/data_pipeline/acceptance.md).
+> **Current status (2026-11-19)** Standalone ETL is implemented. The clean candidate image passed Doctor and a new 88,239-line synthetic resource run under the measured 1.5 GiB/no-swap profile. The full synthetic acceptance driver remains pending. Independent verification covers the preserved SNAP publication; real-source reproduction remains pending verification of applicable data-use terms. See the [acceptance report](../tests/integration/data_pipeline/acceptance.md).
 
 This folder contains the approved, standalone PySpark batch pipeline. It processes a locally supplied, manifest-pinned undirected edge list into Bronze, Silver/quarantine, and Gold Parquet. It has no API, Neo4j, live-user, event-generation, feature-engineering, model-training, or serving integration.
 
@@ -12,9 +12,9 @@ Only original synthetic data under `tests/fixtures/data_pipeline/` is used by th
 
 ## Runtime and commands
 
-The launcher requires a matching local image and does not pull, build, or install anything implicitly. The default legacy tag is not a current candidate runtime. The acceptance driver can be given an independently pinned full image ID via `-CandidateImageId sha256:<64 hex>`; this does not waive Docker Doctor's Java/version, runtime user, platform, or per-launch checks. Container invocations are offline, run as UID 10001, limited to 2 CPUs, 4 GiB RAM, and 256 PIDs, and use a per-invocation executable Snappy tmpfs (0700, UID/GID 10001). Source, manifest and repository mounts are read-only; `run` receives only its selected output-root mount as writable. Containers use `--rm` and stop Spark before exit.
+The launcher requires a matching local image and does not pull, build, or install anything implicitly. The default legacy tag is not the current candidate; select the approved local candidate explicitly with `-Image sha256:d83be3bc743e53f3e53443c2ee380ed0ab5356098db22caf29d54d9665554f21` when using direct launcher commands. The acceptance driver can be given the same independently pinned full image ID via `-CandidateImageId`; this does not waive Docker Doctor's Java/version, runtime user, platform, or per-launch checks. Workloads use two CPUs, 1.5 GiB memory with memory-swap capped equal to memory (no swap), a 512 MiB driver heap, and 256 PIDs. The acceptance driver's immediate Windows host gate is 2.25 GiB. Containers remain offline, run as UID 10001, and use a per-invocation executable Snappy tmpfs (0700, UID/GID 10001). Source, manifest and repository mounts are read-only; `run` receives only its selected output-root mount as writable. Containers use `--rm` and stop Spark before exit.
 
-Run from the repository root in PowerShell:
+Run from the repository root in PowerShell, adding `-Image sha256:d83be3bc743e53f3e53443c2ee380ed0ab5356098db22caf29d54d9665554f21` to each launcher command to use the approved candidate instead of the legacy default:
 
 ```powershell
 scripts/data-pipeline.ps1 doctor
@@ -96,7 +96,7 @@ docker build --platform linux/amd64 --target runtime -t isn-b-data-pipeline:py3.
 
 Dùng Python 3.12 cho `pip download`; các distribution phải khớp hash trong lock. Nếu image base hoặc phiên bản OpenJDK ghim không còn khả dụng, dừng và xử lý provenance/dependency, không tự đổi pin. Image build mới có thể khác image ID lịch sử; full-driver hiện kiểm identity và baseline nghiêm ngặt, không tự coi image mới tương đương. Không đưa wheelhouse, image, logs, Parquet, `.env` hoặc artifact local lên Git.
 
-Các lệnh launcher thực tế ở mục **Runtime and commands** phía trên. `prepare-source` không khởi tạo Spark nhưng vẫn cần Docker/image; `test-unit` chạy unit trong container, còn `doctor`, `run`, `test-integration` và independent verifier có Spark/Parquet workload. **Launcher trực tiếp không tự áp dụng gate RAM của acceptance driver**: trước mọi workload Spark của nghiệm thu phải áp dụng preflight và gate 4,5 GiB tức thời, giữ tuần tự và dừng khi không đạt. Không dùng một mẫu RAM cũ để cấp phép. Không chạy hai Spark đồng thời nếu chưa xác nhận an toàn.
+Các lệnh launcher thực tế ở mục **Runtime and commands** phía trên. `prepare-source` không khởi tạo Spark nhưng vẫn cần Docker/image; `test-unit` chạy unit trong container, còn `doctor`, `run`, `test-integration` và independent verifier có Spark/Parquet workload. **Launcher trực tiếp không tự áp dụng gate RAM của acceptance driver**: trước workload Spark phải áp dụng gate RAM tức thời 2,25 GiB, giữ tuần tự và dừng khi không đạt. Không dùng một mẫu RAM cũ để cấp phép. Không chạy hai Spark đồng thời.
 
 `run` ghi dưới `<OutputRoot>/<dataset_id>/runs/<run_id>/`; manifest và marker nằm ở run root, các bảng nằm trong thư mục Bronze/Silver/Gold. Driver nghiệm thu `tests/integration/data_pipeline/acceptance.ps1` ghi báo cáo/log dưới root invocation riêng; có tham số `-ArtifactBase`, `-VariantFixtureRoot`, `-HistoricalBaseline`, `-ProtectedInventory`, `-CandidateImageId`, `-Image` và `-DoctorEvidencePath`. Explicit `-ProtectedInventory` selects fresh mode and requires `-CandidateImageId`; it does not require or read `-HistoricalBaseline`. Không tái sử dụng Doctor evidence không còn khớp fingerprint.
 
@@ -106,8 +106,8 @@ Các lệnh launcher thực tế ở mục **Runtime and commands** phía trên.
 |---|---|
 | DONE | Code ETL, CLI, contract synthetic, kiểm tra publication/reuse; sửa hash bảng rỗng với regression. |
 | DONE | Lượt kiểm tra nhẹ sau sửa: 26/26 unit, 7/7 verifier schema/hash; gate resource và monitoring tests PASS. |
-| IN PROGRESS | Synthetic Acceptance: tám fixture đã được phục hồi và kiểm tra độc lập; fresh preservation inventory không thay thế artifact lịch sử vắng mặt. |
-| BLOCKED | Full-driver PASS, current Doctor và RAM gate chưa đạt; SNAP chưa có quyền/pin tin cậy. Legacy historical baseline/marker/manifests/reports cũ còn thiếu; fresh mode có inventory riêng. |
+| IN PROGRESS | Synthetic Acceptance: resource profile qualified by measured run; full acceptance driver remains pending. Fresh preservation inventory không thay thế artifact lịch sử vắng mặt. |
+| BLOCKED | Full-driver PASS remains pending; SNAP chưa có quyền/pin tin cậy. Legacy historical baseline/marker/manifests/reports cũ còn thiếu; fresh mode có inventory riêng. |
 | NOT STARTED | Independent Code Review; nghiệm thu và quyết định merge của Owner. |
 
 Ưu tiên tiếp theo:
@@ -115,5 +115,5 @@ Các lệnh launcher thực tế ở mục **Runtime and commands** phía trên.
 1. **Khôi phục input:** cả tám fixture đóng băng đã được phục hồi và kiểm tra độc lập; điều này không tái tạo marker/manifest lịch sử.
 2. **Chuẩn bị evidence:** inventory bền vững `D:\DoAn\BigData\_isn-b-artifacts\weylume-acceptance-20261119\fresh-preservation-baseline.json` và `recovered-synthetic-20261119` sibling là preservation evidence mới, không phải historical baseline; không hàm ý artifact vắng mặt đã được tạo lại.
 3. **Run acceptance:** dùng `-ProtectedInventory D:/DoAn/BigData/_isn-b-artifacts/weylume-acceptance-20261119/fresh-preservation-baseline.json -CandidateImageId sha256:<64 hex>` cho fresh mode, không yêu cầu/đọc historical baseline. Legacy mode không có `-ProtectedInventory` vẫn yêu cầu baseline lịch sử và xác minh image identity. Full-driver PASS, current Doctor, per-launch resource gates và independent current-candidate verification vẫn outstanding.
-4. **Resource:** chỉ chạy serial khi Docker/image, môi trường và RAM tức thời đạt toàn bộ preflight; nếu dưới 4,5 GiB thì dừng, không retry liên tục hoặc hạ gate. Raw logs/reports mới phải được lưu ngoài Git, có provenance và có thể chia sẻ hợp lệ với reviewer.
+4. **Resource:** dùng đúng profile 2 CPUs, 1536 MiB memory, memory-swap bằng cap, 512 MiB driver heap và gate host tức thời 2.25 GiB; xác minh no-swap bằng Docker inspect. Chạy serial, fail closed; không retry liên tục hoặc tự hạ gate. Raw logs/reports mới phải được lưu ngoài Git, có provenance và có thể chia sẻ hợp lệ với reviewer.
 5. **Trước merge:** hoàn tất acceptance, Independent Code Review thật sự độc lập, xử lý defect có căn cứ và nhận quyết định Owner. Draft PR phục vụ cộng tác không phải phê duyệt merge.

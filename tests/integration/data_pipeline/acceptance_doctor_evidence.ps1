@@ -102,6 +102,7 @@ function Get-DoctorSourceFingerprints {
         'tests/integration/data_pipeline/acceptance_doctor_evidence.ps1',
         'tests/integration/data_pipeline/acceptance_docker_monitoring.ps1',
         'tests/integration/data_pipeline/acceptance_resource_gate.ps1',
+        'tests/integration/data_pipeline/acceptance_verify.py',
         'scripts/data-pipeline.ps1',
         'data-pipeline/Dockerfile',
         'data-pipeline/pyproject.toml',
@@ -160,7 +161,7 @@ function Test-DoctorEvidence {
     $currentDockerFields = @('context_name', 'configuration_sha256', 'daemon_id', 'server_version', 'client_version', 'docker_cli_sha256', 'powershell_version', 'powershell_executable_sha256', 'launcher_powershell_executable_sha256', 'cpus', 'memory_bytes', 'os', 'architecture')
     $missingCurrentDocker = @($currentDockerFields | Where-Object { [string]::IsNullOrWhiteSpace([string]$CurrentDocker.$_) })
     if ($missingCurrentDocker.Count -gt 0) { $reasons.Add("Current Docker identity/configuration is incomplete: $($missingCurrentDocker -join ', ').") }
-    elseif ($CurrentDocker.cpus -lt 2 -or $CurrentDocker.memory_bytes -lt 4294967296 -or $CurrentDocker.os -ne 'linux' -or $CurrentDocker.architecture -ne 'x86_64') {
+    elseif ($CurrentDocker.cpus -lt 2 -or $CurrentDocker.memory_bytes -lt 1610612736 -or $CurrentDocker.os -ne 'linux' -or $CurrentDocker.architecture -ne 'x86_64') {
         $reasons.Add('Current Docker capacity or platform does not satisfy the approved Spark runtime contract.')
     } else { $checks.Add('Current Docker context/configuration/daemon and required capacity were read successfully.') }
     foreach ($hashField in @('configuration_sha256', 'docker_cli_sha256')) {
@@ -228,26 +229,28 @@ function Test-DoctorEvidence {
         if ([string]$document.docker.$hashField -notmatch '^[a-fA-F0-9]{64}$') { $reasons.Add("Historical Docker '$hashField' is not a valid SHA-256 fingerprint.") }
     }
     if ($null -eq $document.docker.cpus -or $document.docker.cpus -lt 2 -or
-        $null -eq $document.docker.memory_bytes -or $document.docker.memory_bytes -lt 4294967296) {
+        $null -eq $document.docker.memory_bytes -or $document.docker.memory_bytes -lt 1610612736) {
         $reasons.Add('Historical Docker CPU/memory capacity did not satisfy the approved Spark runtime contract.')
     }
     $hasRecordedDockerIdentity = $true
     foreach ($field in @('context_name', 'configuration_sha256', 'daemon_id', 'server_version', 'client_version', 'docker_cli_sha256', 'powershell_version', 'powershell_executable_sha256', 'launcher_powershell_executable_sha256')) {
         if ([string]::IsNullOrWhiteSpace([string]$document.docker.$field)) { $hasRecordedDockerIdentity = $false }
     }
-    if ($CurrentDocker.cpus -lt 2 -or $CurrentDocker.memory_bytes -lt 4294967296 -or $CurrentDocker.os -ne 'linux' -or $CurrentDocker.architecture -ne 'x86_64') {
+    if ($CurrentDocker.cpus -lt 2 -or $CurrentDocker.memory_bytes -lt 1610612736 -or $CurrentDocker.os -ne 'linux' -or $CurrentDocker.architecture -ne 'x86_64') {
         $reasons.Add('Current Docker capacity or platform does not satisfy the approved Spark runtime contract.')
     } elseif ($hasRecordedDockerIdentity -and $reasons.Count -eq $dockerReasonCountBefore) {
         $checks.Add('Docker context, configuration, daemon identity, version, capacity, and platform match.')
     }
 
-    foreach ($field in @('cpus', 'memory_bytes', 'pids_limit', 'network')) {
+    foreach ($field in @('cpus', 'memory_bytes', 'memory_swap_bytes', 'driver_memory', 'pids_limit', 'network')) {
         if ($null -eq $document.limits.$field -or $null -eq $CurrentLimits.$field -or $document.limits.$field -ne $CurrentLimits.$field) {
             $reasons.Add("Approved per-container resource/environment limit '$field' is missing or differs from the current contract.")
         }
     }
-    if ($document.limits.cpus -ne 2 -or $document.limits.memory_bytes -ne 4294967296 -or $document.limits.pids_limit -ne 256 -or $document.limits.network -ne 'none') {
-        $reasons.Add('Doctor evidence does not record the approved 2-CPU/4-GiB/256-PID/no-network contract.')
+    if ($document.limits.cpus -ne 2 -or $document.limits.memory_bytes -ne 1610612736 -or
+        $document.limits.memory_swap_bytes -ne 1610612736 -or $document.limits.driver_memory -ne '512m' -or
+        $document.limits.pids_limit -ne 256 -or $document.limits.network -ne 'none') {
+        $reasons.Add('Doctor evidence does not record the approved 2-CPU/1.5-GiB/no-swap/512-MiB-driver/256-PID/no-network contract.')
     } else { $checks.Add('Approved per-container resource limits match.') }
 
     foreach ($field in @('python', 'pyspark', 'py4j', 'java', 'spark', 'master')) {
@@ -293,7 +296,7 @@ function Test-DoctorEvidence {
     if ([string]$container.container_id -notmatch '^[a-fA-F0-9]{64}$' -or
         $container.command_id -ne $command.command_id -or
         $container.image_id -ne $CurrentImage.id -or $container.status -notin @('running', 'exited') -or
-        $container.cpus -ne 2 -or $container.memory_bytes -ne 4294967296 -or $container.pids_limit -ne 256 -or $container.network_mode -ne 'none') {
+        $container.cpus -ne 2 -or $container.memory_bytes -ne 1610612736 -or $container.memory_swap_bytes -ne 1610612736 -or $container.pids_limit -ne 256 -or $container.network_mode -ne 'none') {
         $reasons.Add('Observed Doctor container image, status, or resource configuration is invalid.')
     } elseif (-not (@($container.mounts | Where-Object { $_.destination -eq '/workspace' -and -not $_.read_write }).Count -eq 1)) {
         $reasons.Add('Observed Doctor container did not mount the repository workspace read-only.')
@@ -366,7 +369,7 @@ function Test-LegacyDoctorEvidence {
             } catch { $reasons.Add("Historical Doctor completion evidence is incomplete: $($_.Exception.Message)") }
             if ($snapshot.Count -eq 1) {
                 $container = $snapshot[0]
-                if ($container.image_id -ne $CurrentImage.id -or $container.cpus -ne 2 -or $container.memory_bytes -ne 4294967296 -or $container.pids_limit -ne 256 -or $container.network_mode -ne 'none') {
+                if ($container.image_id -ne $CurrentImage.id -or $container.cpus -ne 2 -or $container.memory_bytes -ne 1610612736 -or $container.memory_swap_bytes -ne 1610612736 -or $container.pids_limit -ne 256 -or $container.network_mode -ne 'none') {
                     $reasons.Add('Historical Doctor container image/resource contract differs from current pinned runtime.')
                 } elseif ($Document.runtime_preflight.image -ne $ExpectedImage -or $Document.runtime_preflight.image_inspect -notmatch ('^' + [regex]::Escape($CurrentImage.id) + '\|linux\|amd64\|10001:10001$')) {
                     $reasons.Add('Historical preflight pinned image identity does not match current local image.')
@@ -489,6 +492,7 @@ function New-DoctorEvidenceRecord {
             status = $Container.status
             cpus = $Container.cpus
             memory_bytes = $Container.memory_bytes
+            memory_swap_bytes = $Container.memory_swap_bytes
             pids_limit = $Container.pids_limit
             network_mode = $Container.network_mode
             mounts = @($Container.mounts)

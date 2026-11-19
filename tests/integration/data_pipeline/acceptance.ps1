@@ -28,14 +28,14 @@ $monitoringIssues = [System.Collections.Generic.List[object]]::new()
 $stoppedSnapshots = [System.Collections.Generic.List[object]]::new()
 $caseResults = [System.Collections.Generic.List[object]]::new()
 $runtimeBefore = $null
-$minimumHostFreeBytes = [long]4831838208
+$minimumHostFreeBytes = [long]2415919104
 $doctorPostflight = $null
 $doctorOutcome = $null
 $doctorReuseOutcome = $null
 $doctorValidation = $null
 $doctorSourceFingerprints = @()
 $doctorRuntimeDependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.21'; spark = '3.5.9'; master = 'local[2]' }
-$doctorLimits = [pscustomobject]@{ cpus = 2; memory_bytes = [long]4294967296; pids_limit = 256; network = 'none' }
+$doctorLimits = [pscustomobject]@{ cpus = 2; memory_bytes = [long]1610612736; memory_swap_bytes = [long]1610612736; driver_memory = '512m'; pids_limit = 256; network = 'none' }
 $etl00Status = 'NOT VERIFIED'
 $sparkLaunchMeasurements = [System.Collections.Generic.List[object]]::new()
 $failureStatus = 'FAILED'
@@ -210,8 +210,9 @@ function Get-ContainerSnapshot {
         })
         $violations = @()
         if ($detail.Config.User -ne '10001:10001' -or $detail.HostConfig.NanoCpus -ne 2000000000 -or
-            $detail.HostConfig.Memory -ne 4294967296 -or $detail.HostConfig.PidsLimit -ne 256 -or
+            $detail.HostConfig.Memory -ne $doctorLimits.memory_bytes -or $detail.HostConfig.MemorySwap -ne $doctorLimits.memory_swap_bytes -or $detail.HostConfig.PidsLimit -ne 256 -or
             $detail.HostConfig.NetworkMode -ne 'none' -or
+            $detail.Config.Env -cnotcontains "PYSPARK_SUBMIT_ARGS=--driver-memory $($doctorLimits.driver_memory) pyspark-shell" -or
             $detail.Image -ne (($runtimeBefore.image_inspect -split '\|')[0])) {
             $violations += 'runtime image/user/resource/network limits differ from the approved contract'
         }
@@ -235,6 +236,7 @@ function Get-ContainerSnapshot {
             user = $detail.Config.User
             cpus = [math]::Round($detail.HostConfig.NanoCpus / 1000000000, 2)
             memory_bytes = $detail.HostConfig.Memory
+            memory_swap_bytes = $detail.HostConfig.MemorySwap
             pids_limit = $detail.HostConfig.PidsLimit
             network_mode = $detail.HostConfig.NetworkMode
             memory_usage = $statsResult.memory_usage
@@ -584,7 +586,7 @@ function Assert-SparkLaunchHeadroom {
     $script:sparkLaunchMeasurements.Add($snapshot)
     if ($availableBytes -lt $script:minimumHostFreeBytes) {
         $script:failureStatus = 'BLOCKED_PRE_SPARK_HOST_RAM'
-        throw "${Name}: host has only $($snapshot.available_gib) GiB free; refusing to start a Spark container below the 4.5-GiB gate."
+        throw "${Name}: host has only $($snapshot.available_gib) GiB free; refusing to start a Spark container below the 2.25-GiB gate."
     }
 }
 
@@ -631,7 +633,7 @@ try {
     $currentHead = git -C $repo rev-parse HEAD
     $conflictingProcesses = @(Get-ConflictingAcceptanceProcesses)
     if ($runtimeBefore.host_free_memory_bytes -lt $minimumHostFreeBytes) {
-        throw "Host has only $([math]::Round($runtimeBefore.host_free_memory_bytes / 1GB, 2)) GiB free; acceptance requires at least 4.5 GiB before starting another Spark container."
+        throw "Host has only $([math]::Round($runtimeBefore.host_free_memory_bytes / 1GB, 2)) GiB free; acceptance requires at least 2.25 GiB before starting another Spark container."
     }
     if ($runtimeBefore.docker_cpus -lt 2 -or $runtimeBefore.docker_memory_bytes -lt $doctorLimits.memory_bytes -or $runtimeBefore.docker_os -ne 'linux' -or $runtimeBefore.docker_architecture -ne 'x86_64') {
         throw 'Docker capacity or platform is below the approved Linux/amd64 Spark runtime contract.'
@@ -651,7 +653,7 @@ try {
     $imageParts = $runtimeBefore.image_inspect -split '\|'
     $currentImage = [pscustomobject]@{ reference = $Image; id = $imageParts[0]; os = $imageParts[1]; architecture = $imageParts[2]; user = $imageParts[3] }
     $beforeMemoryCheck = Get-AvailableHostMemoryBytes
-    if ($beforeMemoryCheck -lt $minimumHostFreeBytes) { throw 'Current host RAM fell below the 4.5-GiB gate during acceptance preflight.' }
+    if ($beforeMemoryCheck -lt $minimumHostFreeBytes) { throw 'Current host RAM fell below the 2.25-GiB gate during acceptance preflight.' }
 
     $before = [pscustomobject]@{
         invocation_id = $invocationId
@@ -970,7 +972,7 @@ try {
     $verifyCommandId = "c{0:D3}" -f ($commands.Count + 1)
     $verifyCid = Join-Path $root "container-ids\$verifyCommandId.cid"
     $verifierArgs = @(
-        'run', '--rm', '--platform', 'linux/amd64', '--cpus=2', '--memory=4g', '--pids-limit=256', '--network', 'none',
+        'run', '--rm', '--platform', 'linux/amd64', '--cpus=2', '--memory=1536m', '--memory-swap=1536m', '--pids-limit=256', '--network', 'none',
         '--hostname', 'isn-etl-acceptance-verifier', '--add-host', 'isn-etl-acceptance-verifier:127.0.0.1',
         '--label', "org.weylume.isn-etl.invocation=$invocationId",
         '--label', "org.weylume.isn-etl.command=$verifyCommandId", '--cidfile', $verifyCid,
@@ -980,6 +982,7 @@ try {
         '--mount', "type=bind,source=$dockerRoot,target=/acceptance,readonly",
         '--workdir', '/workspace', '--env', 'PYTHONPATH=/workspace/data-pipeline/src',
         '--env', 'PYSPARK_PYTHON=/opt/venv/bin/python', '--env', 'PYSPARK_DRIVER_PYTHON=/opt/venv/bin/python',
+        '--env', 'PYSPARK_SUBMIT_ARGS=--driver-memory 512m pyspark-shell',
         '--env', 'JAVA_TOOL_OPTIONS=-Dorg.xerial.snappy.tempdir=/run/isn-etl-snappy -XX:ActiveProcessorCount=2',
         '--entrypoint', 'python', $Image, 'tests/integration/data_pipeline/acceptance_verify.py',
         '--case-manifest', $dockerCaseManifest, '--expected', $dockerExpectedPath
@@ -1091,12 +1094,14 @@ try {
 
     $concurrency = [pscustomobject]@{
         publication_process_race = 'PASS: independent processes; exactly one published and one safely rejected.'
-        two_spark_cli = 'BLOCKED: no concurrent Spark run started; host free RAM and Docker memory cannot safely support two 4-GiB-limited containers.'
+        two_spark_cli = 'BLOCKED: no concurrent Spark run started; workloads are intentionally serial under the compact resource contract.'
         docker_cpus = $runtimeBefore.docker_cpus
         docker_memory_bytes = $runtimeBefore.docker_memory_bytes
         host_free_memory_bytes_before = $runtimeBefore.host_free_memory_bytes
         per_container_cpu_limit = 2
-        per_container_memory_bytes = 4294967296
+        per_container_memory_bytes = $doctorLimits.memory_bytes
+        per_container_memory_swap_bytes = $doctorLimits.memory_swap_bytes
+        driver_memory = $doctorLimits.driver_memory
         per_container_pids_limit = 256
     }
     $warningLines = @()

@@ -105,13 +105,14 @@ deg.show(limit, truncate=False)
 spark.stop()
 '@.Replace('"', '\"')
 
-& docker run --rm --platform linux/amd64 --cpus=2 --memory=4g `
+& docker run --rm --platform linux/amd64 --cpus=2 --memory=1536m --memory-swap=1536m `
     --pids-limit=256 --network none --hostname isn-etl `
     --add-host isn-etl:127.0.0.1 `
     --tmpfs /tmp:rw,nosuid,nodev,size=1g,mode=1777 `
     --tmpfs /run/isn-etl-snappy:rw,exec,nosuid,nodev,size=64m,mode=0700,uid=10001,gid=10001 `
     --mount "type=bind,source=$resolvedRunPath,target=/run_out,readonly" `
     --env "JAVA_TOOL_OPTIONS=-Dorg.xerial.snappy.tempdir=/run/isn-etl-snappy -XX:ActiveProcessorCount=2" `
+    --env "PYSPARK_SUBMIT_ARGS=--driver-memory 512m pyspark-shell" `
     --entrypoint python $Image -c $pyScript "$Limit"
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE

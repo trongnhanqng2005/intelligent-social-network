@@ -757,6 +757,7 @@ def _compare_expected_rows(
 
 
 def _spark_session() -> SparkSession:
+    os.environ.setdefault("PYSPARK_SUBMIT_ARGS", "--driver-memory 512m pyspark-shell")
     spark = (
         SparkSession.builder.master("local[2]")
         .appName("isn-b-independent-acceptance-verifier")

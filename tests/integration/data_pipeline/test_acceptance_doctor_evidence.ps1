@@ -39,11 +39,11 @@ DOCKER_SPARK_PARQUET_SMOKE=PASS
         captured_at_utc = $finishedAt.AddSeconds(1).ToString('o')
         image = [pscustomobject]@{ reference = 'isn-b-data-pipeline:py3.12-pyspark3.5.9-runtime-snappy'; id = 'sha256:' + ('b' * 64); os = 'linux'; architecture = 'amd64'; user = '10001:10001' }
         docker = [pscustomobject]@{ context_name = 'desktop-linux'; configuration_sha256 = 'c' * 64; daemon_id = 'docker-daemon-test'; server_version = '29.8.2'; client_version = '29.8.2'; docker_cli_sha256 = 'f' * 64; powershell_version = '5.1.19041.5247'; powershell_executable_sha256 = '9' * 64; launcher_powershell_executable_sha256 = '8' * 64; cpus = 24; memory_bytes = 8176463872; os = 'linux'; architecture = 'x86_64' }
-        limits = [pscustomobject]@{ cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network = 'none' }
+        limits = [pscustomobject]@{ cpus = 2; memory_bytes = 1610612736; memory_swap_bytes = 1610612736; driver_memory = '512m'; pids_limit = 256; network = 'none' }
         runtime_dependencies = [pscustomobject]@{ python = '3.12.15'; pyspark = '3.5.9'; py4j = '0.10.9.7'; java = '17.0.21'; spark = '3.5.9'; master = 'local[2]' }
         source_fingerprints = $sourceFingerprints
         command = [pscustomobject]@{ name = 'doctor'; arguments = @('doctor'); exit_code = 0; started_at_utc = $finishedAt.AddMinutes(-1).ToString('o'); finished_at_utc = $finishedAt.ToString('o'); command_id = 'c001'; container_id = 'd' * 64 }
-        container = [pscustomobject]@{ command_id = 'c001'; container_id = 'd' * 64; image_id = 'sha256:' + ('b' * 64); status = 'running'; cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network_mode = 'none'; labels = [pscustomobject]@{ invocation_id = '11111111111111111111111111111111'; command_id = 'c001' }; mounts = @([pscustomobject]@{ destination = '/workspace'; read_write = $false }) }
+        container = [pscustomobject]@{ command_id = 'c001'; container_id = 'd' * 64; image_id = 'sha256:' + ('b' * 64); status = 'running'; cpus = 2; memory_bytes = 1610612736; memory_swap_bytes = 1610612736; pids_limit = 256; network_mode = 'none'; labels = [pscustomobject]@{ invocation_id = '11111111111111111111111111111111'; command_id = 'c001' }; mounts = @([pscustomobject]@{ destination = '/workspace'; read_write = $false }) }
          container_cleanup = [pscustomobject]@{ command_id = 'c001'; cidfile_id = 'd' * 64; removed_after_exit = $true; final_status = 'removed-by---rm' }
         logs = [pscustomobject]@{ stdout_path = 'logs/001-doctor.stdout.txt'; stdout_sha256 = (Get-DoctorEvidenceSha256 $stdoutPath); stderr_path = 'logs/001-doctor.stderr.txt'; stderr_sha256 = (Get-DoctorEvidenceSha256 $stderrPath) }
     }
@@ -59,14 +59,14 @@ function New-TestValidationArguments {
         ExpectedImage = 'isn-b-data-pipeline:py3.12-pyspark3.5.9-runtime-snappy'
         CurrentImage = $Bundle.evidence.image
         CurrentDocker = $Bundle.evidence.docker
-        CurrentLimits = [pscustomobject]@{ cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network = 'none' }
+        CurrentLimits = [pscustomobject]@{ cpus = 2; memory_bytes = 1610612736; memory_swap_bytes = 1610612736; driver_memory = '512m'; pids_limit = 256; network = 'none' }
         CurrentRuntimeDependencies = $Bundle.evidence.runtime_dependencies
         CurrentSourceFingerprints = $Bundle.source_fingerprints
         CurrentRepository = 'D:\repo'
         CurrentBranch = $Bundle.evidence.branch
         CurrentHead = $Bundle.evidence.head
         CurrentHostFreeBytes = [long]6000000000
-        MinimumHostFreeBytes = [long]4831838208
+        MinimumHostFreeBytes = [long]2415919104
         RunningContainers = @()
         ConflictingProcesses = @()
         CurrentAllContainerIds = @()
@@ -91,9 +91,10 @@ $mockContainerId = 'd' * 64
 $mockInspectResponse = @([pscustomobject]@{
     Id = $mockContainerId
     Config = [pscustomobject]@{ Labels = $dockerLabels }
+    HostConfig = [pscustomobject]@{ Memory = 1610612736; MemorySwap = 1610612736 }
 }) | ConvertTo-Json -Depth 8
 $parsedInspect = ConvertFrom-DoctorContainerInspect -Json $mockInspectResponse -ExpectedContainerId $mockContainerId.Substring(0, 12) -ExpectedInvocationId '11111111111111111111111111111111' -ExpectedCommandId 'c001'
-Assert-True ($parsedInspect.Id -eq $mockContainerId -and (Get-DoctorEvidenceContainerLabel -Labels $parsedInspect.Config.Labels -Name 'org.weylume.isn-etl.invocation') -eq '11111111111111111111111111111111') 'A real-shaped simulated docker inspect response must preserve container identity and dotted labels.'
+Assert-True ($parsedInspect.Id -eq $mockContainerId -and $parsedInspect.HostConfig.Memory -eq 1610612736 -and $parsedInspect.HostConfig.MemorySwap -eq 1610612736 -and (Get-DoctorEvidenceContainerLabel -Labels $parsedInspect.Config.Labels -Name 'org.weylume.isn-etl.invocation') -eq '11111111111111111111111111111111') 'A real-shaped simulated docker inspect response must preserve identity, labels, and the equal memory/swap caps.'
 $wrongInspectIdentityRejected = $false
 try { ConvertFrom-DoctorContainerInspect -Json $mockInspectResponse -ExpectedContainerId ('e' * 12) -ExpectedInvocationId '11111111111111111111111111111111' -ExpectedCommandId 'c001' | Out-Null }
 catch { $wrongInspectIdentityRejected = $true }
@@ -105,9 +106,15 @@ Assert-True $malformedInspectRejected 'Malformed docker inspect output must be r
 
 $bundle = New-TestEvidenceBundle
 try {
+    Assert-True ($bundle.evidence.limits.memory_bytes -eq 1610612736 -and $bundle.evidence.limits.memory_swap_bytes -eq 1610612736 -and $bundle.evidence.limits.driver_memory -eq '512m') 'Doctor evidence must bind the compact no-swap/512-MiB driver profile.'
     $arguments = New-TestValidationArguments $bundle
     $valid = Test-DoctorEvidence @arguments
     Assert-True $valid.eligible "Compatible completed Doctor evidence should be reusable: $($valid.reasons -join '; ')"
+    $recordedSwap = $arguments.CurrentLimits.memory_swap_bytes
+    $arguments.CurrentLimits.memory_swap_bytes = 2147483648
+    $swapMismatch = Test-DoctorEvidence @arguments
+    Assert-True (-not $swapMismatch.eligible -and ($swapMismatch.reasons -join ' ') -match 'limit') 'Doctor evidence must be rejected when the expected memory-swap cap differs.'
+    $arguments.CurrentLimits.memory_swap_bytes = $recordedSwap
     Assert-True ((Get-DoctorEvidenceImmediateDisposition -Validation $valid) -eq 'VALIDATED') 'Complete eligible evidence should validate immediately.'
     Assert-True ($valid.doctor_invocation_id -eq $bundle.evidence.invocation_id) 'Reuse should preserve the source invocation ID.'
     Assert-True ($valid.compatible_checks.Count -gt 0) 'Reuse should report its compatibility checks.'
@@ -132,7 +139,8 @@ try {
         command_label = 'c001'
         status = 'running'
         cpus = 2
-        memory_bytes = 4294967296
+        memory_bytes = 1610612736
+        memory_swap_bytes = 1610612736
         pids_limit = 256
         network_mode = 'none'
         mounts = $bundle.evidence.container.mounts
@@ -347,7 +355,7 @@ try {
 $bundle = New-TestEvidenceBundle
 try {
     $arguments = New-TestValidationArguments $bundle
-    $arguments.CurrentHostFreeBytes = [long]4000000000
+    $arguments.CurrentHostFreeBytes = [long]2000000000
     $blocked = Test-DoctorEvidence @arguments
     Assert-True (-not $blocked.eligible -and ($blocked.reasons -join ' ') -match 'RAM|headroom|memory') 'Low current RAM must block reuse.'
     Assert-True ((Get-DoctorEvidenceImmediateDisposition -Validation $blocked) -eq 'COMPATIBLE_AWAITING_RAM_GATE') 'A RAM-only blocker should preserve evidence compatibility while withholding reuse eligibility.'
@@ -390,7 +398,7 @@ try {
         root = $bundle.root
         status = 'BLOCKED_POST_DOCTOR_HOST_RAM'
         commands = @([pscustomobject]@{ name = 'doctor'; exit_code = 0; docker_container_command_id = 'c001'; stdout = 'logs/001-doctor.stdout.txt'; stderr = 'logs/001-doctor.stderr.txt'; arguments = @('-File', 'scripts/data-pipeline.ps1', 'doctor'); started_at = '2026-10-14T19:25:56Z'; finished_at = '2026-10-14T19:26:08Z' })
-        containers = @([pscustomobject]@{ command_id = 'c001'; container_id = 'd' * 64; image_id = $bundle.evidence.image.id; status = 'running'; cpus = 2; memory_bytes = 4294967296; pids_limit = 256; network_mode = 'none' })
+        containers = @([pscustomobject]@{ command_id = 'c001'; container_id = 'd' * 64; image_id = $bundle.evidence.image.id; status = 'running'; cpus = 2; memory_bytes = 1610612736; memory_swap_bytes = 1610612736; pids_limit = 256; network_mode = 'none' })
         runtime_preflight = [pscustomobject]@{ image = $bundle.evidence.image.reference; image_inspect = "$($bundle.evidence.image.id)|linux|amd64|10001:10001"; docker_cpus = 24; docker_memory_bytes = 8176463872; docker_os = 'linux'; docker_architecture = 'x86_64' }
     }
     $legacyPath = Join-Path $bundle.root 'reports\legacy-failure.json'

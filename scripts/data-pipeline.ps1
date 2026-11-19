@@ -37,16 +37,17 @@ function Get-DockerBaseArguments {
 
     $projectRoot = ConvertTo-DockerPath (Split-Path -Parent $PSScriptRoot)
     $arguments = @(
-        'run', '--rm', '--platform', 'linux/amd64', '--cpus=2', '--memory=4g',
+        'run', '--rm', '--platform', 'linux/amd64', '--cpus=2', '--memory=1536m', '--memory-swap=1536m',
         '--pids-limit=256', '--network', 'none', '--hostname', 'isn-etl',
         '--add-host', 'isn-etl:127.0.0.1',
         '--tmpfs', '/tmp:rw,nosuid,nodev,size=1g,mode=1777',
         '--tmpfs', '/run/isn-etl-snappy:rw,exec,nosuid,nodev,size=64m,mode=0700,uid=10001,gid=10001',
         '--mount', "type=bind,source=$projectRoot,target=/workspace,readonly",
         '--workdir', '/workspace',
-         '--env', 'PYTHONPATH=/workspace/data-pipeline/src',
-         '--env', 'PYSPARK_PYTHON=/opt/venv/bin/python',
-         '--env', 'PYSPARK_DRIVER_PYTHON=/opt/venv/bin/python',
+          '--env', 'PYTHONPATH=/workspace/data-pipeline/src',
+          '--env', 'PYSPARK_PYTHON=/opt/venv/bin/python',
+          '--env', 'PYSPARK_DRIVER_PYTHON=/opt/venv/bin/python',
+          '--env', 'PYSPARK_SUBMIT_ARGS=--driver-memory 512m pyspark-shell',
          '--env', 'JAVA_TOOL_OPTIONS=-Dorg.xerial.snappy.tempdir=/run/isn-etl-snappy -XX:ActiveProcessorCount=2'
     )
 
