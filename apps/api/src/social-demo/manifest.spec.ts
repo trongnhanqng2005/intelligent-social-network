@@ -26,18 +26,15 @@ describe('social demo owner manifest', () => {
 
   it('publishes one complete manifest under concurrent creation without clobbering it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
-    const previous = process.cwd();
     try {
-      process.chdir(root);
       const [first, second] = await Promise.all([
-        loadOrCreateManifest('isn-dev', 'database-id'),
-        loadOrCreateManifest('isn-dev', 'database-id'),
+        loadOrCreateManifest('isn-dev', 'database-id', root),
+        loadOrCreateManifest('isn-dev', 'database-id', root),
       ]);
       expect(first).toEqual(second);
-      expect(await readManifest('isn-dev', 'database-id')).toEqual(first);
-      expect(JSON.parse(await readFile(manifestPath(), 'utf8'))).toEqual(first);
+      expect(await readManifest('isn-dev', 'database-id', root)).toEqual(first);
+      expect(JSON.parse(await readFile(manifestPath(root), 'utf8'))).toEqual(first);
     } finally {
-      process.chdir(previous);
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -45,14 +42,25 @@ describe('social demo owner manifest', () => {
   it('rejects a symlinked manifest directory without writing through it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
     const outside = await mkdtemp(join(tmpdir(), 'social-demo-outside-'));
-    const previous = process.cwd();
     try {
-      await symlink(outside, join(root, '.social-demo-data'), 'junction');
-      process.chdir(root);
-      await expect(loadOrCreateManifest('isn-dev', 'database-id')).rejects.toThrow(/real directory/u);
+      await mkdir(join(root, '.weylume'));
+      await symlink(outside, join(root, '.weylume', 'social-demo-data'), 'junction');
+      await expect(loadOrCreateManifest('isn-dev', 'database-id', root)).rejects.toThrow(/real directory/u);
       expect(await readFile(join(outside, 'owner-manifest.json')).catch(() => undefined)).toBeUndefined();
     } finally {
-      process.chdir(previous);
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a symlinked .weylume directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
+    const outside = await mkdtemp(join(tmpdir(), 'social-demo-outside-'));
+    try {
+      await symlink(outside, join(root, '.weylume'), 'junction');
+      await expect(loadOrCreateManifest('isn-dev', 'database-id', root)).rejects.toThrow(/real directory/u);
+      expect(await readFile(join(outside, 'social-demo-data', 'owner-manifest.json')).catch(() => undefined)).toBeUndefined();
+    } finally {
       await rm(root, { recursive: true, force: true });
       await rm(outside, { recursive: true, force: true });
     }
@@ -60,19 +68,17 @@ describe('social demo owner manifest', () => {
 
   it('rejects a non-regular manifest before reading or replacing it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
-    const previous = process.cwd();
     try {
-      const directory = join(root, '.social-demo-data');
+      const directory = join(root, '.weylume', 'social-demo-data');
+      await mkdir(join(root, '.weylume'));
       await mkdir(directory);
       const manifest = join(directory, 'owner-manifest.json');
       await writeFile(manifest, 'keep');
       await rm(manifest);
       await mkdir(manifest);
-      process.chdir(root);
-      await expect(loadOrCreateManifest('isn-dev', 'database-id')).rejects.toThrow(/regular file/u);
-      await expect(readManifest('isn-dev', 'database-id')).rejects.toThrow(/regular file/u);
+      await expect(loadOrCreateManifest('isn-dev', 'database-id', root)).rejects.toThrow(/regular file/u);
+      await expect(readManifest('isn-dev', 'database-id', root)).rejects.toThrow(/regular file/u);
     } finally {
-      process.chdir(previous);
       await rm(root, { recursive: true, force: true });
     }
   });

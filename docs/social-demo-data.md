@@ -10,11 +10,11 @@ The preflight requires `NODE_ENV=development`, configured and server-reported `i
 
 ## Local ownership manifest
 
-Only `--apply`, after read-only target/schema/inventory checks pass and exact reserved emails are absent, may create `apps/api/.social-demo-data/owner-manifest.json` without clobbering an existing file. A private temporary file is fully written and closed before atomic publication; permissions are owner-only where supported. It records dataset/database identity, twelve fixture UUIDs and `@example.test` emails, and distinct randomly generated passwords. The directory is ignored by Git. Keep it private; never copy it into source control or share its passwords. If a valid manifest already exists, only the exact complete ID/email roster is a no-op; a partial or mismatched roster is refused. Existing improvements are never reset.
+Only `--apply`, after read-only target/schema/inventory checks pass and exact reserved emails are absent, may create `~/.weylume/social-demo-data/owner-manifest.json` without clobbering an existing file. A private temporary file is fully written and closed before atomic publication; permissions are owner-only where supported. It records dataset/database identity, twelve fixture UUIDs and `@example.test` emails, and distinct randomly generated passwords. Keep it private; never copy it into source control or share its passwords. If a valid manifest already exists, only the exact complete ID/email roster is a no-op; a partial or mismatched roster is refused. Existing improvements are never reset.
 
 The fixture creates 12 Vietnamese profiles, 18 accepted friendships, 5 pending requests, 27 posts (member/friends visibility), 48 contextual comments, and 75 likes. Creation is scoped to one explicit Neo4j transaction through the domain repositories. Activity capture must remain disabled. Hashing/authentication and social mutations use application domain repositories/services; no migration is invoked.
 
-## Commands (when independently authorized)
+## Commands
 
 From repository root:
 
@@ -22,5 +22,7 @@ From repository root:
 npm run social-demo:preflight
 npm run social-demo:apply
 ```
+
+Before applying, migration/readiness work must be independently authorized and the actual database must report exact current V7 checksums/catalog.
 
 The preflight command is read-only with respect to database and manifest state; its npm script builds the API into local `apps/api/dist/` before running the preflight. The apply command applies only when every gate passes. Neither command runs migrations or targets `isn-test`. Offline tests do not prove behavior against Neo4j.

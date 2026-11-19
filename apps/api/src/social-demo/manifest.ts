@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { chmod, link, lstat, mkdir, open, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 export const DATASET_VERSION = 1;
 const USER_COUNT = 12;
@@ -17,8 +18,8 @@ export interface DemoManifest {
   users: Array<{ id: string; email: string; password: string; displayName: string }>;
 }
 
-export function manifestPath(root = process.cwd()): string {
-  return join(root, '.social-demo-data', 'owner-manifest.json');
+export function manifestPath(homeBase = homedir()): string {
+  return join(homeBase, '.weylume', 'social-demo-data', 'owner-manifest.json');
 }
 
 export function createManifest(database: string, databaseId: string): DemoManifest {
@@ -59,14 +60,22 @@ export function validateManifest(value: unknown, database: string, databaseId: s
   return manifest;
 }
 
-export async function loadOrCreateManifest(database: string, databaseId: string): Promise<DemoManifest> {
-  const path = manifestPath();
-  const directory = join(process.cwd(), '.social-demo-data');
+export async function loadOrCreateManifest(database: string, databaseId: string, homeBase = homedir()): Promise<DemoManifest> {
+  const path = manifestPath(homeBase);
+  const configDirectory = join(homeBase, '.weylume');
+  const directory = join(configDirectory, 'social-demo-data');
   try {
-    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await mkdir(configDirectory, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
   }
+  await assertManifestDirectory(configDirectory);
+  try {
+    await mkdir(directory, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  await assertManifestDirectory(configDirectory);
   await assertManifestDirectory(directory);
   try {
     await assertRegularManifest(path);
@@ -101,11 +110,13 @@ export async function loadOrCreateManifest(database: string, databaseId: string)
   }
 }
 
-export async function readManifest(database: string, databaseId: string): Promise<DemoManifest | undefined> {
+export async function readManifest(database: string, databaseId: string, homeBase = homedir()): Promise<DemoManifest | undefined> {
   try {
-    const directory = join(process.cwd(), '.social-demo-data');
+    const configDirectory = join(homeBase, '.weylume');
+    const directory = join(configDirectory, 'social-demo-data');
+    await assertManifestDirectory(configDirectory);
     await assertManifestDirectory(directory);
-    const path = manifestPath();
+    const path = manifestPath(homeBase);
     await assertRegularManifest(path);
     return validateManifest(JSON.parse(await readFile(path, 'utf8')), database, databaseId);
   } catch (error) {

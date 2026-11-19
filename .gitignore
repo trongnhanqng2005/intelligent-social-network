@@ -45,7 +45,6 @@ playwright/.cache/
 !.env.*.example
 apps/api/.local/
 apps/api/.artifacts/
-apps/api/.social-demo-data/
 *.pem
 *.key
 *.p12
