@@ -597,6 +597,7 @@ try {
         $protectedRecords = @(Get-ProtectedInventoryRecords -Inventory $inventory)
         Test-ProtectedInventory -Records $protectedRecords
     } else {
+        if ($CandidateImageId) { throw '-CandidateImageId requires -ProtectedInventory; legacy mode uses the historical image pin.' }
         if (-not (Test-Path -LiteralPath $HistoricalBaseline -PathType Leaf)) { throw "Historical baseline missing: $HistoricalBaseline" }
         $historicalBaseline = Read-JsonFile -Path $HistoricalBaseline
         $protectedRecords = @($historicalBaseline.historical_publications) + @($historicalBaseline.protected_source_files)
