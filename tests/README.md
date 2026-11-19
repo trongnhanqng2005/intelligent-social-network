@@ -9,24 +9,37 @@
 | API rule/provider behavior | `apps/api/src/**` | Jest; `npm run test:api` |
 | API HTTP contract | `apps/api/test/` | Jest + Supertest; `npm run test:api:e2e` |
 | React component, hook, route behavior | `apps/web/src/**` beside source | Vitest + RTL; `npm run test:web` |
-| Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*.test.mjs` (only when justified) | Node `node:test`; no separate root unit scenario currently |
+| Project-level isolated rule not owned by one app | `tests/unit/<domain-or-feature>/*` (only when justified) | Node `node:test`; invoke focused file directly |
 | Real component/service boundary without a browser | `tests/integration/<boundary-or-feature>/*.test.mjs` | Node `node:test`; `npm run test:integration` |
 | Real Neo4j authentication/profile integration | `tests/integration/neo4j/*.test.mjs` | Node `node:test`; `npm run test:neo4j`, dedicated `isn-test` credentials required |
-| Standalone Spark ETL rules | `tests/unit/data_pipeline/test_*.py` | Python `unittest`; `scripts/data-pipeline.ps1 test-unit`, task-owned Docker runtime |
-| Standalone Spark/Parquet ETL integration | `tests/integration/data_pipeline/test_*.py` | Python `unittest` + real local Spark; `scripts/data-pipeline.ps1 test-integration`, task-owned Docker runtime. Approved full acceptance evidence: [`acceptance.md`](integration/data_pipeline/acceptance.md), driven by `acceptance.ps1` |
+| Real Neo4j Friendship integration and graph invariants | `tests/integration/neo4j/friendships.test.mjs` | Node `node:test`; `npm run test:neo4j:friendships`, current-V4 preflight plus exclusive restricted `isn-test` write window required |
+| Real Neo4j Posts & Feed persistence, visibility, pagination and concurrency | `tests/integration/neo4j/posts.test.mjs` | Node `node:test`; `npm run test:neo4j:posts`, verified V5 and an Owner-confirmed restricted `isn-test` write window required |
+| Read-only current-V5 Posts acceptance preflight | `tests/integration/neo4j/posts-acceptance-preflight.mjs` | Guarded Node invocation; exact V5, grants, identity and baseline; no migration or fixture writes |
 | Complete user/system flow in a real browser | `tests/e2e/specs/<feature-or-journey>.spec.ts` | Playwright Test; `npm run test:e2e` |
 | Real-stack profile/discovery browser acceptance | `tests/e2e/specs/user-profile-discovery.spec.ts` | Playwright Test; `npm run test:e2e:profile`, restricted `isn-test` required |
+| Real-stack Friendship browser acceptance | `tests/e2e/specs/friendship-system.spec.ts` | Playwright Test; `npm run test:e2e:friendships`, restricted `isn-test` and owned-fixture cleanup required |
+| Real-stack Posts & Feed acceptance | `tests/e2e/posts.playwright.config.mts` and `tests/e2e/specs/posts-feed.spec.ts` | Guarded Playwright runner; `npm run test:e2e:posts`, current-V5 read-only preflight and fresh Owner/ISN-B safety gates required |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
+
+
+
+The Spark ETL acceptance ledger records offline checks, preserved publications, and the gated full-driver procedure. [Spark ETL acceptance](integration/data_pipeline/acceptance.md).
 
 Current root tests:
 
 - `integration/api-proxy.test.mjs`: real API + Vite HTTP proxy contract, without browser automation.
+- `integration/posts-resource-safety-child.test.mjs`: Posts serial runner/resource-monitor behavior through a real Node child, using synthetic resource assessments without Neo4j.
 - `integration/neo4j/auth.test.mjs` and `integration/neo4j/users.test.mjs`: real authentication/profile persistence, isolation, search and concurrent versioned update scenarios on restricted `isn-test`.
 - `e2e/playwright.config.ts` and `e2e/specs/foundation.spec.ts`: real Chromium browser journeys across desktop and emulated mobile projects.
 - `e2e/auth.playwright.config.ts` and `e2e/specs/authentication.spec.ts`: real registration/session journeys against restricted `isn-test`; excluded from ordinary dummy-database browser QA.
 - `e2e/profile.playwright.config.ts` and `e2e/specs/user-profile-discovery.spec.ts`: UPD-01–08 real-stack browser acceptance against restricted `isn-test`; excluded from ordinary dummy-database browser QA. See the [acceptance record](e2e/user-profile-discovery-acceptance.md).
+- `integration/neo4j/friendships.test.mjs`, `integration/neo4j/friendship-acceptance-preflight.mjs`, and `fixtures/friendships/acceptance-support.cjs`: read-only current-V4 gate plus focused real-DB scenarios and exact ownership/recovery manifests. `tests/unit/friendship-acceptance-support.test.cjs` verifies manifests do not persist raw account/auth baseline records.
+- `e2e/friendship.playwright.config.ts` and `e2e/specs/friendship-system.spec.ts`: FS-00–FS-10 real-stack Friendship acceptance on dedicated ports 3311/5181; excluded from ordinary dummy-database browser QA. See the [acceptance record](e2e/friendship-system-acceptance.md).
 - `integration/neo4j/profile-readiness.test.mjs`: read-only UPD-00 identity/schema/data preflight; does not migrate or write fixtures.
-- `unit/data_pipeline/` and `integration/data_pipeline/`: isolated file-based edge ETL tests using the original checksummed synthetic fixture in `fixtures/data_pipeline/`; Docker Spark tests are separate from npm/Node tests and never access Neo4j or actual SNAP data.
+- `integration/neo4j/posts-preflight.test.mjs` and `fixtures/posts/acceptance-support.mjs`: read-only V1–V4 identity/schema/role/data gate, durable V4 preservation fingerprint, exact Posts fixture ownership and narrowly approved privilege-delta helpers.
+- `integration/neo4j/posts.test.mjs`: separately authorized, serial V5 Posts/Feed real-Neo4j scenario with exact synthetic ownership, cleanup, baseline restoration and production query-plan capture.
+- `integration/neo4j/posts-acceptance-preflight.mjs` and `e2e/posts-acceptance-runner.mjs`: current-V5 read-only gate and fail-closed owner runner. Direct Playwright execution is refused; `npm run test:e2e:posts:list` is a no-startup discovery path.
+- `e2e/posts.playwright.config.mts` and `e2e/specs/posts-feed.spec.ts`: PF-00–PF-23 real-stack Posts & Feed scenarios, grouped serially on ports 3312/5182; the four group runs use one worker, no retries, isolated contexts, write-ahead fixture manifests and exact cleanup. Controlled abort/response-delay cases are explicitly simulated.
 
 Use **unit** for isolated behavior, **integration** for a real boundary between components/services, and **E2E** for observable user/system behavior across the running application. A browser test is E2E, not an integration test. Do not create empty category directories or placeholder tests.
 
@@ -47,8 +60,16 @@ Use **unit** for isolated behavior, **integration** for a real boundary between 
 npm run test:integration       # HTTP boundary test
 npm run test:e2e               # Headless Playwright desktop + mobile suite
 npm run test:e2e:auth          # Real auth journey against restricted isn-test
-npm run test:neo4j:profile-preflight # Read-only restricted isn-test V3 readiness gate
+npm run test:neo4j:profile-preflight # Read-only restricted isn-test current V5 readiness gate
+npm run test:neo4j:friendship-preflight # Preserved read-only V1-V3 pre-migration gate
 npm run test:e2e:profile       # Real-stack profile/discovery browser acceptance
+npm run test:neo4j:friendship-acceptance-preflight # Read-only current-V4 FS-00 gate
+npm run test:neo4j:friendships  # Focused real-DB writer; exclusive write window required
+npm run test:e2e:friendships    # Current-V4 preflight + real-stack browser acceptance
+npm run test:neo4j:posts-acceptance-preflight # Guarded read-only exact V5/schema/grant/baseline gate
+npm run test:e2e:posts:list     # Non-starting Playwright discovery
+npm run test:e2e:posts          # Guarded current-V5 Posts acceptance; fresh exclusive window required
+node --test tests/unit/friendship-acceptance-support.test.cjs # Manifest-redaction unit check
 npm run test:e2e:headed        # Visible browser runs
 npm run test:e2e:ui             # Playwright UI mode
 npm run test:e2e:report         # Open the latest local HTML report
@@ -63,7 +84,9 @@ npm test                       # Existing app-local API and Web tests
 
 Install the browser once after dependency installation with `npx playwright install chromium`. The pinned Playwright version selects its required browser revision. The test configuration starts the API and Vite frontend on dedicated loopback ports; no pre-running app is needed. Only desktop/mobile Chromium is configured initially. Other browser engines are not verified.
 
-The profile acceptance command loads ignored `apps/api/.env.test.local`, verifies the effective restricted `isn-test` configuration, and owns/cleans its synthetic fixtures. Run the read-only `npm run test:neo4j:profile-preflight` before separately authorized database writes. Do not substitute `npm run test:neo4j` on a live acceptance database: its schema scenario invokes the migration runner and preserves migration-writing/idempotency coverage. See the [scenario acceptance record](e2e/user-profile-discovery-acceptance.md).
+The profile and Friendship acceptance commands load ignored `apps/api/.env.test.local`, verify the restricted `isn-test` configuration, and own/clean their synthetic fixtures. Friendship requires the read-only current-V4 `npm run test:neo4j:friendship-acceptance-preflight` before any writer and a separately verified exclusive write window. Do not substitute `npm run test:neo4j` on a live acceptance database: its schema scenario invokes the migration runner and preserves migration-writing/idempotency coverage. See the [profile](e2e/user-profile-discovery-acceptance.md) and [Friendship](e2e/friendship-system-acceptance.md) scenario records.
+
+Posts Scenario Testing uses a separate current-V5 read-only preflight and guarded runner. Direct config execution cannot create keys or start services; Playwright `--list` discovery is safe. The guarded command requires both a fresh Owner-confirmed exclusive `isn-test` write window (`ISN_TEST_WRITE_WINDOW=owner-approved`) and explicit ISN-B workload clearance (`ISN_B_WORKLOAD_CLEAR=confirmed`), plus 4 GiB free memory, ports 3312/5182, the exact restricted principal and preserved application/schema/grant fingerprints. It starts only its own API/Vite processes after preflight, runs serial groups with one worker/no retries, and keeps unresolved fixture manifests for recovery. It does not run migrations/provisioners or the incompatible `npm run test:neo4j` umbrella. See the [Posts acceptance report](e2e/posts-feed-acceptance.md).
 
 ## Adding/updating QA in a feature task
 

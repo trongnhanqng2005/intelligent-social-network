@@ -1,8 +1,13 @@
 # API contracts
 
 This directory documents HTTP behavior implemented by the NestJS API. The
-contract covers liveness/readiness, Authentication, and authenticated User
-Profile & Discovery; other proposal-level social features are not API routes.
+contract covers liveness/readiness, Authentication, User Profile & Discovery,
+and the Friendship System source contract. Posts & Feed source contracts are
+implemented on the feature branch; a separately Owner-authorized continuation
+applied V5 and verified focused real Posts behavior on restricted `isn-test`,
+with exact fixture cleanup and baseline restoration. This is not evidence about
+`isn-dev` or production readiness. Historical V1–V4 and Friendship evidence
+remains separately recorded in the database-operation and acceptance records.
 
 ## Documents
 
@@ -10,8 +15,12 @@ Profile & Discovery; other proposal-level social features are not API routes.
   response contracts, errors, limits, and persistence semantics.
 - [User Profile & Discovery](user-profile-discovery.md) — profile privacy,
   edits, search and cursor pagination.
+- [Friendships](friendships.md) — request state machine, private lists,
+  canonical graph and authenticated API behavior.
+- [Posts & Feed](posts-feed.md) — approved visibility, content, CRUD, feed,
+  pagination, concurrency and error contracts; V5 operational state is separate.
 - [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness,
-  Authentication and User routes.
+  Authentication, User, Friendship, Posts and Feed routes.
 
 ## Routing
 

@@ -7,7 +7,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { type NextFunction, type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AuthException } from './auth.errors.js';
@@ -16,17 +16,35 @@ import { AuthSecurityService } from './auth-security.service.js';
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function configureAuthHttp(app: NestExpressApplication, security: AuthSecurityService, trustedOrigin: string) {
+  const jsonParserOptions = {
+    strict: true,
+    verify: (request: Request, _response: Response, body: Buffer) => {
+      if (request.method === 'POST' && /^\/friendships\/requests\/[^/]+\/(?:accept|reject|cancel)$/u.test(request.path)) {
+        (request as Request & { friendshipRawBody?: Buffer }).friendshipRawBody = Buffer.from(body);
+      }
+    },
+  };
+  const defaultJsonParser = express.json({ ...jsonParserOptions, limit: '8kb' });
+  const postsJsonParser = express.json({ ...jsonParserOptions, limit: '32kb' });
+
   app.use(cookieParser());
   app.use(helmet({
     strictTransportSecurity: security.production ? undefined : false,
   }));
   app.use((request: Request, response: Response, next: NextFunction) => {
-    if (request.path === '/users' || request.path.startsWith('/users/')) {
+    if (request.path === '/auth' || request.path.startsWith('/auth/') ||
+        request.path === '/users' || request.path.startsWith('/users/') ||
+        request.path === '/feed' || request.path === '/posts' || request.path.startsWith('/posts/') ||
+        request.path === '/friendships' || request.path.startsWith('/friendships/')) {
       response.setHeader('Cache-Control', 'no-store');
     }
     next();
   });
-  app.useBodyParser('json', { limit: '8kb', strict: true });
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    const postPayload = (request.method === 'POST' && request.path === '/posts') ||
+      (request.method === 'PATCH' && /^\/posts\/[^/]+$/u.test(request.path));
+    (postPayload ? postsJsonParser : defaultJsonParser)(request, response, next);
+  });
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.parse.failed') {
       response.status(HttpStatus.BAD_REQUEST).json({
@@ -56,6 +74,21 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
       });
       return;
     }
+    const postsJsonWrite = (request.method === 'POST' && request.path === '/posts') ||
+      (request.method === 'PATCH' && /^\/posts\/[^/]+$/u.test(request.path));
+    if (postsJsonWrite && !request.is('application/json')) {
+      response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
+        error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
+      });
+      return;
+    }
+    if (request.method === 'POST' && request.path.startsWith('/friendships/requests') &&
+        !request.is('application/json')) {
+      response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
+        error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
+      });
+      return;
+    }
     if ((request.path === '/auth/register' || request.path === '/auth/login') &&
         !request.is('application/json')) {
       response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
@@ -78,7 +111,8 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     exceptionFactory: (errors) => {
       const fieldErrors: Record<string, string[]> = {};
       for (const error of errors) {
-        if (['email', 'password', 'displayName', 'bio', 'location', 'expectedVersion', 'id', 'q', 'limit', 'cursor'].includes(error.property)) {
+        if (['email', 'password', 'displayName', 'bio', 'location', 'expectedVersion', 'id', 'q', 'limit', 'cursor',
+          'recipientId', 'requestId', 'friendshipId', 'memberId', 'direction', 'content', 'visibility', 'postId'].includes(error.property)) {
           fieldErrors[error.property] = Object.values(error.constraints ?? {});
         }
       }
@@ -144,7 +178,8 @@ function refererOrigin(value?: string): string | undefined {
 function statusFromError(error: unknown): number {
   if (typeof error === 'object' && error !== null) {
     if ('status' in error && typeof error.status === 'number') return error.status === 400 ? 400 : 500;
-    if ('code' in error && typeof error.code === 'string' && error.code.startsWith('Neo.')) {
+    if ('code' in error && typeof error.code === 'string' &&
+        (error.code.startsWith('Neo.') || error.code === 'ServiceUnavailable' || error.code === 'SessionExpired')) {
       return HttpStatus.SERVICE_UNAVAILABLE;
     }
   }

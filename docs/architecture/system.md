@@ -2,7 +2,7 @@
 
 ## Implemented runtime
 
-The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, and `UsersModule`. `/health` is process liveness; `/ready` checks configured database identity and V3 migration/index readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication routes, protected profile/discovery routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
+The repository contains two npm workspaces. The NestJS API composes validated configuration, an application-scoped Neo4j driver/migration provider, `HealthModule`, `AuthModule`, `UsersModule`, `FriendshipsModule`, and `PostsModule`. `/health` is process liveness; source `/ready` expects V5 migration/catalog readiness. V5 readiness and focused Posts behavior were verified on restricted `isn-test` in a separately Owner-authorized continuation; this does not establish `isn-dev` or production readiness. The React app owns one `BrowserRouter`, Weylume public/authenticated home states, authentication routes, protected profile/discovery/friendship/Posts routes, shared API/config boundaries, and not-found handling. The public homepage does not make a health request. Browser authentication uses an HttpOnly session cookie, CSRF/origin defense, and Neo4j-backed session restoration.
 
 ```mermaid
 flowchart LR
@@ -16,6 +16,7 @@ flowchart LR
   Root --> HealthModule[HealthModule]
   Root --> AuthModule[AuthModule]
   Root --> UsersModule[UsersModule]
+  Root --> FriendshipsModule[FriendshipsModule]
   HealthModule --> Neo4jModule[Neo4jModule: driver + explicit DB sessions]
   AuthModule --> Neo4jModule
   Neo4jModule --> Neo4j[(Configured Neo4j database)]
@@ -31,11 +32,17 @@ flowchart LR
   UsersAPI --> AuthModule
   UsersAPI --> UsersRepo[UsersRepository: allowlisted projections + versioned writes]
   UsersRepo --> Neo4jModule
-  Router --> ProfileUI[Profile / Discovery UI]
-  ProfileUI -->|user requests| Vite
+  FriendshipsModule --> AuthModule
+  FriendshipsModule --> FriendshipRepo[FriendshipsRepository: locked pair lifecycle]
+  FriendshipRepo --> Neo4jModule
+  PostsModule --> AuthModule
+  PostsModule --> PostsRepo[PostsRepository: visibility / feed / versioned writes]
+  PostsRepo --> Neo4jModule
+  Router --> ProfileUI[Profile / Discovery / Friendship / Posts UI]
+  ProfileUI -->|feature requests| Vite
 ```
 
-This diagram covers implemented foundation, authentication, profile and discovery only; it is not a future-state social/data architecture. Friendship, posts/interactions, recommendations, ETL, ML, production routing and account recovery remain unimplemented. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
+This diagram includes the Posts & Feed source module and UI. Historical V1–V4 database and Friendship acceptance evidence remains unchanged. In the Owner-authorized ISN-C continuation, V5 and the reviewed Post grant delta were applied only on `isn-test`; the real Posts fixture/query suite passed and restored its baseline. Step 5 had not yet been performed at that point in the history; it was subsequently accepted by the Owner, and Step 6 is complete (see the [Posts acceptance report](../../tests/e2e/posts-feed-acceptance.md)). Likes & Comments extend the Posts module with V6 graph schema and restricted test-role privileges. The real Neo4j rollback scenario and focused browser-to-database acceptance passed on restricted `isn-test`. Recommendations, ETL, ML, production routing and account recovery remain planned. Event retention policy is unresolved and there is no pruning job. Database identity/privilege checks are recorded separately from source implementation and builds.
 
 ## Dependency direction
 

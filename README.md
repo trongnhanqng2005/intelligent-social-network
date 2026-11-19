@@ -1,17 +1,17 @@
 # Intelligent Social Network
 
-A university Big Data project foundation for an intelligent social network. The implemented application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, and member discovery. A separate synthetic static graph-edge Spark ETL is implemented; Posts/interactions, friendships, live event processing, ML and application/ETL integration remain planned.
+A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes & Comments are implemented on this feature branch and passed focused end-to-end acceptance on restricted `isn-test`. Big Data/ML components remain planned.
 
 ## Status
 
-**Neo4j V1–V3 migrations, authenticated dev/test isolation, live readiness, authentication, and User Profile & Discovery are implemented and verified.** The standalone synthetic graph-edge ETL is implemented and has Build tests, but its independent synthetic acceptance and review remain incomplete. The API exposes `GET /health`, migration-aware `GET /ready`, browser authentication, profile read/edit, and authenticated member browse/search. The React client provides Vietnamese responsive account, profile, and discovery screens. The ETL writes explicit Bronze/Silver/quarantine/Gold Parquet contracts from a locally supplied checksum-pinned edge list. SNAP rights/checksum and real-source acceptance remain unresolved; posts/interactions, friendships, account recovery, event processing, trained models, application integration and production deployment are not implemented. Activity-event retention is undecided; no automatic pruning is configured.
+**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. The Likes & Comments branch verifies V6, rollback-isolated interaction queries and the focused browser-to-database journey on restricted `isn-test`. Account recovery, data pipelines, trained models, and production deployment remain planned. Activity-event retention is undecided; no automatic pruning is configured.
 
 ## Stack and architecture
 
 - npm workspaces: `apps/api` (NestJS 12, TypeScript) and `apps/web` (React 19, TypeScript, Vite 8, React Router 7).
-- API: NestJS Modular Monolith; root composition includes validated configuration, Neo4j migrations, health, authentication, and users modules.
-- Web: Feature-Based organization with one router, auth/profile/discovery features, and shared HTTP/config boundaries.
-- Planned direction: Neo4j for social graph/application data, application/event integration, PySpark feature processing, and Python/scikit-learn models for friend recommendation and anomaly detection. The separate static edge-list ETL is implemented; it is not an application service.
+- API: NestJS Modular Monolith; root composition includes validated configuration, Neo4j migrations, health, authentication, users, and friendship modules.
+- Web: Feature-Based organization with one router, auth/profile/discovery/friendship features, and shared HTTP/config boundaries.
+- Planned direction: Neo4j for social graph/application data, PySpark batch processing over Parquet Bronze/Silver/Gold layers, and Python/scikit-learn models for friend recommendation and anomaly detection. These are requirements and proposals, not existing services.
 
 ```text
 apps/api/  NestJS application and API-local Jest/Supertest tests
@@ -67,10 +67,14 @@ Open `http://127.0.0.1:5173`. The API defaults to `127.0.0.1:3000`; Vite proxies
 
 Install the browser once with `npx playwright install chromium`. Full setup and test guidance: [Development docs](docs/development/README.md). Root test placement rules: [tests/README.md](tests/README.md).
 
+
+
+The standalone edge-list ETL is implemented. Full acceptance remains pending the pinned runtime, sufficient host RAM, and explicit SNAP-use approval. [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md).
+
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [API contracts](docs/api/README.md) · [Authentication API](docs/api/authentication.md) · [User Profile & Discovery API](docs/api/user-profile-discovery.md) · [OpenAPI](docs/api/openapi.yaml)
+- [API contracts](docs/api/README.md) · [Authentication API](docs/api/authentication.md) · [User Profile & Discovery API](docs/api/user-profile-discovery.md) · [Friendship API](docs/api/friendships.md) · [OpenAPI](docs/api/openapi.yaml)
 - [Project overview](docs/overview.md) · [Roadmap](docs/roadmap.md)
 - [Business requirements](docs/business/README.md)
 - [Implemented architecture](docs/architecture/README.md)
@@ -81,7 +85,8 @@ Install the browser once with `npx playwright install chromium`. Full setup and 
 
 1. Complete the tested application foundation (done; architecture review: PASS).
 2. Establish root integration and Playwright browser QA (complete); browser checks cover the health flow, fallback, failure/retry, keyboard focus and responsive layout on desktop/mobile.
-3. Implement approved social-network capabilities beyond authentication and basic profile discovery, with their tests.
-4. Standalone synthetic graph-edge ETL is implemented; add source-approved ingestion, events, graph storage, ML evaluation and prediction integration only through incremental approved plans.
+3. Implement approved social-network capabilities beyond authentication and basic profile discovery, with their tests (Friendship complete).
+4. Complete the Friendship V4 rollout and separately approved Scenario Testing (complete); Git publication proceeds by Pull Request for Owner review.
+5. Add the data platform, graph storage, ETL, ML training/evaluation and prediction integration incrementally.
 
-The development proxy is not production routing. Production routing, deployment, account recovery, social APIs, live event pipelines, real SNAP acceptance and measured ML results are not configured or implemented. Synthetic ETL verification is not source acceptance. Event retention remains a data-governance decision. See [open decisions and dependencies](docs/roadmap.md).
+The development proxy is not production routing. Production routing, deployment, account recovery, Posts/Feed, data pipelines, datasets and measured ML results are not configured or implemented. Friendship acceptance and V4 readiness were verified against the approved restricted test database; this is not a production deployment claim. Event retention remains a data-governance decision. See [open decisions and dependencies](docs/roadmap.md).

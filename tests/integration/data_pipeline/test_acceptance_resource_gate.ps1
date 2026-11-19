@@ -33,4 +33,9 @@ if (-not (Test-IsConflictingAcceptanceProcess -Name 'powershell.exe' -CommandLin
 if (Test-IsConflictingAcceptanceProcess -Name 'java.exe' -CommandLine 'java com.neo4j.server.enterprise.Neo4jEnterprise console') { throw 'Unrelated Neo4j service processes must not be classified as ISN-B Spark acceptance conflicts.' }
 if (Test-IsConflictingAcceptanceProcess -Name 'powershell.exe' -CommandLine 'powershell -File C:\tools\backup.ps1') { throw 'Unrelated PowerShell processes must not block acceptance.' }
 
-Write-Output 'ACCEPTANCE_RESOURCE_GATE_TESTS=PASS (3 memory cases; 4 process-classifier cases)'
+if (-not (Test-CandidateTreeClean -StatusLines @())) { throw 'A clean candidate tree must be accepted.' }
+if (Test-CandidateTreeClean -StatusLines @(' M tracked.txt')) { throw 'Tracked modifications must block acceptance.' }
+if (Test-CandidateTreeClean -StatusLines @('?? untracked.txt')) { throw 'Untracked files must block acceptance.' }
+if (Test-CandidateTreeClean -StatusLines @('A  staged.txt')) { throw 'Staged changes must block acceptance.' }
+
+Write-Output 'ACCEPTANCE_RESOURCE_GATE_TESTS=PASS (3 memory, 4 process-classifier, 4 candidate-tree cases)'

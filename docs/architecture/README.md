@@ -1,6 +1,6 @@
 # Application architecture
 
-The current design below is derived from `apps/api/src` and `apps/web/src`. It describes only the implemented foundation.
+The current design below is derived from `apps/api/src` and `apps/web/src`. Posts & Feed source and focused real-database verification on restricted `isn-test` are documented; the test-database evidence is not production readiness or Step 5 Scenario Testing.
 
 - [Current system and dependency direction](system.md)
 - [NestJS backend](backend.md)

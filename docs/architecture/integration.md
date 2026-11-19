@@ -30,11 +30,30 @@ and [OpenAPI contract](../api/openapi.yaml).
 
 The Vite proxy is not a production deployment rule. Production use of relative `/api` requires an independently configured same-origin reverse proxy; cross-origin configuration would need separately approved CORS policy. No production endpoint is configured or verified.
 
-Posts, interactions, friendships, recommendations, and other social business
-contracts remain unimplemented. Document request/response schemas, errors, auth,
-ownership, persistence semantics and test locations in each approved feature
-task. Do not use the health endpoint as a business API template beyond its
-deliberately minimal contract.
+The Friendship API source contract is implemented in the approved workstream:
+all routes use authenticated identity, private caller-owned lists, CSRF/Origin
+protection, no-store responses and managed Neo4j pair transactions. Build
+records report V4 applied to both approved databases; resumed Step 6 gates and
+real-stack tests verified the restricted `isn-test` V4 state and restored its
+baseline. See
+[Friendships](../api/friendships.md).
+### Posts & Feed source contract
+
+The browser calls authenticated `/api/posts`, `/api/feed` and
+`/api/users/{memberId}/posts`; the Vite development proxy strips `/api` and
+forwards to NestJS. Requests use same-origin session cookies, no-store fetches,
+and the existing CSRF mechanism for writes. Visibility and pagination are
+enforced in database queries; edit/delete use expected versions. See the
+[Posts & Feed API contract](../api/posts-feed.md) and [OpenAPI](../api/openapi.yaml).
+V5, the reviewed Post grant delta, and focused real Posts queries were verified
+on restricted `isn-test` under separate Owner authorization, with exact fixture
+cleanup and baseline restoration. This does not establish `isn-dev` or
+production readiness. The separate visual Playwright MCP inspection used a
+web-only Vite server and temporary GET-only mock API; it did not start the
+database-backed application runtime or serve as Step 5 acceptance.
+
+Likes/comments and recommendations remain unimplemented. Do not use the health
+endpoint as a business API template beyond its deliberately minimal contract.
 
 ## Authentication browser contract
 

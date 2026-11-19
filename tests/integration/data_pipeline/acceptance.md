@@ -1,5 +1,17 @@
 # ISN-B Spark ETL Scenario Acceptance
 
+## Dated acceptance follow-up — 2026-11-19
+
+New Codex proof verified all eight frozen fixture inputs byte-for-byte (including gzip, 163 bytes, SHA-256 `dfd2e2cb…`, and malformed-only, 7 bytes, SHA-256 `1f8458e7…`), all seven historical synthetic Parquet publications (56 tables) against the frozen specification using PyArrow exact rows/schema/metrics, and equal actual logical hashes for all six Silver/Gold tables across both historical LF publications. This does not reconstruct historical completion markers or manifests.
+
+The local Java image remains the legacy `sha256:e49006c31a9dc9681adbce6fb4ac77de042c19911a4548cf23cf071249c871cc`, with Java 17.0.20.1; the candidate needs 17.0.21. Host memory fluctuated. The image build was deferred at 2.673 GiB, and a later recheck measured 3.061 GiB against the 4.5-GiB gate. The four hash-pinned distributions are prepared in a separate local build context. No current Doctor or full-driver PASS exists. SNAP processing remains blocked because explicit authorized-rights evidence is unavailable.
+
+The durable fresh inventory is `D:/DoAn/BigData/_isn-b-artifacts/weylume-acceptance-20261119/fresh-preservation-baseline.json`; the recovered synthetic fixtures are in its `recovered-synthetic-20261119` sibling. Use fresh mode with `-ProtectedInventory D:/DoAn/BigData/_isn-b-artifacts/weylume-acceptance-20261119/fresh-preservation-baseline.json -CandidateImageId sha256:<64 hex>`. Fresh mode does not require or read `-HistoricalBaseline`; the inventory is verified before and after runtime. Legacy mode (no `-ProtectedInventory`) still requires the historical baseline and verifies its image identity and protected records before workloads. These are preservation/recovery evidence only: absent historical markers/manifests were not recreated.
+
+Offline checks: `pwsh -File tests/integration/data_pipeline/test_acceptance_protection.ps1` and `pwsh -File tests/integration/data_pipeline/test_acceptance_resource_gate.ps1`. These checks do not start Docker, Spark, or workloads.
+
+The manifest's `rights_status: approved` is the approved field value, not proof of authorization. The acceptance driver requires `-CandidateCommit <commit>` to identify HEAD and a clean tracked, staged, and untracked worktree before any Spark launch. Historical publications and recovery inventories remain preserved; a new preservation snapshot must not be relabeled as the missing historical baseline.
+
 ## Controlled recovery handoff
 
 ### Stable storage and Phase 3 continuation
@@ -18,7 +30,7 @@ The original recovery created an inventory and separate temporary copies of all 
 
 The verifier's empty-table logical hash was corrected to hash zero bytes, consistent with the producer's existing per-row LF contract. A focused regression failed before the fix and passed afterward; the verifier schema/digest suite passed 7/7 and the local pipeline unit suite passed 26/26 without starting Spark. Resource-gate tests passed 3 memory and 4 process-classifier cases; Docker-monitoring tests passed 28 assertions. These checks do not constitute Parquet acceptance.
 
-Full-driver recovery is not ready: the required historical baseline `D:\temp\opencode\isn-b-etl-acceptance-20261014-01\baseline\before.json` is missing, and all eight frozen variant directories contain no files. The existing driver requires that baseline for image identity and historical preservation checks and requires the exact pinned variants. Do not relabel a new snapshot as historical or silently weaken those checks; establish a truthful recovery baseline and reproduce or recover the exact pinned inputs before a new driver attempt. A later host-memory sample was 4,698,968,064 bytes (4.376 GiB), below the required 4,831,838,208 bytes. No Doctor or Spark was started in this recovery pass. Synthetic acceptance, independent review and Git publication remain incomplete.
+Full-driver recovery remains gated by all existing fixture, Doctor, clean-HEAD, image, and RAM checks. Fresh mode can use the durable inventory above without the missing historical baseline, but requires an explicit candidate image ID; legacy mode retains the historical pin and protected-record checks. The recovered fixture sibling must be selected with `-VariantFixtureRoot`. A later host-memory sample was 4,698,968,064 bytes (4.376 GiB), below the required 4,831,838,208 bytes. No absent historical markers/manifests were recreated. Synthetic acceptance, independent review and Git publication remain incomplete.
 
 ## Scope and gates
 

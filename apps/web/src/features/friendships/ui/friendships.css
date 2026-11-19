@@ -1,0 +1,39 @@
+.friendship-page { max-width: 52rem; margin-inline: auto; }
+.friendship-heading { margin-bottom: 1.5rem; }
+.friendship-heading h1 { margin: .45rem 0; font-size: clamp(2rem, 6vw, 3rem); letter-spacing: -.05em; line-height: 1.12; text-wrap: balance; }
+.friendship-heading h1:focus { outline: 3px solid var(--color-focus); outline-offset: .3rem; border-radius: .15rem; }
+.friendship-heading p { max-width: 42rem; margin: 0; color: var(--color-muted); }
+.friendship-subnav { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1.25rem 1.5rem; padding-bottom: .85rem; border-bottom: 1px solid var(--color-border); }
+.friendship-subnav a { min-height: 2.75rem; display: inline-flex; align-items: center; padding: .5rem .85rem; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--color-muted); font-weight: 650; text-decoration: none; }
+.friendship-subnav a:hover,.friendship-subnav a[aria-current="page"] { border-color: var(--color-border); color: var(--color-accent-pressed); background: var(--color-accent-soft); }
+.friendship-list { display: grid; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.friendship-card { min-width: 0; display: flex; align-items: flex-start; gap: .9rem; padding: 1rem; border: 1px solid var(--card-border); border-radius: var(--radius-card); background: var(--card-bg); box-shadow: 0 .5rem 1.5rem rgb(23 43 42 / 4%); }
+.friendship-card__body { min-width: 0; flex: 1; }
+.friendship-card h2 { margin: 0; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.4; }
+.friendship-card h2 a { color: var(--color-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.friendship-card p { margin: .4rem 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.friendship-card__meta { color: var(--color-muted); font-size: .84rem; }
+.friendship-card .ui-button { margin-top: .4rem; }
+.friendship-buttons { display: flex; flex-wrap: wrap; gap: .65rem; }
+.friendship-action-group { display: grid; justify-items: start; gap: .6rem; }
+.friendship-actions { display: grid; justify-items: start; gap: .6rem; margin-top: 1.25rem; padding: 1.1rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+.friendship-actions h3 { margin: 0; font-size: 1rem; }
+.friendship-actions h3:focus,.friendship-confirmation:focus { outline: 3px solid var(--color-focus); outline-offset: .2rem; border-radius: var(--radius-control); }
+.friendship-state-loading { margin: 1rem 0 0; color: var(--color-muted); }
+.friendship-state-label { display: inline-flex; align-items: center; gap: .4rem; margin: 0; color: var(--color-muted); font-weight: 650; }
+.friendship-feedback { margin-block: .6rem; }
+.friendship-feedback--success { color: var(--color-success); }
+.friendship-confirmation { width: min(100%, 30rem); padding: .9rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-canvas); }
+.friendship-confirmation p { margin: 0 0 .75rem; overflow-wrap: anywhere; }
+.friendship-empty { padding: 1.4rem; border: 1px dashed var(--color-border); border-radius: var(--radius-card); color: var(--color-muted); text-align: center; }
+.friendship-empty h2 { margin: 0 0 .4rem; color: var(--color-ink); font-size: 1.1rem; }
+.friendship-empty p { margin: 0 0 1rem; }
+
+@media (max-width: 520px) {
+  .friendship-subnav { gap: .3rem; }
+  .friendship-subnav a { flex: 1 1 auto; justify-content: center; padding-inline: .55rem; font-size: .87rem; }
+  .friendship-card { gap: .65rem; padding: .8rem; }
+  .friendship-buttons { align-items: stretch; }
+  .friendship-buttons .ui-button { flex: 1 1 auto; }
+  .friendship-confirmation .friendship-buttons { flex-direction: column; }
+}

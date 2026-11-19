@@ -7,6 +7,11 @@ function Test-IsConflictingAcceptanceProcess {
     return ([string]$CommandLine -match '(?i)(acceptance\.ps1|acceptance_verify\.py|test_acceptance\.py|org\.apache\.spark|pyspark|isn_etl|isn-c|posts.{0,20}feed|feed.{0,20}posts|playwright.*(test|e2e)|npm.*(test|e2e)|node.*(test|e2e)|jest|vitest)')
 }
 
+function Test-CandidateTreeClean {
+    param([AllowEmptyCollection()][string[]]$StatusLines)
+    return @($StatusLines).Count -eq 0
+}
+
 function Get-AvailableHostMemoryBytes {
     $osInfo = Get-CimInstance Win32_OperatingSystem
     return [long]$osInfo.FreePhysicalMemory * 1KB

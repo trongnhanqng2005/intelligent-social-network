@@ -68,54 +68,65 @@ test.beforeAll(async () => {
       [1, 'foundation-schema-marker', 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2', 'VERIFIED', true, true],
       [2, 'authentication-schema', 'ce22db8398514d8caa2c9d93a7107750c84507af737decb9a5a001b5311137de', 'VERIFIED', true, true],
       [3, 'user-profile-discovery', 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee', 'VERIFIED', true, true],
+      [4, 'friendship-system', '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2', 'VERIFIED', true, true],
     ]);
     const marker = await session.run(
       "MATCH (schema:ISNSchema {key:'application'}) RETURN schema.version AS version LIMIT 1",
     );
-    expect(asNumber(marker.records[0]?.get('version'))).toBe(3);
+    expect(asNumber(marker.records[0]?.get('version'))).toBe(4);
 
     const expectedConstraints = [
-      ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchema', 'key'],
-      ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchemaMigration', 'version'],
-      ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'User', 'id'],
-      ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'User', 'email'],
-      ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'id'],
-      ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'jti'],
-      ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthActivityEvent', 'eventId'],
+      ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchema', ['key']],
+      ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchemaMigration', ['version']],
+      ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', ['id']],
+      ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', ['email']],
+      ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', ['id']],
+      ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', ['jti']],
+      ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthActivityEvent', ['eventId']],
+      ['isn_friendship_pair_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', ['pairKey']],
+      ['isn_friendship_request_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', ['requestId']],
+      ['isn_friendship_id', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', ['id']],
+      ['isn_friendship_edge_pair_key', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', ['pairKey']],
     ];
     const constraints = await session.run(
       'SHOW CONSTRAINTS YIELD name, type, entityType, labelsOrTypes, properties RETURN name, type, entityType, labelsOrTypes, properties',
     );
     expect(constraints.records).toHaveLength(expectedConstraints.length);
-    for (const [name, type, label, property] of expectedConstraints) {
+    for (const [name, type, entityType, label, properties] of expectedConstraints) {
       expect(constraints.records.some((record) => record.get('name') === name &&
-        record.get('type') === type && record.get('entityType') === 'NODE' &&
+        record.get('type') === type && record.get('entityType') === entityType &&
         JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
-        JSON.stringify(record.get('properties')) === JSON.stringify([property]))).toBe(true);
+        JSON.stringify(record.get('properties')) === JSON.stringify(properties))).toBe(true);
     }
 
     const expectedIndexes = [
-      ['isn_auth_event_id', 'RANGE', 'AuthActivityEvent', 'eventId'],
-      ['isn_auth_session_id', 'RANGE', 'AuthSession', 'id'],
-      ['isn_auth_session_jti', 'RANGE', 'AuthSession', 'jti'],
-      ['isn_auth_session_expires_at', 'RANGE', 'AuthSession', 'expiresAt'],
-      ['isn_auth_event_timestamp', 'RANGE', 'AuthActivityEvent', 'timestamp'],
-      ['isn_schema_metadata_key', 'RANGE', 'ISNSchema', 'key'],
-      ['isn_schema_migration_version', 'RANGE', 'ISNSchemaMigration', 'version'],
-      ['isn_user_email', 'RANGE', 'User', 'email'],
-      ['isn_user_id', 'RANGE', 'User', 'id'],
-      ['isn_user_display_name_search', 'TEXT', 'User', 'displayNameSearch'],
+      ['isn_auth_event_id', 'RANGE', 'NODE', 'AuthActivityEvent', ['eventId']],
+      ['isn_auth_session_id', 'RANGE', 'NODE', 'AuthSession', ['id']],
+      ['isn_auth_session_jti', 'RANGE', 'NODE', 'AuthSession', ['jti']],
+      ['isn_auth_session_expires_at', 'RANGE', 'NODE', 'AuthSession', ['expiresAt']],
+      ['isn_auth_event_timestamp', 'RANGE', 'NODE', 'AuthActivityEvent', ['timestamp']],
+      ['isn_schema_metadata_key', 'RANGE', 'NODE', 'ISNSchema', ['key']],
+      ['isn_schema_migration_version', 'RANGE', 'NODE', 'ISNSchemaMigration', ['version']],
+      ['isn_user_email', 'RANGE', 'NODE', 'User', ['email']],
+      ['isn_user_id', 'RANGE', 'NODE', 'User', ['id']],
+      ['isn_user_display_name_search', 'TEXT', 'NODE', 'User', ['displayNameSearch']],
+      ['isn_friendship_pair_key', 'RANGE', 'NODE', 'FriendshipPair', ['pairKey']],
+      ['isn_friendship_request_id', 'RANGE', 'NODE', 'FriendshipPair', ['requestId']],
+      ['isn_friendship_id', 'RANGE', 'RELATIONSHIP', 'FRIEND_WITH', ['id']],
+      ['isn_friendship_edge_pair_key', 'RANGE', 'RELATIONSHIP', 'FRIEND_WITH', ['pairKey']],
+      ['isn_friendship_requests_sent', 'RANGE', 'NODE', 'FriendshipPair', ['senderId', 'requestStatus', 'requestId']],
+      ['isn_friendship_requests_received', 'RANGE', 'NODE', 'FriendshipPair', ['recipientId', 'requestStatus', 'requestId']],
     ];
     const readiness = await session.run(
       'SHOW INDEXES YIELD name, type, entityType, labelsOrTypes, properties, state RETURN name, type, entityType, labelsOrTypes, properties, state',
     );
     const applicationIndexes = readiness.records.filter((record) => record.get('type') !== 'LOOKUP');
     expect(applicationIndexes).toHaveLength(expectedIndexes.length);
-    for (const [name, type, label, property] of expectedIndexes) {
+    for (const [name, type, entityType, label, properties] of expectedIndexes) {
       expect(applicationIndexes.some((record) => record.get('name') === name &&
-        record.get('type') === type && record.get('entityType') === 'NODE' &&
+        record.get('type') === type && record.get('entityType') === entityType &&
         JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
-        JSON.stringify(record.get('properties')) === JSON.stringify([property]) &&
+        JSON.stringify(record.get('properties')) === JSON.stringify(properties) &&
         record.get('state') === 'ONLINE')).toBe(true);
     }
 
@@ -137,15 +148,15 @@ test.beforeAll(async () => {
     fetch(`${webOrigin}/api/ready`),
   ]);
   expect(apiReady.status).toBe(200);
-  expect(await apiReady.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 3 });
+  expect(await apiReady.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 4 });
   expect(proxiedReady.status).toBe(200);
-  expect(await proxiedReady.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 3 });
+  expect(await proxiedReady.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 4 });
   databasePreflightPassed = true;
 
   console.log(JSON.stringify({
     scenario: 'UPD-00', database: 'isn-test', principal: 'isn_test_runner',
-    rolesVerified: true, devAccess: 'denied', migrations: 'V1-V3 VERIFIED',
-    schemaVersion: 3, profileIndex: 'ONLINE', apiReady: true, viteProxyReady: true,
+    rolesVerified: true, devAccess: 'denied', migrations: 'V1-V4 VERIFIED',
+    schemaVersion: 4, profileIndex: 'ONLINE', apiReady: true, viteProxyReady: true,
     baseline: initialCounts,
   }));
 });

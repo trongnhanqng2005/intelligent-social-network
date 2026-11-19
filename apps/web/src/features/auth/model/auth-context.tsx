@@ -64,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const refreshOnFocus = () => {
       if (document.visibilityState !== 'visible') return;
-      setState((current) => current.status === 'authenticated' ? { status: 'loading' } : current);
       setAttempt((current) => current + 1);
     };
     window.addEventListener('focus', refreshOnFocus);
@@ -78,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [instanceId]);
 
   const register = useCallback(registerRequest, []);
+  const retry = useCallback(() => setAttempt((current) => current + 1), []);
 
   const logout = useCallback(async () => {
     try {
@@ -94,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
-    retry: () => setAttempt((current) => current + 1),
-  }), [state, login, register, logout]);
+    retry,
+  }), [state, login, register, logout, retry]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

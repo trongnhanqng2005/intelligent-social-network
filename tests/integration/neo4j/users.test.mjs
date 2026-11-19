@@ -61,7 +61,7 @@ test('real isn-test profiles persist safely and simultaneous versioned updates c
       const markerResult = await identity.run(
         "MATCH (schema:ISNSchema {key:'application'}) RETURN schema.version AS version LIMIT 1",
       );
-      assert.equal(asNumber(markerResult.records[0]?.get('version')), 3);
+      assert.equal(asNumber(markerResult.records[0]?.get('version')), 4);
       const history = await identity.run(
         'MATCH (migration:ISNSchemaMigration) RETURN migration.version AS version, migration.name AS name, migration.checksum AS checksum, migration.status AS status, migration.appliedAt IS NOT NULL AS applied, migration.verifiedAt IS NOT NULL AS verified ORDER BY version',
       );
@@ -72,23 +72,28 @@ test('real isn-test profiles persist safely and simultaneous versioned updates c
         [1, 'foundation-schema-marker', 'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2', 'VERIFIED', true, true],
         [2, 'authentication-schema', 'ce22db8398514d8caa2c9d93a7107750c84507af737decb9a5a001b5311137de', 'VERIFIED', true, true],
         [3, 'user-profile-discovery', 'd21cf5f1f660cde4199a5283571becd87d00f9e606cc30101a489625fca417ee', 'VERIFIED', true, true],
+        [4, 'friendship-system', '65d7c6b62a29360b77606ef4c26b73b56c55dd7a8343d47df716e318a04988f2', 'VERIFIED', true, true],
       ]);
       const constraints = await identity.run(
         'SHOW CONSTRAINTS YIELD name, type, entityType, labelsOrTypes, properties RETURN name, type, entityType, labelsOrTypes, properties',
       );
       const expectedConstraints = [
-        ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchema', 'key'],
-        ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'ISNSchemaMigration', 'version'],
-        ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'User', 'id'],
-        ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'User', 'email'],
-        ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'id'],
-        ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'AuthSession', 'jti'],
-        ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'AuthActivityEvent', 'eventId'],
+        ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchema', 'key'],
+        ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'ISNSchemaMigration', 'version'],
+        ['isn_user_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', 'id'],
+        ['isn_user_email', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'User', 'email'],
+        ['isn_auth_session_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', 'id'],
+        ['isn_auth_session_jti', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthSession', 'jti'],
+        ['isn_auth_event_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'AuthActivityEvent', 'eventId'],
+        ['isn_friendship_pair_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', 'pairKey'],
+        ['isn_friendship_request_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', 'FriendshipPair', 'requestId'],
+        ['isn_friendship_id', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', 'id'],
+        ['isn_friendship_edge_pair_key', 'RELATIONSHIP_PROPERTY_UNIQUENESS', 'RELATIONSHIP', 'FRIEND_WITH', 'pairKey'],
       ];
       assert.equal(constraints.records.length, expectedConstraints.length);
-      for (const [name, type, label, property] of expectedConstraints) {
+      for (const [name, type, entityType, label, property] of expectedConstraints) {
         assert.ok(constraints.records.some((record) => record.get('name') === name &&
-          record.get('type') === type && record.get('entityType') === 'NODE' &&
+          record.get('type') === type && record.get('entityType') === entityType &&
           JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
           JSON.stringify(record.get('properties')) === JSON.stringify([property])));
       }
@@ -106,14 +111,20 @@ test('real isn-test profiles persist safely and simultaneous versioned updates c
         ['isn_user_email', 'RANGE', 'User', 'email'],
         ['isn_user_id', 'RANGE', 'User', 'id'],
         ['isn_user_display_name_search', 'TEXT', 'User', 'displayNameSearch'],
+        ['isn_friendship_pair_key', 'RANGE', 'FriendshipPair', ['pairKey']],
+        ['isn_friendship_request_id', 'RANGE', 'FriendshipPair', ['requestId']],
+        ['isn_friendship_id', 'RANGE', 'FRIEND_WITH', ['id']],
+        ['isn_friendship_edge_pair_key', 'RANGE', 'FRIEND_WITH', ['pairKey']],
+        ['isn_friendship_requests_sent', 'RANGE', 'FriendshipPair', ['senderId', 'requestStatus', 'requestId']],
+        ['isn_friendship_requests_received', 'RANGE', 'FriendshipPair', ['recipientId', 'requestStatus', 'requestId']],
       ];
       const applicationIndexes = indexes.records.filter((record) => record.get('type') !== 'LOOKUP');
       assert.equal(applicationIndexes.length, expectedIndexes.length);
-      for (const [name, type, label, property] of expectedIndexes) {
+      for (const [name, type, label, properties] of expectedIndexes) {
         assert.ok(applicationIndexes.some((record) => record.get('name') === name &&
-          record.get('type') === type && record.get('entityType') === 'NODE' &&
+          record.get('type') === type && record.get('entityType') === (label === 'FRIEND_WITH' ? 'RELATIONSHIP' : 'NODE') &&
           JSON.stringify(record.get('labelsOrTypes')) === JSON.stringify([label]) &&
-          JSON.stringify(record.get('properties')) === JSON.stringify([property]) &&
+          JSON.stringify(record.get('properties')) === JSON.stringify(Array.isArray(properties) ? properties : [properties]) &&
           record.get('state') === 'ONLINE'));
       }
 

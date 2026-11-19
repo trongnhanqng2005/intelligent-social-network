@@ -26,7 +26,7 @@ test.beforeAll(async () => {
     expect([...user.records[0]!.get('roles')].sort()).toEqual(['PUBLIC', 'isn_test_runner_role']);
     const readiness = await fetch(`${apiOrigin}/ready`);
     expect(readiness.status).toBe(200);
-    expect(await readiness.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 3 });
+    expect(await readiness.json()).toMatchObject({ status: 'ready', database: 'isn-test', schemaVersion: 4 });
   } finally {
     await session.close();
   }

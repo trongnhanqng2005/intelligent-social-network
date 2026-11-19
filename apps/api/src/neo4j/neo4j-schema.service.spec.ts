@@ -14,8 +14,8 @@ describe('Neo4jSchemaService', () => {
       verifyConnectivity: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<Neo4jService>;
     migrations = {
-      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 3, migrations: [] }),
-      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: 3, migrations: [] }),
+      getStatus: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: APPLICATION_SCHEMA_VERSION, migrations: [] }),
+      migrate: jest.fn().mockResolvedValue({ database: 'isn-dev', status: 'current', version: APPLICATION_SCHEMA_VERSION, migrations: [] }),
     } as unknown as jest.Mocked<Neo4jMigrationService>;
     service = new Neo4jSchemaService(neo4j, migrations);
   });
@@ -23,6 +23,16 @@ describe('Neo4jSchemaService', () => {
   it('reports ready only for the verified migration history', async () => {
     await expect(service.checkReadiness()).resolves.toEqual({
       status: 'ready', database: 'isn-dev', schemaVersion: APPLICATION_SCHEMA_VERSION,
+    });
+  });
+
+  it('does not report a V4 database ready for the V5 Posts implementation', async () => {
+    migrations.getStatus.mockResolvedValueOnce({
+      database: 'isn-dev', status: 'incomplete', version: 4, migrations: [],
+    });
+    await expect(service.checkReadiness()).resolves.toMatchObject({
+      status: 'not_ready', reason: 'SCHEMA_MIGRATION_INCOMPLETE',
+      expectedSchemaVersion: 6, actualSchemaVersion: 4,
     });
   });
 

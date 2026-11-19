@@ -98,6 +98,7 @@ function Get-DoctorSourceFingerprints {
     param([Parameter(Mandatory = $true)][string]$Repository)
     $paths = @(
         'tests/integration/data_pipeline/acceptance.ps1',
+        'tests/integration/data_pipeline/acceptance_protection.ps1',
         'tests/integration/data_pipeline/acceptance_doctor_evidence.ps1',
         'tests/integration/data_pipeline/acceptance_docker_monitoring.ps1',
         'tests/integration/data_pipeline/acceptance_resource_gate.ps1',

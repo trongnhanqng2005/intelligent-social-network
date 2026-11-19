@@ -90,9 +90,10 @@ content and final visual state without movement.
 
 ## Profile and discovery adoption
 
-The authenticated Profile and Discovery features reuse semantic tokens, buttons,
-fields, cards, typography, containers and focus/feedback rules. Their domain state
-stays in the owning features, and their loading, empty and error states follow the
-documented API contract. Future friendships, feeds and recommendations remain
-planned; their design should reuse these shared rules without implying they are
-implemented.
+The authenticated Profile, Discovery and Friendship features reuse semantic
+tokens, buttons, fields, cards, typography, containers and focus/feedback rules.
+Their domain state stays in the owning features, and loading, empty and error
+states follow the documented API contract. Friendship source implementation is
+present; Build records report V4 applied, and resumed Step 6 gates verified
+restricted `isn-test` V4 while corrected interactive Friendship UI acceptance
+passed. Feeds and recommendations remain planned and should reuse these rules.

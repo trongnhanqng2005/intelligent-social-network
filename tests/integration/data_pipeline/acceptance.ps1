@@ -4,13 +4,17 @@ param(
     [string]$VariantFixtureRoot = 'D:\temp\opencode\isn-b-etl-acceptance-20261014-01\fixtures\variants',
     [string]$HistoricalBaseline = 'D:\temp\opencode\isn-b-etl-acceptance-20261014-01\baseline\before.json',
     [string]$Image = 'isn-b-data-pipeline:py3.12-pyspark3.5.9-runtime-snappy',
-    [string]$DoctorEvidencePath = ''
+    [string]$CandidateImageId = '',
+    [string]$ProtectedInventory = '',
+    [string]$DoctorEvidencePath = '',
+    [Parameter(Mandatory = $true)][string]$CandidateCommit
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'acceptance_resource_gate.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_doctor_evidence.ps1')
 . (Join-Path $PSScriptRoot 'acceptance_docker_monitoring.ps1')
+. (Join-Path $PSScriptRoot 'acceptance_protection.ps1')
 $repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 $launcher = Join-Path $repo 'scripts\data-pipeline.ps1'
 $fixtureDir = Join-Path $repo 'tests\fixtures\data_pipeline'
@@ -585,7 +589,19 @@ function Assert-SparkLaunchHeadroom {
 }
 
 try {
-    if (-not (Test-Path -LiteralPath $HistoricalBaseline -PathType Leaf)) { throw "Historical baseline missing: $HistoricalBaseline" }
+    $protectedRecords = @()
+    if ($ProtectedInventory) {
+        if (-not $CandidateImageId) { throw 'Fresh protected-inventory mode requires explicit -CandidateImageId.' }
+        if (-not (Test-Path -LiteralPath $ProtectedInventory -PathType Leaf)) { throw "Protected inventory missing: $ProtectedInventory" }
+        $inventory = Read-JsonFile -Path $ProtectedInventory
+        $protectedRecords = @(Get-ProtectedInventoryRecords -Inventory $inventory)
+        Test-ProtectedInventory -Records $protectedRecords
+    } else {
+        if (-not (Test-Path -LiteralPath $HistoricalBaseline -PathType Leaf)) { throw "Historical baseline missing: $HistoricalBaseline" }
+        $historicalBaseline = Read-JsonFile -Path $HistoricalBaseline
+        $protectedRecords = @($historicalBaseline.historical_publications) + @($historicalBaseline.protected_source_files)
+        Test-ProtectedInventory -Records $protectedRecords
+    }
     if (-not (Test-Path -LiteralPath $VariantFixtureRoot -PathType Container)) { throw "Frozen variant fixture root missing: $VariantFixtureRoot" }
     if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) { throw "Expected fixture specification missing: $expectedPath" }
     if (Test-Path -LiteralPath $root) { throw "Refusing to reuse invocation root: $root" }
@@ -593,7 +609,9 @@ try {
     foreach ($directory in @('baseline', 'fixtures', 'fixtures\variants', 'logs', 'outputs', 'reports', 'container-ids')) {
         [System.IO.Directory]::CreateDirectory((Join-Path $root $directory)) | Out-Null
     }
-    Copy-Item -LiteralPath $HistoricalBaseline -Destination (Join-Path $root 'baseline\historical-before.json')
+    if (-not $ProtectedInventory) {
+        Copy-Item -LiteralPath $HistoricalBaseline -Destination (Join-Path $root 'baseline\historical-before.json')
+    }
     Get-ChildItem -LiteralPath $VariantFixtureRoot | Copy-Item -Destination (Join-Path $root 'fixtures\variants') -Recurse
     $pins = Read-JsonFile -Path $expectedPath
     $sourceBaseline = @(
@@ -617,12 +635,16 @@ try {
     if ($runtimeBefore.docker_cpus -lt 2 -or $runtimeBefore.docker_memory_bytes -lt $doctorLimits.memory_bytes -or $runtimeBefore.docker_os -ne 'linux' -or $runtimeBefore.docker_architecture -ne 'x86_64') {
         throw 'Docker capacity or platform is below the approved Linux/amd64 Spark runtime contract.'
     }
-    $imageExpected = (Read-JsonFile -Path $HistoricalBaseline).image_info
-    $imageIdentity = (($runtimeBefore.image_inspect -split '\|' | Select-Object -First 3) -join '|')
-    if ($imageIdentity -ne $imageExpected) { throw 'Pinned Docker image identity/OS/architecture changed since the protected baseline.' }
+    $imageExpected = if ($ProtectedInventory) { '' } else { $historicalBaseline.image_info }
+    if (-not (Test-CandidateImageIdentity -CandidateImageId $CandidateImageId -ImageInspect $runtimeBefore.image_inspect -HistoricalImageIdentity $imageExpected)) {
+        throw 'Candidate image identity does not satisfy the explicit full SHA-256 or legacy historical pin and Linux/amd64/user contract.'
+    }
     if ($runtimeBefore.image_inspect -notmatch '\|linux\|amd64\|10001:10001$') { throw "Unexpected runtime image contract: $($runtimeBefore.image_inspect)" }
-    if ($currentBranch -ne 'feature/data-ingestion-spark-etl') { throw 'Acceptance must run on feature/data-ingestion-spark-etl.' }
-    if ($currentHead -ne '24181d9d9af24506fe2194fe7b4eef566e166d98') { throw 'Acceptance HEAD differs from the authorized worktree baseline.' }
+    if ($currentHead -ne $CandidateCommit) { throw "Acceptance HEAD $currentHead differs from explicit candidate commit $CandidateCommit." }
+    $candidateTreeStatus = @(git -C $repo status --porcelain=v1 --untracked-files=all)
+    if (-not (Test-CandidateTreeClean -StatusLines $candidateTreeStatus)) {
+        throw 'CandidateCommit must identify a clean tracked and untracked worktree; refusing acceptance before any Spark launch.'
+    }
     if ($runtimeBefore.running_containers.Count -gt 0) { throw 'Refusing Spark acceptance while unrelated Docker containers are running.' }
     if ($conflictingProcesses.Count -gt 0) { throw "Refusing acceptance while conflicting Spark/acceptance processes are active: $($conflictingProcesses -join ', ')" }
     $imageParts = $runtimeBefore.image_inspect -split '\|'
@@ -1039,20 +1061,7 @@ try {
         throw 'Equivalent LF/gzip source bytes produced different graph accounting metrics.'
     }
 
-    $historical = Read-JsonFile -Path (Join-Path $root 'baseline\historical-before.json')
     $preservation = [System.Collections.Generic.List[object]]::new()
-    foreach ($record in $historical.historical_publications) {
-        $exists = Test-Path -LiteralPath $record.path -PathType Leaf
-        $actual = if ($exists) { Get-Item -LiteralPath $record.path } else { $null }
-        $hash = if ($exists) { Get-Sha256 -Path $record.path } else { $null }
-        $preservation.Add([pscustomobject]@{ path = $record.path; preserved = ($exists -and $actual.Length -eq $record.bytes -and $hash -eq $record.sha256) })
-    }
-    foreach ($record in $historical.protected_source_files) {
-        $exists = Test-Path -LiteralPath $record.path -PathType Leaf
-        $actual = if ($exists) { Get-Item -LiteralPath $record.path } else { $null }
-        $hash = if ($exists) { Get-Sha256 -Path $record.path } else { $null }
-        $preservation.Add([pscustomobject]@{ path = $record.path; preserved = ($exists -and $actual.Length -eq $record.bytes -and $hash -eq $record.sha256) })
-    }
     foreach ($record in $sourceBaseline) {
         $path = Join-Path $repo $record.path.Replace('/', '\')
         $exists = Test-Path -LiteralPath $path -PathType Leaf
@@ -1060,6 +1069,8 @@ try {
         $hash = if ($exists) { Get-Sha256 -Path $path } else { $null }
         $preservation.Add([pscustomobject]@{ path = $record.path; preserved = ($exists -and $actual.Length -eq $record.bytes -and $hash -eq $record.sha256) })
     }
+    Test-ProtectedInventory -Records $protectedRecords
+    foreach ($record in $protectedRecords) { $preservation.Add([pscustomobject]@{ path = $record.path; preserved = $true }) }
     if ($preservation.Where({ -not $_.preserved }).Count -gt 0) { throw 'A protected historical output or original fixture changed during acceptance.' }
     $afterStatus = @(git -C $repo status --porcelain=v1 --untracked-files=all)
     if (Compare-Object @($before.git_status) $afterStatus) { throw 'Repository working-tree status changed during acceptance.' }

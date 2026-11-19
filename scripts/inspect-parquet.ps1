@@ -49,7 +49,7 @@ complete = json.loads((base / '_COMPLETE.json').read_text(encoding='utf-8'))
 print('=' * 80)
 print(f"DATASET : {manifest.get('dataset_id')} ({manifest.get('source_file')})")
 print(f"RUN ID  : {complete.get('run_id')}")
-print(f"STATUS  : COMPLETE (run_manifest_sha256={str(complete.get('run_manifest_sha256'))[:16]}...)")
+print(f"SAMPLE  : UNVERIFIED (completion marker/run-manifest integrity and full outputs not validated)")
 print('=' * 80)
 
 spark = (

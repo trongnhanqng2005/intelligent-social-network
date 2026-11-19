@@ -131,6 +131,10 @@ The repository fetches at most `limit + 1` rows and exposes no total member
 count. A TEXT index serves the approved display-name search predicate; the
 result limit does not imply constant-time matching.
 
+Friendship relationship state and profile actions are served separately by
+`GET /friendships/status/{memberId}`; they do not add fields or relationship
+data to this profile response. See the [Friendship API contract](friendships.md).
+
 ## Errors and abuse limits
 
 Errors use the Authentication JSON envelope. Relevant outcomes: 400 malformed

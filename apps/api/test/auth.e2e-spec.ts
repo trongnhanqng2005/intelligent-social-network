@@ -11,6 +11,8 @@ import { PasswordService } from '../src/modules/auth/password.service.js';
 import { createDefaultProfile, normalizeSearchKey } from '../src/domain/user-profile.js';
 import { UsersRepository } from '../src/modules/users/users.repository.js';
 import type { OwnProfile, ProfileUpdate } from '../src/modules/users/users.types.js';
+import { FriendshipsRepository } from '../src/modules/friendships/friendships.repository.js';
+import { PostsRepository } from '../src/modules/posts/posts.repository.js';
 
 const origin = 'http://127.0.0.1:3000';
 
@@ -19,6 +21,22 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
   let users: Array<{ id: string; email: string; passwordHash: string }>;
   let sessions: Array<{ jti: string; userId: string; expiresAt: string; revoked: boolean }>;
   let profiles: Map<string, OwnProfile>;
+  let friendshipsRepository: {
+    createRequest: jest.Mock;
+    actOnRequest: jest.Mock;
+    listRequests: jest.Mock;
+    listFriends: jest.Mock;
+    getRelationship: jest.Mock;
+    unfriend: jest.Mock;
+  };
+  let postsRepository: {
+    create: jest.Mock;
+    findVisible: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+    listProfile: jest.Mock;
+    listFeed: jest.Mock;
+  };
   let tokens = new Map<string, { sub: string; jti: string; iat: number; exp: number }>;
 
   beforeAll(async () => {
@@ -26,6 +44,45 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     sessions = [];
     profiles = new Map();
     tokens = new Map();
+    friendshipsRepository = {
+      createRequest: jest.fn(async (input) => ({
+        kind: 'success',
+        result: {
+          request: { id: input.requestId, senderId: input.senderId, recipientId: input.recipientId,
+            status: 'PENDING', createdAt: input.now, resolvedAt: null },
+          relationship: { memberId: input.recipientId, state: 'outgoing_pending', requestId: input.requestId,
+            friendshipId: null, friendsSince: null },
+        },
+      })),
+      actOnRequest: jest.fn(async (input) => ({
+        kind: 'success',
+        result: {
+          request: { id: input.requestId, senderId: '11111111-1111-4111-8111-111111111111',
+            recipientId: '22222222-2222-4222-8222-222222222222',
+            status: input.action === 'accept' ? 'ACCEPTED' : input.action === 'reject' ? 'REJECTED' : 'CANCELLED',
+            createdAt: '2026-10-14T10:00:00.000Z', resolvedAt: input.now },
+          relationship: { memberId: '22222222-2222-4222-8222-222222222222',
+            state: input.action === 'accept' ? 'friends' : 'none', requestId: null,
+            friendshipId: input.action === 'accept' ? input.friendshipId : null,
+            friendsSince: input.action === 'accept' ? input.now : null },
+        },
+      })),
+      listRequests: jest.fn().mockResolvedValue([]),
+      listFriends: jest.fn().mockResolvedValue([]),
+      getRelationship: jest.fn().mockResolvedValue({ kind: 'found', relationship: {
+        memberId: '22222222-2222-4222-8222-222222222222', state: 'none',
+        requestId: null, friendshipId: null, friendsSince: null,
+      } }),
+      unfriend: jest.fn().mockResolvedValue(undefined),
+    };
+    postsRepository = {
+      create: jest.fn(),
+      findVisible: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      listProfile: jest.fn(),
+      listFeed: jest.fn().mockResolvedValue([]),
+    };
     const repository = {
       register: jest.fn(async (input) => {
         if (users.some((user) => user.email === input.email)) {
@@ -116,6 +173,8 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AuthRepository).useValue(repository)
       .overrideProvider(UsersRepository).useValue(profileRepository)
+      .overrideProvider(FriendshipsRepository).useValue(friendshipsRepository)
+      .overrideProvider(PostsRepository).useValue(postsRepository)
       .overrideProvider(PasswordService).useValue(passwords)
       .overrideProvider(JwtService).useValue(jwt)
       .compile();
@@ -145,6 +204,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       .set('Content-Type', 'application/json')
       .send({ email: 'large@example.test', password: 'x'.repeat(9000) })
       .expect(413)
+      .expect(({ headers }) => expect(headers['cache-control']).toContain('no-store'))
       .expect(({ body }) => expect(body.error.code).toBe('PAYLOAD_TOO_LARGE'));
   });
 
@@ -365,5 +425,187 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
 
     const own = await browser.get('/users/me/profile').expect(200);
     expect(own.body.profile).toMatchObject({ displayName: 'Tên mới', version: 1, bio: null });
+  });
+
+  it('requires a session for Feed and gives Post JSON writes a 32 KiB cap without changing the 8 KiB cap elsewhere', async () => {
+    const anonymous = await request(app.getHttpServer()).get('/feed').expect(401);
+    expect(anonymous.headers['cache-control']).toContain('no-store');
+    expect(anonymous.body.error.code).toBe('UNAUTHENTICATED');
+
+    const browser = request.agent(app.getHttpServer());
+    const bootstrap = await browser.get('/auth/csrf').expect(200);
+    const login = await browser.post('/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', bootstrap.body.csrfToken)
+      .send({ email: 'profile-security@example.test', password: 'a sufficiently long password' })
+      .expect(200);
+
+    for (const code of ['ServiceUnavailable', 'SessionExpired']) {
+      postsRepository.findVisible.mockRejectedValueOnce(Object.assign(new Error('private Neo4j details'), { code }));
+      const unavailable = await browser.get('/posts/22222222-2222-4222-8222-222222222222').expect(503);
+      expect(unavailable.body.error).toEqual({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại.',
+      });
+      expect(JSON.stringify(unavailable.body)).not.toContain('private Neo4j details');
+    }
+
+    const acceptedByParser = await browser.post('/posts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'application/json')
+      .send({ content: 'x'.repeat(9000) })
+      .expect(422);
+    expect(acceptedByParser.headers['cache-control']).toContain('no-store');
+    expect(acceptedByParser.body.error.code).toBe('VALIDATION_ERROR');
+    expect(postsRepository.create).not.toHaveBeenCalled();
+
+    const wrongContentType = await browser.patch('/posts/22222222-2222-4222-8222-222222222222')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'text/plain')
+      .send('not JSON')
+      .expect(415);
+    expect(wrongContentType.headers['cache-control']).toContain('no-store');
+
+    const deleteBody = await browser.delete('/posts/22222222-2222-4222-8222-222222222222?expectedVersion=0')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .send({ content: 'body is not allowed' })
+      .expect(422);
+    expect(deleteBody.headers['cache-control']).toContain('no-store');
+    expect(postsRepository.delete).not.toHaveBeenCalled();
+
+    const tooLarge = await browser.post('/posts')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', login.body.csrfToken)
+      .set('Content-Type', 'application/json')
+      .send({ content: 'x'.repeat(33_000) })
+      .expect(413);
+    expect(tooLarge.headers['cache-control']).toContain('no-store');
+    expect(tooLarge.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
+  it('protects Friendship routes and enforces no-store, CSRF, JSON, strict bodies and caller identity', async () => {
+    await request(app.getHttpServer()).get('/friendships')
+      .expect('Cache-Control', /no-store/)
+      .expect(401);
+    const anonymousMalformed = await request(app.getHttpServer()).post('/friendships/requests')
+      .set('Content-Type', 'application/json')
+      .send('{"recipientId":')
+      .expect(400);
+    expect(anonymousMalformed.headers['cache-control']).toContain('no-store');
+
+    const browser = request.agent(app.getHttpServer());
+    const bootstrap = await browser.get('/auth/csrf').expect(200);
+    const login = await browser.post('/auth/login')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', bootstrap.body.csrfToken)
+      .send({ email: 'profile-security@example.test', password: 'a sufficiently long password' })
+      .expect(200);
+    const csrf = login.body.csrfToken as string;
+    const actorId = login.body.user.id as string;
+    const recipientId = '22222222-2222-4222-8222-222222222222';
+
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .send({ recipientId })
+      .expect('Cache-Control', /no-store/)
+      .expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('CSRF_FAILED'));
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .set('Content-Type', 'text/plain')
+      .send(`recipientId=${recipientId}`)
+      .expect('Cache-Control', /no-store/)
+      .expect(415);
+    await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ recipientId, senderId: recipientId })
+      .expect(422)
+      .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+
+    const created = await browser.post('/friendships/requests')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ recipientId })
+      .expect('Cache-Control', /no-store/)
+      .expect(201);
+    expect(created.body.request).toMatchObject({ senderId: actorId, recipientId, status: 'PENDING' });
+    expect(created.body.request.id).toMatch(/^[0-9a-f-]{36}$/iu);
+    expect(friendshipsRepository.createRequest).toHaveBeenCalledWith(expect.objectContaining({
+      senderId: actorId,
+      recipientId,
+      requestId: created.body.request.id,
+    }));
+
+    await browser.get('/friendships/requests?direction=received')
+      .expect('Cache-Control', /no-store/)
+      .expect(200, { items: [], pagination: { limit: 20, hasMore: false, nextCursor: null } });
+    await browser.get('/friendships/requests?direction=unknown').expect(422);
+    await browser.get('/friendships?limit=51').expect(422);
+    await browser.get('/friendships/status/not-a-uuid').expect(422);
+    const status = await browser.get('/friendships/status/22222222-2222-4222-8222-222222222222')
+      .expect('Cache-Control', /no-store/)
+      .expect(200);
+    expect(status.body.relationship).toMatchObject({ state: 'none' });
+
+    const actionId = '33333333-3333-4333-8333-333333333333';
+    for (const action of ['accept', 'reject', 'cancel']) {
+      await browser.post(`/friendships/requests/${actionId}/${action}`)
+        .set('Origin', origin)
+        .set('X-CSRF-Token', csrf)
+        .set('Content-Type', 'application/json')
+        .expect('Cache-Control', /no-store/)
+        .expect(422)
+        .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+    }
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .set('Content-Type', 'application/json')
+      .set('Transfer-Encoding', 'chunked')
+      .expect('Cache-Control', /no-store/)
+      .expect(422)
+      .expect(({ body }) => expect(body.error.code).toBe('VALIDATION_ERROR'));
+    expect(friendshipsRepository.actOnRequest).not.toHaveBeenCalled();
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ unexpected: true })
+      .expect(422);
+    await browser.post(`/friendships/requests/${actionId}/accept`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect('Cache-Control', /no-store/)
+      .expect(200);
+    await browser.post(`/friendships/requests/${actionId}/reject`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect(200);
+    await browser.post(`/friendships/requests/${actionId}/cancel`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({})
+      .expect(200);
+    expect(friendshipsRepository.actOnRequest.mock.calls.map(([input]) => input.action))
+      .toEqual(['accept', 'reject', 'cancel']);
+
+    const friendshipId = '44444444-4444-4444-8444-444444444444';
+    await browser.delete(`/friendships/${friendshipId}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .expect('Cache-Control', /no-store/)
+      .expect(204);
+    expect(friendshipsRepository.unfriend).toHaveBeenCalledWith(actorId, friendshipId);
+    await browser.delete(`/friendships/${friendshipId}`)
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ body: true })
+      .expect(422);
   });
 });
