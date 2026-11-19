@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, link, mkdir, open, readFile, rm } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const DATASET_VERSION = 1;
@@ -61,7 +61,15 @@ export function validateManifest(value: unknown, database: string, databaseId: s
 
 export async function loadOrCreateManifest(database: string, databaseId: string): Promise<DemoManifest> {
   const path = manifestPath();
+  const directory = join(process.cwd(), '.social-demo-data');
   try {
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  await assertManifestDirectory(directory);
+  try {
+    await assertRegularManifest(path);
     return validateManifest(JSON.parse(await readFile(path, 'utf8')), database, databaseId);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -69,7 +77,7 @@ export async function loadOrCreateManifest(database: string, databaseId: string)
 
   const manifest = createManifest(database, databaseId);
   const serialized = `${JSON.stringify(manifest, null, 2)}\n`;
-  await mkdir(join(process.cwd(), '.social-demo-data'), { recursive: true, mode: 0o700 });
+  await assertManifestDirectory(directory);
   const temporaryPath = `${path}.${randomUUID()}.tmp`;
   let handle;
   try {
@@ -83,6 +91,7 @@ export async function loadOrCreateManifest(database: string, databaseId: string)
     return manifest;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      await assertRegularManifest(path);
       return validateManifest(JSON.parse(await readFile(path, 'utf8')), database, databaseId);
     }
     throw error;
@@ -94,10 +103,38 @@ export async function loadOrCreateManifest(database: string, databaseId: string)
 
 export async function readManifest(database: string, databaseId: string): Promise<DemoManifest | undefined> {
   try {
-    return validateManifest(JSON.parse(await readFile(manifestPath(), 'utf8')), database, databaseId);
+    const directory = join(process.cwd(), '.social-demo-data');
+    await assertManifestDirectory(directory);
+    const path = manifestPath();
+    await assertRegularManifest(path);
+    return validateManifest(JSON.parse(await readFile(path, 'utf8')), database, databaseId);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     return undefined;
+  }
+}
+
+async function assertManifestDirectory(directory: string): Promise<void> {
+  let stats;
+  try {
+    stats = await lstat(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error('Local owner manifest directory must be a real directory');
+  }
+}
+
+async function assertRegularManifest(path: string): Promise<void> {
+  try {
+    const stats = await lstat(path);
+    if (!stats.isFile() || stats.isSymbolicLink()) {
+      throw new Error('Local owner manifest must be a regular file');
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
 }
 

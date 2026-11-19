@@ -1,6 +1,6 @@
 import { createManifest, validateManifest } from './manifest.js';
 import { loadOrCreateManifest, manifestPath, readManifest } from './manifest.js';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -36,6 +36,41 @@ describe('social demo owner manifest', () => {
       expect(first).toEqual(second);
       expect(await readManifest('isn-dev', 'database-id')).toEqual(first);
       expect(JSON.parse(await readFile(manifestPath(), 'utf8'))).toEqual(first);
+    } finally {
+      process.chdir(previous);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a symlinked manifest directory without writing through it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
+    const outside = await mkdtemp(join(tmpdir(), 'social-demo-outside-'));
+    const previous = process.cwd();
+    try {
+      await symlink(outside, join(root, '.social-demo-data'), 'junction');
+      process.chdir(root);
+      await expect(loadOrCreateManifest('isn-dev', 'database-id')).rejects.toThrow(/real directory/u);
+      expect(await readFile(join(outside, 'owner-manifest.json')).catch(() => undefined)).toBeUndefined();
+    } finally {
+      process.chdir(previous);
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a non-regular manifest before reading or replacing it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'social-demo-manifest-'));
+    const previous = process.cwd();
+    try {
+      const directory = join(root, '.social-demo-data');
+      await mkdir(directory);
+      const manifest = join(directory, 'owner-manifest.json');
+      await writeFile(manifest, 'keep');
+      await rm(manifest);
+      await mkdir(manifest);
+      process.chdir(root);
+      await expect(loadOrCreateManifest('isn-dev', 'database-id')).rejects.toThrow(/regular file/u);
+      await expect(readManifest('isn-dev', 'database-id')).rejects.toThrow(/regular file/u);
     } finally {
       process.chdir(previous);
       await rm(root, { recursive: true, force: true });
