@@ -1,7 +1,8 @@
 # Planned Big Data and machine learning
 
-Every system described here is a **proposal target, not implemented or verified**. Source is the project proposal DOCX, sections 1 and 3–5. It gives conceptual responsibilities and initial model ideas, but does not settle deployment, operations, privacy, or production API contracts.
+The architecture and model documents describe proposal targets. The research activity contract is tracked separately. Source is the project proposal DOCX, sections 1 and 3–5. It gives conceptual responsibilities and initial model ideas, but does not settle deployment, operations, privacy, or production API contracts.
 
+- [Activity Logging v1 research contract](activity-logging.md)
 - [Target architecture and information flow](architecture.md)
 - [Proposed data and model lifecycle](data-and-models.md)
 

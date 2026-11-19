@@ -36,7 +36,7 @@ paths:
       summary: Neo4j identity and migration readiness
       responses:
         '200':
-          description: Configured database is reachable and current at schema V6.
+          description: Configured database is reachable and current at schema V7.
           content:
             application/json:
               schema:
@@ -45,7 +45,7 @@ paths:
                 properties:
                   status: { const: ready }
                   database: { type: string, example: isn-dev }
-                  schemaVersion: { const: 6 }
+                  schemaVersion: { const: 7 }
         '503':
           description: Configured database unavailable, identity mismatch, or schema not ready.
           content:

@@ -34,3 +34,5 @@ cross-origin deployment.
 Update the prose and OpenAPI document alongside endpoint changes. Verify them
 against the controller, validation, HTTP contract tests, and observed responses;
 do not document planned social capabilities as implemented.
+
+Activity Logging v1 adds no public HTTP endpoint. It extends committed domain writes only under the research opt-in. Readiness now requires V7 source metadata. The restricted event and batch contract is documented in [Activity Logging](../big-data/activity-logging.md).

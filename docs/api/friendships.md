@@ -24,7 +24,7 @@ All mutations require the configured exact `Origin` and signed `X-CSRF-Token`. P
 
 `POST /friendships/requests` and request-action responses contain `{request, relationship}`. Request rows contain the same request object plus a privacy-safe `member` projection. Friend rows contain `{friendshipId, friendsSince, member}`. Lists return `{items, pagination:{limit,hasMore,nextCursor}}`. Request fields are `id`, `senderId`, `recipientId`, `status`, `createdAt`, `resolvedAt`. Request statuses are `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED`.
 
-Relationship states are `self`, `none`, `outgoing_pending`, `incoming_pending`, and `friends`. Nonapplicable IDs/timestamps are `null`. Reject/cancel/unfriend clears current relationship state; only the latest request lifecycle remains on the pair node and is not a complete Activity Events history.
+Relationship states are `self`, `none`, `outgoing_pending`, `incoming_pending`, and `friends`. Nonapplicable IDs/timestamps are `null`. Reject/cancel/unfriend clears current relationship state; only the latest request lifecycle remains on the pair node. Separately, opt-in Activity Logging v1 records allowlisted transitions; it is not a complete Activity Events history.
 
 ## State transitions and conflicts
 

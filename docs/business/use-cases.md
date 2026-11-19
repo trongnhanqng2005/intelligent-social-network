@@ -18,7 +18,7 @@ Uploaded avatars are not implemented. Friendship actions are in the separate [Fr
 3. Acceptance creates exactly one canonical mutual friendship edge. Either participant can later unfriend.
 4. Reject, cancel and unfriend permit a new lifecycle with fresh identifiers.
 
-The graph retains only the latest request lifecycle in `FriendshipPair`; it does not record a complete Activity Events history. See the feature contract for errors, privacy, pagination and concurrency.
+The graph retains only the latest request lifecycle in `FriendshipPair`; the separate, opt-in Activity Logging v1 contract records only its allowlisted transitions and is not a complete history. See the feature contract for errors, privacy, pagination and concurrency.
 
 ## Friend recommendation
 

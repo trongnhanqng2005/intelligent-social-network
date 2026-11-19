@@ -7,6 +7,7 @@ import { canonicalizeFriendshipPair } from '../friendships/friendship-pair.js';
 import { PostActionOutcomeError, PostGraphInvariantError } from './posts.errors.js';
 import type { PostsCursor } from './post-pagination.js';
 import type { PostComment, PostVisibility, StoredPost } from './posts.types.js';
+import { activityCaptureEnabled, newActivityEvent, recordActivityEvent } from '../activity/activity-event.js';
 
 const canonicalFriendship = `
   EXISTS {
@@ -81,12 +82,22 @@ export class PostsRepository {
   constructor(private readonly neo4j: Neo4jService) {}
 
   async setLike(viewerId: string, postId: string, liked: boolean): Promise<{ liked: boolean }> {
+    const event = activityCaptureEnabled() ? newActivityEvent({
+      eventType: liked ? 'POST_LIKED' : 'POST_UNLIKED', occurredAt: new Date().toISOString(),
+      actorId: viewerId, objectType: 'POST', objectId: postId,
+    }) : undefined;
     return this.executeInteractionWrite(async (tx) => {
       await lockVisiblePostForAction(tx, viewerId, postId);
-       const result = await tx.run(liked
-        ? `MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (viewer)-[:LIKED]->(post) RETURN count(*) AS changed`
-        : `MATCH (viewer:User {id:$viewerId})-[like:LIKED]->(:Post {id:$postId}) DELETE like RETURN count(like) AS changed`, { viewerId, postId });
-       return { liked: liked ? result.records.length >= 0 : false };
+      const result = await tx.run(liked
+        ? `MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (viewer)-[:LIKED]->(post)`
+        : `MATCH (viewer:User {id:$viewerId})-[like:LIKED]->(:Post {id:$postId}) DELETE like`,
+       { viewerId, postId });
+       if (event) {
+         const counts = result.summary.counters.updates();
+         const changed = liked ? counts.relationshipsCreated > 0 : counts.relationshipsDeleted > 0;
+         if (changed) await recordActivityEvent(tx, event);
+       }
+      return { liked };
     });
   }
 
@@ -127,19 +138,24 @@ export class PostsRepository {
 
   async createComment(viewerId: string, postId: string, input: {clientId:string;content:string}) {
     const now = new Date().toISOString();
+    const id = randomUUID();
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'COMMENT_CREATED', occurredAt: now,
+      actorId: viewerId, objectType: 'COMMENT', objectId: id }) : undefined;
     return this.executeInteractionWrite(async (tx) => {
       await lockVisiblePostForAction(tx, viewerId, postId);
         const key = createHash('sha256').update(`${postId}:${viewerId}:${input.clientId}`).digest('hex');
         const contentHash = createHash('sha256').update(input.content).digest('hex');
-       const result = await tx.run(`MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (comment:Comment {retryKey:$key}) ON CREATE SET comment.id=$id, comment.clientId=$clientId, comment.postId=$postId, comment.content=$content, comment.originalContentHash=$contentHash, comment.createdAt=datetime($now), comment.updatedAt=datetime($now), comment.version=0, comment.deleted=false MERGE (comment)-[:ON_POST]->(post) MERGE (viewer)-[:WROTE_COMMENT]->(comment) RETURN comment.id AS id, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, comment.originalContentHash AS originalContentHash, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`, {viewerId,postId,key,id:randomUUID(),clientId:input.clientId,content:input.content,contentHash,now});
+        const result = await tx.run(`MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (comment:Comment {retryKey:$key}) ON CREATE SET comment.id=$id, comment.clientId=$clientId, comment.postId=$postId, comment.content=$content, comment.originalContentHash=$contentHash, comment.createdAt=datetime($now), comment.updatedAt=datetime($now), comment.version=0, comment.deleted=false WITH viewer, post, comment, comment.id = $id AS created MERGE (comment)-[:ON_POST]->(post) MERGE (viewer)-[:WROTE_COMMENT]->(comment) RETURN comment.id AS id, created, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, comment.originalContentHash AS originalContentHash, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`, {viewerId,postId,key,id,clientId:input.clientId,content:input.content,contentHash,now});
        const record = result.records[0];
         if (!record) throw new PostActionOutcomeError('not-found');
-        if (record.get('deleted') === true || record.get('clientId') !== input.clientId || record.get('originalContentHash') !== contentHash) throw new PostActionOutcomeError('conflict');
+         if (record.get('deleted') === true || record.get('clientId') !== input.clientId || record.get('originalContentHash') !== contentHash) throw new PostActionOutcomeError('conflict');
+          if (event && record.get('created') === true) await recordActivityEvent(tx, event);
         return mapComment(record, postId, viewerId);
     });
   }
 
   async updateComment(viewerId:string, postId:string, commentId:string, content:string, expectedVersion:number) {
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'COMMENT_UPDATED', occurredAt: new Date().toISOString(), actorId: viewerId, objectType: 'COMMENT', objectId: commentId }) : undefined;
     return this.executeInteractionWrite(async (tx) => {
       await lockVisiblePostForAction(tx, viewerId, postId);
       const status = await commentMutationStatus(tx, viewerId, postId, commentId, expectedVersion);
@@ -148,12 +164,14 @@ export class PostsRepository {
         `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.deleted=false AND comment.version=$expectedVersion SET comment.content=$content, comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN comment.id AS id, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`,
         { viewerId, postId, commentId, content, expectedVersion },
       );
-      if (result.records.length !== 1) throw new PostActionOutcomeError('conflict');
+       if (result.records.length !== 1) throw new PostActionOutcomeError('conflict');
+       if (event) await recordActivityEvent(tx, event);
       return mapComment(result.records[0]!, postId, viewerId);
     });
   }
 
   async deleteComment(viewerId:string, postId:string, commentId:string, expectedVersion:number) {
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'COMMENT_DELETED', occurredAt: new Date().toISOString(), actorId: viewerId, objectType: 'COMMENT', objectId: commentId }) : undefined;
     return this.executeInteractionWrite(async (tx) => {
       await lockVisiblePostForAction(tx, viewerId, postId);
       const status = await commentMutationStatus(tx, viewerId, postId, commentId, expectedVersion);
@@ -162,9 +180,10 @@ export class PostsRepository {
         `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.version=$expectedVersion AND comment.deleted=false SET comment.deleted=true, comment.content='', comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN count(comment) AS changed`,
         { viewerId, postId, commentId, expectedVersion },
       );
-      if (result.records.length !== 1 || numberValue(result.records[0]?.get('changed')) !== 1) {
+       if (result.records.length !== 1 || numberValue(result.records[0]?.get('changed')) !== 1) {
         throw new PostActionOutcomeError('conflict');
-      }
+       }
+       if (event) await recordActivityEvent(tx, event);
     });
   }
 
@@ -190,6 +209,8 @@ export class PostsRepository {
     visibility: PostVisibility;
     createdAt: string;
   }): Promise<StoredPost | undefined> {
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'POST_CREATED', occurredAt: input.createdAt,
+      actorId: input.authorId, objectType: 'POST', objectId: input.id }) : undefined;
     return this.neo4j.executeWriteOnce(async (transaction) => {
       const result = await transaction.run(
         `MATCH (author:User {id: $authorId})
@@ -224,6 +245,7 @@ export class PostsRepository {
           post.authorCount !== 1 || post.relationshipCount !== 1) {
         throw new PostGraphInvariantError();
       }
+       if (event && result.summary.counters.updates().nodesCreated > 0) await recordActivityEvent(transaction, event);
       return post;
     });
   }
@@ -331,6 +353,8 @@ export class PostsRepository {
     expectedVersion: number;
     updatedAt: string;
   }): Promise<'not-found' | 'forbidden' | 'conflict' | StoredPost> {
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'POST_UPDATED', occurredAt: input.updatedAt,
+      actorId: input.viewerId, objectType: 'POST', objectId: input.postId }) : undefined;
     try {
       return await this.neo4j.executeWriteOnce(async (transaction) => {
         const locked = await lockPost(transaction, input.postId);
@@ -367,6 +391,7 @@ export class PostsRepository {
         if (post.authorCount !== 1 || post.authorId !== input.viewerId || post.version !== input.expectedVersion + 1) {
           throw new PostGraphInvariantError();
         }
+        if (event) await recordActivityEvent(transaction, event);
         return post;
       });
     } catch (error) {
@@ -380,6 +405,8 @@ export class PostsRepository {
     postId: string;
     expectedVersion: number;
   }): Promise<'not-found' | 'forbidden' | 'conflict' | 'deleted'> {
+    const event = activityCaptureEnabled() ? newActivityEvent({ eventType: 'POST_DELETED', occurredAt: new Date().toISOString(),
+      actorId: input.viewerId, objectType: 'POST', objectId: input.postId }) : undefined;
     try {
       return await this.neo4j.executeWriteOnce(async (transaction) => {
         const locked = await lockPost(transaction, input.postId);
@@ -406,7 +433,9 @@ export class PostsRepository {
            RETURN 1 AS deleted`,
           input,
         );
-        return result.records.length === 1 ? 'deleted' : 'conflict';
+        if (result.records.length !== 1) return 'conflict';
+        if (event) await recordActivityEvent(transaction, event);
+        return 'deleted';
       });
     } catch (error) {
       if (isPostWriteDeadlock(error)) return 'conflict';
