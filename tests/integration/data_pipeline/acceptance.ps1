@@ -389,7 +389,7 @@ function Invoke-Launcher {
     }
     foreach ($key in $Environment.Keys) { $childEnvironment[$key] = $Environment[$key] }
     $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $args = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $launcher) + $LauncherArguments
+    $args = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $launcher, '-Image', $Image) + $LauncherArguments
     return Invoke-ChildProcess -Name $Name -FileName $psExe -Arguments $args -Environment $childEnvironment -ContainerCommandId $commandId
 }
 

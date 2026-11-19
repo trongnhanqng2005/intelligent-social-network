@@ -8,6 +8,8 @@ The clean candidate Linux/amd64 image built from hash-pinned inputs is `sha256:d
 
 The adopted full-driver profile is two CPUs, Spark `local[2]`, a 512 MiB driver heap set through `PYSPARK_SUBMIT_ARGS` before JVM startup, a 1.5 GiB container memory and equal memory-swap cap (no swap), and a 2.25 GiB immediate Windows host gate. Docker inspect must confirm the configured memory and memory-swap caps for every workload; existing monitoring, runtime provenance, artifact protections, sequential execution, and fail-closed OOM/exit handling remain in force. Full-driver acceptance is still pending on the frozen candidate.
 
+The first full-driver attempt stopped during Doctor because the child launcher omitted the selected image and used its legacy default. The monitor rejected the image mismatch. The launcher now receives the selected image for every child command. The inspector checks the compact container limits and current host capacity ahead of start, and its read-only sampling smoke passed on the synthetic publication.
+
 The [Stanford dataset page](https://snap.stanford.edu/data/ego-Facebook.html) provides the archive and citation. [McAuley’s Social Circles page](https://cseweb.ucsd.edu/~jmcauley/datasets.html) points to this archive and asks users to cite the paper. The [BSD terms](https://snap.stanford.edu/snap/license.html) describe SNAP software. These sources establish provenance and attribution guidance. The scope of use and retention of derived artifacts remains unverified. The earlier read-only artifact checks remain valid.
 
 ## Dated acceptance follow-up — 2026-11-19

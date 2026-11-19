@@ -103,9 +103,11 @@ deg = (
 deg.show(limit, truncate=False)
 
 spark.stop()
-'@.Replace('"', '\"')
+'@
+$encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($pyScript))
+$pythonBootstrap = 'import base64,sys; exec(base64.b64decode(sys.argv.pop(1)))'
 
-& docker run --rm --platform linux/amd64 --cpus=2 --memory=1536m --memory-swap=1536m `
+$containerId = & docker create --platform linux/amd64 --cpus=2 --memory=1536m --memory-swap=1536m `
     --pids-limit=256 --network none --hostname isn-etl `
     --add-host isn-etl:127.0.0.1 `
     --tmpfs /tmp:rw,nosuid,nodev,size=1g,mode=1777 `
@@ -113,7 +115,30 @@ spark.stop()
     --mount "type=bind,source=$resolvedRunPath,target=/run_out,readonly" `
     --env "JAVA_TOOL_OPTIONS=-Dorg.xerial.snappy.tempdir=/run/isn-etl-snappy -XX:ActiveProcessorCount=2" `
     --env "PYSPARK_SUBMIT_ARGS=--driver-memory 512m pyspark-shell" `
-    --entrypoint python $Image -c $pyScript "$Limit"
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+    --entrypoint python $Image -c $pythonBootstrap $encodedScript "$Limit"
+if ($LASTEXITCODE -ne 0 -or $containerId -cnotmatch '^[0-9a-f]{64}$') {
+    throw 'Could not create the inspector container.'
 }
+
+$exitCode = 1
+try {
+    $limits = & docker inspect $containerId --format '{{.HostConfig.Memory}}|{{.HostConfig.MemorySwap}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{.HostConfig.NetworkMode}}'
+    if ($LASTEXITCODE -ne 0 -or $limits -ne '1610612736|1610612736|2000000000|256|none') {
+        throw 'Inspector resource limits differ from the compact profile.'
+    }
+    $running = @(& docker ps -q)
+    if ($LASTEXITCODE -ne 0 -or $running.Count -gt 0) {
+        throw 'Run the inspector only when Docker has no other active workload.'
+    }
+    $freeMemoryBytes = [long](Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory * 1KB
+    if ($freeMemoryBytes -lt 2304MB) {
+        throw 'The inspector needs at least 2.25 GiB available on Windows before it starts Spark.'
+    }
+
+    & docker start --attach $containerId
+    $exitCode = $LASTEXITCODE
+} finally {
+    & docker rm --force $containerId | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not remove the inspector container.' }
+}
+if ($exitCode -ne 0) { exit $exitCode }
