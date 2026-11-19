@@ -39,6 +39,19 @@ describe('ML demo member page', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/ml-demo/anomalies')).toBe(true);
   });
 
+  it('announces authorized alert loading and then the loaded alert count', async () => {
+    let resolveAlerts!: (value: Response) => void;
+    fetchMock.mockResolvedValueOnce(recs(true)).mockImplementationOnce(() => new Promise((resolve) => { resolveAlerts = resolve; }));
+    renderPage();
+    expect(await screen.findByText('Đang tải cảnh báo…')).toBeVisible();
+
+    resolveAlerts(alerts());
+    const announcement = await screen.findByText('Đã tải 1 cảnh báo.');
+    expect(announcement).toHaveClass('visually-hidden');
+    expect(screen.getByText('64')).toBeVisible();
+    expect(screen.getByText('Cảnh báo').previousElementSibling).toHaveTextContent('1');
+  });
+
   it('renders a successful empty recommendation result', async () => {
     fetchMock.mockResolvedValueOnce(recs(false, []));
     renderPage();

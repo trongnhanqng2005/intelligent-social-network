@@ -34,6 +34,7 @@ export function MlDemoPage() {
   useEffect(() => {
     if (!recommendations?.canViewAlerts) return;
     const controller = new AbortController();
+    setAlertPage(0);
     setAnomalyError(false); setLimitedAccess(false); setAnomalies(undefined);
     getAnomalies(controller.signal).then((data) => {
       if (!controller.signal.aborted) setAnomalies(data);
@@ -73,6 +74,9 @@ export function MlDemoPage() {
         </article>
         {recommendations.canViewAlerts && <article className="ml-demo__panel" aria-labelledby="anomaly-title">
           <div className="ml-demo__panel-heading"><Activity aria-hidden="true" /><div><h2 id="anomaly-title">Synthetic Anomaly Alerts</h2><p>Các cảnh báo đánh giá tổng hợp; chỉ người được chủ sở hữu cho phép mới xem.</p></div></div>
+          <p role="status" aria-live="polite" className={anomalies ? 'visually-hidden' : undefined}>
+            {anomalies ? `Đã tải ${anomalies.alerts.length} cảnh báo.` : !anomalyError && !limitedAccess ? 'Đang tải cảnh báo…' : ''}
+          </p>
           {limitedAccess && <p role="status">Phần cảnh báo chỉ dành cho người được cấp quyền xem.</p>}
           {anomalyError && <div className="ml-demo__state"><Alert tone="error">Không thể tải phần cảnh báo bị giới hạn.</Alert><Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}><RefreshCw size={16} /> Thử lại</Button></div>}
           {anomalies && <>

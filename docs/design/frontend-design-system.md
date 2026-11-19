@@ -100,4 +100,4 @@ Their domain state stays in the owning features, and loading, empty and error
 states follow the documented API contract. Friendship source implementation is
 present; Build records report V4 applied, and resumed Step 6 gates verified
 restricted `isn-test` V4 while corrected interactive Friendship UI acceptance
-passed. Feeds and recommendations remain planned and should reuse these rules.
+passed. Feeds remain planned and should reuse these rules.
