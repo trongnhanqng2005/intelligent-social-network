@@ -11,6 +11,7 @@ import { FriendsPage } from '../features/friendships/ui/friends-page';
 import { FriendshipRequestsPage } from '../features/friendships/ui/friendship-requests-page';
 import { FeedPage } from '../features/posts/ui/feed-page';
 import { PostDetailPage } from '../features/posts/ui/post-detail-page';
+import { MlDemoPage } from '../features/ml-demo/ui/ml-demo-page';
 
 export function AppRoutes() {
   return (
@@ -24,6 +25,7 @@ export function AppRoutes() {
         <Route path="/ban-be" element={<MemberLayout><FriendsPage /></MemberLayout>} />
         <Route path="/ban-be/loi-moi" element={<MemberLayout><FriendshipRequestsPage /></MemberLayout>} />
         <Route path="/bang-tin" element={<MemberLayout><FeedPage /></MemberLayout>} />
+        <Route path="/nghien-cuu" element={<MemberLayout><MlDemoPage /></MemberLayout>} />
         <Route path="/bai-viet/:postId" element={<MemberLayout><PostDetailPage /></MemberLayout>} />
         <Route path="/thanh-vien/:id" element={<MemberLayout><MemberProfilePage /></MemberLayout>} />
         <Route path="*" element={<NotFoundPage />} />

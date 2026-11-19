@@ -1,5 +1,9 @@
 # Weylume Frontend Design System
 
+## Synthetic research surface
+
+The authenticated `/nghien-cuu` member route uses the existing member shell and Be Vietnam Pro typography. It presents separate Synthetic Friend Recommendations and Synthetic Anomaly Alerts panels on the warm canvas, with restrained teal data accents, compact responsive tables, and shared semantic controls. The page is explicitly synthetic/research-only and has no invitation or relationship action.
+
 ## Product identity
 
 Weylume is the user-facing community product identity. `intelligent-social-network`

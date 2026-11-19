@@ -35,7 +35,8 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     if (request.path === '/auth' || request.path.startsWith('/auth/') ||
         request.path === '/users' || request.path.startsWith('/users/') ||
         request.path === '/feed' || request.path === '/posts' || request.path.startsWith('/posts/') ||
-        request.path === '/friendships' || request.path.startsWith('/friendships/')) {
+        request.path === '/friendships' || request.path.startsWith('/friendships/') ||
+        request.path === '/ml-demo' || request.path.startsWith('/ml-demo/')) {
       response.setHeader('Cache-Control', 'no-store');
     }
     next();

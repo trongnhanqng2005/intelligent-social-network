@@ -19,8 +19,10 @@ remains separately recorded in the database-operation and acceptance records.
   canonical graph and authenticated API behavior.
 - [Posts & Feed](posts-feed.md) — approved visibility, content, CRUD, feed,
   pagination, concurrency and error contracts; V5 operational state is separate.
+- [Synthetic ML demo](ml-demo.md) — authenticated synthetic recommendations and
+  reviewer-only anomaly alerts.
 - [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness,
-  Authentication, User, Friendship, Posts and Feed routes.
+  Authentication, User, Friendship, Posts, Feed and synthetic ML demo routes.
 
 ## Routing
 

@@ -52,7 +52,7 @@
 .directory-empty { padding: 1.3rem; border: 1px dashed var(--color-border); border-radius: var(--radius-card); color: var(--color-muted); text-align: center; }
 .directory-pagination { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; }
 .member-profile-back { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .45rem; margin-bottom: 1rem; font-weight: 650; text-decoration: none; }
-@media (max-width: 680px) {
+@media (max-width: 800px) {
   .member-header { flex-wrap: wrap; justify-content: space-between; padding-block: .65rem; }
   .member-header > .brand-lockup { order: 0; }
   .member-nav { order: 2; width: 100%; flex-wrap: wrap; justify-content: center; border-top: 1px solid var(--color-border); padding-top: .4rem; }

@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { FriendshipsModule } from './modules/friendships/friendships.module.js';
 import { PostsModule } from './modules/posts/posts.module.js';
+import { MlDemoModule } from './modules/ml-demo/ml-demo.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PostsModule } from './modules/posts/posts.module.js';
     UsersModule,
     FriendshipsModule,
     PostsModule,
+    MlDemoModule,
   ],
 })
 export class AppModule {}
