@@ -32,11 +32,13 @@ $run = Get-ChildItem "$runs/synthetic-friend-rec-v1/runs" -Directory |
 & $python -m friend_recommendation.workflow evaluate --run-root $run --output-dir $out
 ```
 
+Both `generate --output-dir` and `evaluate --output-dir` require a fresh output directory. Each writes its artifacts in a temporary payload under the target's parent and publishes that payload with a same-filesystem rename only after all writes succeed. Existing destinations (including dangling symlinks) are rejected; failed writes leave no published output and their invocation-owned temporary directory is cleaned up.
+
 `generate` writes `synthetic-edges.txt` and the existing ETL `manifest.json` format, with exact LF-terminated source bytes pinned by SHA-256 and byte count. Its seeded graph has connected community rings, heterogeneous within-community edges, hubs, and between-community bridges. All manifest version fields are `1.0.0`, and provenance declares synthetic rights only.
 
 `evaluate` requires a completed run containing `_COMPLETE.json`, `_RUN_MANIFEST.json`, `gold/nodes`, and `gold/edges`. It verifies the completion-marker hash/identity relationship, synthetic-only provenance, registered schema names/types, row count, exact reader-visible Parquet inventory (including rejection of unexpected visible `.parquet` files), listed file sizes/hashes, actual Parquet schema, the complete Gold node catalog and provenance, numeric canonical unique edge order, and endpoint membership. Output directory must not already exist. Metrics persist the source SHA-256, ETL run ID, and node/edge counts.
 
-Focused tests and dependency check:
+Nine focused tests cover feature formulas, ranking, Gold integrity, and output preservation and retry. Run them with the dependency check:
 
 ```powershell
 & $python -m unittest discover -s tests/unit/friend_recommendation -v

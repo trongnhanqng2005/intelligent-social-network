@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,12 +15,48 @@ from friend_recommendation import workflow as wf
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_generate_failure_publishes_nothing_and_same_directory_can_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "generated"
+            original_write_text = Path.write_text
+
+            def fail_manifest(path, *args, **kwargs):
+                if path.name == "manifest.json":
+                    raise OSError("simulated manifest write failure")
+                return original_write_text(path, *args, **kwargs)
+
+            with patch("sys.argv", ["workflow", "generate", "--output-dir", str(output)]), \
+                    patch.object(Path, "write_text", fail_manifest):
+                with self.assertRaisesRegex(OSError, "simulated"):
+                    wf.main()
+            self.assertFalse(output.exists())
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+            with patch("sys.argv", ["workflow", "generate", "--output-dir", str(output)]):
+                self.assertEqual(wf.main(), 0)
+            self.assertTrue((output / "synthetic-edges.txt").is_file())
+            self.assertTrue((output / "manifest.json").is_file())
+
+    def test_generate_rejects_existing_output_without_changing_user_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "existing"
+            output.mkdir()
+            source, manifest = output / "synthetic-edges.txt", output / "manifest.json"
+            source.write_bytes(b"user source")
+            manifest.write_bytes(b"user manifest")
+            with patch("sys.argv", ["workflow", "generate", "--output-dir", str(output)]):
+                with self.assertRaises(FileExistsError):
+                    wf.main()
+            self.assertEqual(source.read_bytes(), b"user source")
+            self.assertEqual(manifest.read_bytes(), b"user manifest")
+
     def test_seeded_source_and_exact_manifest_pins(self):
         with tempfile.TemporaryDirectory() as tmp:
-            p = Path(tmp) / "synthetic-edges.txt"
+            p = Path(tmp)
             wf.create_graph(p)
-            raw = p.read_bytes()
-            manifest = json.loads((p.parent / "manifest.json").read_text())
+            source = p / "synthetic-edges.txt"
+            raw = source.read_bytes()
+            manifest = json.loads((p / "manifest.json").read_text())
             self.assertTrue(raw.endswith(b"\n"))
             self.assertNotIn(b"\r\n", raw)
             self.assertEqual(manifest["source_sha256"], hashlib.sha256(raw).hexdigest())
@@ -52,11 +89,12 @@ class WorkflowTests(unittest.TestCase):
 
     def _rows(self):
         with tempfile.TemporaryDirectory() as tmp:
-            p = Path(tmp) / "source.txt"
+            p = Path(tmp)
             wf.create_graph(p)
             # Synthetic source has IDs suitable for analytical namespace conversion.
             return [(f"{wf.DATASET_ID}:{a}", f"{wf.DATASET_ID}:{b}")
-                    for line in p.read_text().splitlines() for a, b in [map(int, line.split())]]
+                    for line in (p / "synthetic-edges.txt").read_text().splitlines()
+                    for a, b in [map(int, line.split())]]
 
     def test_split_reproducibility_leakage_and_serving_contract(self):
         rows = self._rows()

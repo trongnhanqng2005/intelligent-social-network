@@ -4,7 +4,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import random
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,7 +33,7 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def create_graph(path: Path, communities: int = 4, members: int = 12) -> dict[str, object]:
+def create_graph(out_dir: Path, communities: int = 4, members: int = 12) -> dict[str, object]:
     if communities < 2 or members < 5:
         raise ValueError("Use at least two communities of five nodes")
     rng = random.Random(SEED)
@@ -55,7 +57,8 @@ def create_graph(path: Path, communities: int = 4, members: int = 12) -> dict[st
             b = nxt * members + rng.randrange(members)
             edges.add(tuple(sorted((a, b))))
     content = "".join(f"{a} {b}\n" for a, b in sorted(edges)).encode("ascii")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "synthetic-edges.txt"
     path.write_bytes(content)
     digest = _sha(content)
     manifest = {
@@ -68,10 +71,25 @@ def create_graph(path: Path, communities: int = 4, members: int = 12) -> dict[st
         "schema_version": "1.0.0", "transform_version": "1.0.0",
         "quality_policy_version": "1.0.0",
     }
-    (path.parent / "manifest.json").write_text(
+    (out_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     return {"nodes": communities * members, "edges": len(edges), "source_sha256": digest,
-            "source_bytes": len(content), "manifest_path": str(path.parent / "manifest.json")}
+            "source_bytes": len(content), "manifest_path": str(out_dir / "manifest.json")}
+
+
+def _publish_output(output_dir: Path, write) -> dict[str, object]:
+    if os.path.lexists(output_dir):
+        raise FileExistsError(f"Output directory must be new: {output_dir}")
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".friend-rec-", dir=output_dir.parent) as temporary:
+        payload = Path(temporary) / "payload"
+        result = write(payload)
+        if os.path.lexists(output_dir):
+            raise FileExistsError(f"Output directory must be new: {output_dir}")
+        os.rename(payload, output_dir)
+        if result.get("manifest_path"):
+            result["manifest_path"] = str(output_dir / "manifest.json")
+        return result
 
 
 def read_gold(run_root: Path) -> tuple[list[str], list[tuple[str, str]], dict[str, Any]]:
@@ -295,14 +313,12 @@ def main() -> int:
     evaluate.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "generate":
-        result = create_graph(args.output_dir / "synthetic-edges.txt")
+        result = _publish_output(args.output_dir, create_graph)
     else:
-        if args.output_dir.exists():
-            raise FileExistsError(f"Output directory must be new: {args.output_dir}")
         nodes, edges, manifest = read_gold(args.run_root)
-        result = train_and_evaluate(
-            edges, args.output_dir, node_ids=nodes,
-            provenance={"source_sha256": manifest["source_sha256"], "run_id": manifest["run_id"]})
+        result = _publish_output(args.output_dir, lambda payload: train_and_evaluate(
+            edges, payload, node_ids=nodes,
+            provenance={"source_sha256": manifest["source_sha256"], "run_id": manifest["run_id"]}))
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
