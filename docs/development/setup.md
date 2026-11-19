@@ -4,7 +4,7 @@
 
 - Node.js `>=24.15.0 <25`.
 - npm `>=11.19.0 <12` (root declares npm 11.19.0).
-- A local Neo4j DBMS is required by the API. The approved development/test targets are `isn-dev` and `isn-test`; no Python, Spark or Kafka is required for Increment 1.
+- A local Neo4j DBMS is required by the API. The approved development/test targets are `isn-dev` and `isn-test`; no Python, Spark or Kafka is required for the application foundation. The standalone ISN-B ETL uses its separate Docker Desktop Linux runtime and does not connect to Neo4j; see [ETL setup and commands](../big-data/ingestion-etl.md).
 
 ## Install and run
 

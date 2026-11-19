@@ -1,21 +1,22 @@
 # Intelligent Social Network
 
-A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes & Comments are implemented on this feature branch and passed focused end-to-end acceptance on restricted `isn-test`. Big Data/ML components remain planned.
+A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes & Comments are implemented on this feature branch and passed focused end-to-end acceptance on restricted `isn-test`. The standalone PySpark edge-list pipeline met the Owner-approved synthetic-only Academic MVP criteria. Application-integrated Big Data/ML components remain planned.
 
 ## Status
 
-**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. The Likes & Comments branch verifies V6, rollback-isolated interaction queries and the focused browser-to-database journey on restricted `isn-test`. Account recovery, data pipelines, trained models, and production deployment remain planned. Activity research data has a 30-day retention limit; operational Auth retention is separate, and automated scheduling is not implemented. Production retention policy remains unresolved.
+**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. The Likes & Comments branch verifies V6, rollback-isolated interaction queries and the focused browser-to-database journey on restricted `isn-test`. The standalone data pipeline has passed synthetic-only Academic MVP acceptance. Trained models and production deployment remain planned. Activity research data has a 30-day retention limit; operational Auth retention is separate, and automated scheduling is not implemented. Production retention policy remains unresolved.
 
 ## Stack and architecture
 
 - npm workspaces: `apps/api` (NestJS 12, TypeScript) and `apps/web` (React 19, TypeScript, Vite 8, React Router 7).
 - API: NestJS Modular Monolith; root composition includes validated configuration, Neo4j migrations, health, authentication, users, and friendship modules.
 - Web: Feature-Based organization with one router, auth/profile/discovery/friendship features, and shared HTTP/config boundaries.
-- Planned direction: Neo4j for social graph/application data, PySpark batch processing over Parquet Bronze/Silver/Gold layers, and Python/scikit-learn models for friend recommendation and anomaly detection. These are requirements and proposals, not existing services.
+- Data stack: Neo4j for application data and a standalone PySpark pipeline for static edge lists and Bronze/Silver/Gold Parquet. Application event integration and Python/scikit-learn models for recommendations and anomaly detection remain planned.
 
 ```text
 apps/api/  NestJS application and API-local Jest/Supertest tests
 apps/web/  React application and app-local Vitest/RTL tests
+data-pipeline/  Standalone PySpark edge-list ETL and Docker runtime contract
 tests/     Root unit/integration scenarios and Playwright browser QA
 docs/      Business, architecture, Big Data, development and roadmap documents
 ```
@@ -66,6 +67,8 @@ Open `http://127.0.0.1:5173`. The API defaults to `127.0.0.1:3000`; Vite proxies
 
 Install the browser once with `npx playwright install chromium`. Full setup and test guidance: [Development docs](docs/development/README.md). Root test placement rules: [tests/README.md](tests/README.md).
 
+The standalone edge-list ETL's synthetic-only Academic MVP acceptance is documented in [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md). SNAP remains blocked pending source authorization and is outside this acceptance. Launch gates remain mandatory.
+
 ## Documentation
 
 - [Documentation index](docs/README.md)
@@ -73,7 +76,7 @@ Install the browser once with `npx playwright install chromium`. Full setup and 
 - [Project overview](docs/overview.md) · [Roadmap](docs/roadmap.md)
 - [Business requirements](docs/business/README.md)
 - [Implemented architecture](docs/architecture/README.md)
-- [Planned Big Data and ML direction](docs/big-data/README.md)
+- [Big Data and ML status](docs/big-data/README.md)
 - [Development workflow and documentation Definition of Done](docs/development/workflow.md)
 
 ## Milestones and limitations
@@ -84,6 +87,6 @@ Install the browser once with `npx playwright install chromium`. Full setup and 
 4. Complete the Friendship V4 rollout and separately approved Scenario Testing (complete); Git publication proceeds by Pull Request for Owner review.
 5. Add the data platform, graph storage, ETL, ML training/evaluation and prediction integration incrementally.
 
-The development proxy is not production routing. Production routing, deployment, account recovery, Posts/Feed, data pipelines, datasets and measured ML results are not configured or implemented. Friendship acceptance and V4 readiness were verified against the approved restricted test database; this is not a production deployment claim. Production event retention remains a data-governance decision; the research Activity Logging policy is limited to 30 days. See [open decisions and dependencies](docs/roadmap.md).
+The development proxy is not production routing. Production routing, deployment, account recovery and measured ML results remain pending. Friendship acceptance and V4 readiness were verified against the approved restricted test database; this is not a production deployment claim. Production event retention remains a data-governance decision; the research Activity Logging policy is limited to 30 days. See [open decisions and dependencies](docs/roadmap.md).
 
-Activity Logging v1 research capture, export and operator behavior passed serial real-Neo4j acceptance on restricted `isn-test` on 2026-11-05, after V7 was verified. The exact migration checksum and scenario evidence are recorded in the [Neo4j operations](docs/development/neo4j-operations.md) and [testing guide](docs/development/testing.md). Implementation acceptance is complete and awaiting independent final review; no PR or production-readiness claim is implied. See the [activity contract](docs/big-data/activity-logging.md).
+Activity Logging v1 research capture, export and operator behavior passed serial real-Neo4j acceptance on restricted `isn-test` on 2026-11-05, after V7 was verified. The exact migration checksum and scenario evidence are recorded in the [Neo4j operations](docs/development/neo4j-operations.md) and [testing guide](docs/development/testing.md). Independent review passed and PR #10 merged. A V7 migration on isn-dev requires a separate approved operation. See the [activity contract](docs/big-data/activity-logging.md).

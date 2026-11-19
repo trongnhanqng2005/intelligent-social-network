@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "dataset_id": "isn-acceptance-edges-v1",
+  "source_file": "acceptance-edges.txt",
+  "source_format": "plain",
+  "graph_semantics": "undirected_edge_list",
+  "source_sha256": "ba12a5109386626da09c0ea1edd06e73b8b3b2c2046c32fbce9591d55e0e80ad",
+  "uncompressed_sha256": "ba12a5109386626da09c0ea1edd06e73b8b3b2c2046c32fbce9591d55e0e80ad",
+  "source_bytes": 252,
+  "content_bytes": 252,
+  "acquired_at": null,
+  "source_url": null,
+  "citation": "Original acceptance fixture authored for ISN-B Scenario Testing; not derived from external data.",
+  "rights_status": "synthetic",
+  "rights_evidence": "Authored for Project Owner-approved synthetic acceptance testing.",
+  "schema_version": "1.0.0",
+  "transform_version": "1.0.0",
+  "quality_policy_version": "1.0.0",
+  "expected_reference_counts": null
+}

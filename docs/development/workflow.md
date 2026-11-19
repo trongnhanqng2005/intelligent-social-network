@@ -13,6 +13,14 @@ repeated reviews.
    task per branch. Branch creation and other Git mutations require Owner
    authorization; preserve unrelated work and never reset, clean, stash, or
    discard it to satisfy the convention.
+   Use an approved lowercase prefix (`feat/`, `fix/`, `chore/`, `test/`, or
+   `docs/`) followed by a concise kebab-case task slug. Before branching, safely
+   fetch `origin/main` and check local branch ancestry and worktree changes.
+   Fast-forward local `main` when safe (for example, `git merge --ff-only origin/main`).
+   If local changes prevent that update, preserve them and use a dedicated
+   worktree from the verified `origin/main` commit. After a merge is confirmed, fast-forward
+   local `main` to the merged remote state. Never rewrite published history;
+   preserve archival branches.
 2. **Plan:** OpenCode prepares a focused task plan. The technical adviser reviews
    it, then the Project Owner explicitly approves it. Plan only the selected task,
    its dependencies, acceptance criteria, risks, and verification.
@@ -31,7 +39,9 @@ repeated reviews.
    and tests independently of Build. Fix confirmed issues and reverify affected
    behavior. A review result does not authorize the next phase.
 7. **Git Publication:** Only with explicit Owner authorization, commit, push,
-   create a PR, and merge within the approved scope.
+   create a PR, and merge within the approved scope. Confirm the merge before
+   fast-forwarding `main`; do not force-push, rebase published branches, or delete
+   archival branches.
 
 The Project Owner has final approval authority. No phase transition is inferred
 from a passing agent report. The technical adviser must not write an OpenCode
