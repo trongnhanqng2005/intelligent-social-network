@@ -71,6 +71,8 @@ The standalone edge-list ETL's synthetic-only Academic MVP acceptance is documen
 
 The offline synthetic friend-recommendation evaluator, reproduction commands, and measured real-Gold results are documented in [Friend recommendation](friend_recommendation/README.md).
 
+The offline synthetic anomaly experiment's two matching actual Spark/model runs, reproduction recipe, measured results, and limitations are documented in [Anomaly detection](anomaly_detection/README.md). These engineered synthetic results are not operational-accuracy evidence or production readiness.
+
 ## Documentation
 
 - [Documentation index](docs/README.md)
