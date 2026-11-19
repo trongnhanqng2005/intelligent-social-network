@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "dataset_id": "isn-synthetic-edges-v1",
+  "source_file": "synthetic-edges.txt",
+  "source_format": "plain",
+  "graph_semantics": "undirected_edge_list",
+  "source_sha256": "76d5341062b5c0e8f024cb207530d9cbc2edec80c88b0fe98754f454f8061195",
+  "uncompressed_sha256": "76d5341062b5c0e8f024cb207530d9cbc2edec80c88b0fe98754f454f8061195",
+  "source_bytes": 101,
+  "content_bytes": 101,
+  "acquired_at": null,
+  "source_url": null,
+  "citation": "Original synthetic fixture authored for ISN-B tests; not derived from external data.",
+  "rights_status": "synthetic",
+  "rights_evidence": "Original test fixture created for this project task.",
+  "schema_version": "1.0.0",
+  "transform_version": "1.0.0",
+  "quality_policy_version": "1.0.0",
+  "expected_reference_counts": null
+}

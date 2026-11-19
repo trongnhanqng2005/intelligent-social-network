@@ -1,0 +1,207 @@
+{
+  "fixture_version": 1,
+  "encoding": "UTF-8",
+  "bom": false,
+  "primary_line_ending": "LF",
+  "primary_final_newline": true,
+  "line_count": 24,
+  "dataset_id": "isn-acceptance-edges-v1",
+  "versions": {
+    "schema": "1.0.0",
+    "transform": "1.0.0",
+    "quality_policy": "1.0.0"
+  },
+  "expected_metadata": {
+    "citation": "Original acceptance fixture authored for ISN-B Scenario Testing; not derived from external data.",
+    "rights_status": "synthetic",
+    "rights_evidence": "Authored for Project Owner-approved synthetic acceptance testing.",
+    "acquired_at": null,
+    "source_url": null
+  },
+  "variants": {
+    "lf": {
+      "source_file": "acceptance-edges.txt",
+      "source_format": "plain",
+      "source_bytes": 252,
+      "source_sha256": "ba12a5109386626da09c0ea1edd06e73b8b3b2c2046c32fbce9591d55e0e80ad",
+      "content_bytes": 252,
+      "content_sha256": "ba12a5109386626da09c0ea1edd06e73b8b3b2c2046c32fbce9591d55e0e80ad",
+      "run_id": "61fc2a3848771dd69ed532960d0739bb1156ed54f19ca461ed9b63cc6ccbfad2",
+      "record_ids_logical_sha256": "63d319a035659d4c3746d89017460ed1027aa35990e9f34223d7018ab8d32ab4"
+    },
+    "crlf": {
+      "source_file": "acceptance-edges.txt",
+      "source_format": "plain",
+      "source_bytes": 276,
+      "source_sha256": "685a1dd9e4b8a8872e317e2236ec814b3653308e9849249753cb45b339d46b30",
+      "content_bytes": 276,
+      "content_sha256": "685a1dd9e4b8a8872e317e2236ec814b3653308e9849249753cb45b339d46b30",
+      "run_id": "1834ed01333afcb99e8bfdde55024a17f6b8347cabe6e9fd7d4ce09aefa015be",
+      "record_ids_logical_sha256": "a629059b3de652b5035f2955943a8fe8af73ae69a1f8ea67617c9dbba1af8fac"
+    },
+    "no_final_lf": {
+      "source_file": "acceptance-edges.txt",
+      "source_format": "plain",
+      "source_bytes": 251,
+      "source_sha256": "e33f8bf68ebf58ce29887f13ba91ac2ccf4c80a5a080b5709fd1353e587358be",
+      "content_bytes": 251,
+      "content_sha256": "e33f8bf68ebf58ce29887f13ba91ac2ccf4c80a5a080b5709fd1353e587358be",
+      "run_id": "ce136778aba4cb9849339ab85f809db410d6815370e20e007ae8f030e81e5a0b",
+      "record_ids_logical_sha256": "76fa95074cc2d672b8eff43ab26f4890df73bdf39d2dd1909fc41669537be6b5"
+    },
+    "gzip": {
+      "source_file": "acceptance-edges.txt.gz",
+      "source_format": "gzip",
+      "source_bytes": 163,
+      "source_sha256": "dfd2e2cb0388406722f8f2e00bcb736a0a858f7cc5cf6c3abb354d507fa22916",
+      "content_bytes": 252,
+      "content_sha256": "ba12a5109386626da09c0ea1edd06e73b8b3b2c2046c32fbce9591d55e0e80ad",
+      "run_id": "d26c208462e0434e78a6ebc55052227d36253f66388dd74c3ab5e9e0181666dd",
+      "record_ids_logical_sha256": "d44970b4679559b7baecd499296dc0625fa76fdedc2979b3625b1d6da1ad944f"
+    }
+  },
+  "records": [
+    {"line_number": 1, "raw_text": "# acceptance fixture", "classification": "comment"},
+    {"line_number": 2, "raw_text": "", "classification": "blank"},
+    {"line_number": 3, "raw_text": " \t ", "classification": "blank"},
+    {"line_number": 4, "raw_text": "  # indented comment", "classification": "comment"},
+    {"line_number": 5, "raw_text": "0 1", "classification": "valid", "edge": [0, 1]},
+    {"line_number": 6, "raw_text": "1 0", "classification": "valid", "edge": [0, 1]},
+    {"line_number": 7, "raw_text": "0000 0001", "classification": "valid", "edge": [0, 1]},
+    {"line_number": 8, "raw_text": "2\t10", "classification": "valid", "edge": [2, 10]},
+    {"line_number": 9, "raw_text": "10 2", "classification": "valid", "edge": [2, 10]},
+    {"line_number": 10, "raw_text": "20 21", "classification": "valid", "edge": [20, 21]},
+    {"line_number": 11, "raw_text": "9223372036854775807 0", "classification": "valid", "edge": [0, 9223372036854775807]},
+    {"line_number": 12, "raw_text": "9223372036854775806 9223372036854775807", "classification": "valid", "edge": [9223372036854775806, 9223372036854775807]},
+    {"line_number": 13, "raw_text": "9223372036854775808 1", "classification": "quarantine", "reason_code": "IDENTIFIER_OUT_OF_RANGE"},
+    {"line_number": 14, "raw_text": "-1 2", "classification": "quarantine", "reason_code": "INVALID_IDENTIFIER"},
+    {"line_number": 15, "raw_text": "+1 2", "classification": "quarantine", "reason_code": "INVALID_IDENTIFIER"},
+    {"line_number": 16, "raw_text": "1 x", "classification": "quarantine", "reason_code": "INVALID_IDENTIFIER"},
+    {"line_number": 17, "raw_text": "١ 2", "classification": "quarantine", "reason_code": "INVALID_IDENTIFIER"},
+    {"line_number": 18, "raw_text": "1", "classification": "quarantine", "reason_code": "INVALID_COLUMN_COUNT"},
+    {"line_number": 19, "raw_text": "1 2 3", "classification": "quarantine", "reason_code": "INVALID_COLUMN_COUNT"},
+    {"line_number": 20, "raw_text": "1,2", "classification": "quarantine", "reason_code": "INVALID_COLUMN_COUNT"},
+    {"line_number": 21, "raw_text": "1|2", "classification": "quarantine", "reason_code": "INVALID_COLUMN_COUNT"},
+    {"line_number": 22, "raw_text": "0002 2", "classification": "quarantine", "reason_code": "SELF_LOOP"},
+    {"line_number": 23, "raw_text": "1 2 # trailing comment", "classification": "quarantine", "reason_code": "INVALID_COLUMN_COUNT"},
+    {"line_number": 24, "raw_text": "9223372036854775808 x", "classification": "quarantine", "reason_code": "INVALID_IDENTIFIER"}
+  ],
+  "expected_silver_nodes": [0, 1, 2, 10, 20, 21, 9223372036854775806, 9223372036854775807],
+  "expected_silver_edges": [
+    [0, 1, 3],
+    [2, 10, 2],
+    [20, 21, 1],
+    [0, 9223372036854775807, 1],
+    [9223372036854775806, 9223372036854775807, 1]
+  ],
+  "expected_metrics": {
+    "bronze.total_records": 24,
+    "bronze.blank_records": 2,
+    "bronze.comment_records": 2,
+    "bronze.candidate_records": 20,
+    "silver.quarantined_records": 12,
+    "silver.valid_edge_occurrences": 8,
+    "silver.unique_edges": 5,
+    "silver.duplicate_excess": 3,
+    "silver.observed_nodes": 8,
+    "gold.nodes": 8,
+    "gold.edges": 5
+  },
+  "expected_parquet_schemas": {
+    "bronze/raw_edges": ["dataset_id:string", "source_version:string", "source_file:string", "line_number:bigint", "record_id:string", "raw_text:string", "ingested_at:timestamp"],
+    "bronze/source_metadata": ["dataset_id:string", "source_version:string", "source_file:string", "source_format:string", "graph_semantics:string", "source_sha256:string", "uncompressed_sha256:string", "source_bytes:bigint", "content_bytes:bigint", "acquired_at:string", "source_url:string", "citation:string", "rights_status:string", "rights_evidence:string", "schema_version:string", "transform_version:string", "quality_policy_version:string", "run_id:string", "ingested_at:timestamp"],
+    "silver/nodes": ["dataset_id:string", "source_version:string", "source_node_id:bigint"],
+    "silver/edges": ["dataset_id:string", "source_version:string", "source_node_id_low:bigint", "source_node_id_high:bigint", "source_record_count:bigint"],
+    "silver/quarantine": ["dataset_id:string", "source_version:string", "record_id:string", "source_file:string", "line_number:bigint", "raw_text:string", "reason_code:string"],
+    "silver/quality_metrics": ["dataset_id:string", "source_version:string", "stage:string", "metric_name:string", "value:bigint"],
+    "gold/nodes": ["dataset_id:string", "source_version:string", "node_id:string", "source_node_id:bigint"],
+    "gold/edges": ["dataset_id:string", "source_version:string", "node_id_low:string", "node_id_high:string"]
+  },
+  "additional_inputs": {
+    "single_edge": {
+      "dataset_id": "isn-acceptance-single-v1",
+      "source_file": "acceptance-single-edge.txt",
+      "source_format": "plain",
+      "source_bytes": 5,
+      "source_sha256": "154258d7d7a0383ff7204f3ce608189f35633e8a1780ad5bd9f3fc8707fde385",
+      "content_bytes": 5,
+      "content_sha256": "154258d7d7a0383ff7204f3ce608189f35633e8a1780ad5bd9f3fc8707fde385",
+      "run_id": "22e3c5eb7fa92fbb6ca400126aa65daf447ae441c9f04cd990c08ed631852f96",
+      "record_ids_logical_sha256": "2de4f2456edfdc4bdfdba61852c1c1820c8cac4149d4681391601bf9f944418b",
+      "raw_text": "2 10",
+      "silver_nodes": [2, 10],
+      "silver_edges": [[2, 10, 1]],
+      "metrics": {
+        "bronze.total_records": 1,
+        "bronze.blank_records": 0,
+        "bronze.comment_records": 0,
+        "bronze.candidate_records": 1,
+        "silver.quarantined_records": 0,
+        "silver.valid_edge_occurrences": 1,
+        "silver.unique_edges": 1,
+        "silver.duplicate_excess": 0,
+        "silver.observed_nodes": 2,
+        "gold.nodes": 2,
+        "gold.edges": 1
+      }
+    },
+    "malformed_only": {
+      "dataset_id": "isn-acceptance-malformed-v1",
+      "source_file": "acceptance-malformed-only.txt",
+      "source_format": "plain",
+      "source_bytes": 7,
+      "source_sha256": "1f8458e77a2cd73ac66ef6ed51894f9a7689550c81def4d43ea6f2837b04f74c",
+      "content_bytes": 7,
+      "content_sha256": "1f8458e77a2cd73ac66ef6ed51894f9a7689550c81def4d43ea6f2837b04f74c",
+      "run_id": "43f62acab6c4a419f5ccdb6b9e2f6b1474e2208b3b3d131092ba766073efe3f8",
+      "record_ids_logical_sha256": "f9b033a8fb1632d31142c7c937b8ed8cbc59117529dcdbed2155f9809f6ddd72",
+      "expected_quarantine": [[1, "INVALID_IDENTIFIER"], [2, "INVALID_COLUMN_COUNT"]]
+    },
+    "empty": {
+      "dataset_id": "isn-acceptance-empty-v1",
+      "source_file": "acceptance-empty.txt",
+      "source_format": "plain",
+      "source_bytes": 0,
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "content_bytes": 0,
+      "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_id": "a2cd29a0c60d2bb3a8179f63901b9666d591004cc71ac0904650fc41beb3a412"
+    },
+    "resource": {
+      "dataset_id": "isn-acceptance-resource-v1",
+      "source_file": "acceptance-resource.txt",
+      "source_format": "plain",
+      "generator": {
+        "edge_range": [0, 1000],
+        "occurrences_per_edge": ["forward", "reverse", "forward"],
+        "blank_records": 100,
+        "comment_records": 100,
+        "malformed_records": 100,
+        "encoding": "UTF-8",
+        "bom": false,
+        "line_ending": "LF",
+        "final_newline": true
+      },
+      "source_bytes": 26639,
+      "source_sha256": "aad39774a110c778ad0ef5e633513ea075e62f4a984116ba33ed7107dcae8c56",
+      "content_bytes": 26639,
+      "content_sha256": "aad39774a110c778ad0ef5e633513ea075e62f4a984116ba33ed7107dcae8c56",
+      "line_count": 3300,
+      "run_id": "a47162fc52cef06ce70f3ac7cd972efc957398960fc47739af7a5f48f40353ac",
+      "record_ids_logical_sha256": "4de2dd86a860eed446dfffc147893ab912c4c4e77e220b2cb17c1272fcaddf89",
+      "metrics": {
+        "bronze.total_records": 3300,
+        "bronze.blank_records": 100,
+        "bronze.comment_records": 100,
+        "bronze.candidate_records": 3100,
+        "silver.quarantined_records": 100,
+        "silver.valid_edge_occurrences": 3000,
+        "silver.unique_edges": 1000,
+        "silver.duplicate_excess": 2000,
+        "silver.observed_nodes": 1001,
+        "gold.nodes": 1001,
+        "gold.edges": 1000
+      }
+    }
+  }
+}

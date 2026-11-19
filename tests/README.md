@@ -21,6 +21,10 @@
 | Real-stack Posts & Feed acceptance | `tests/e2e/posts.playwright.config.mts` and `tests/e2e/specs/posts-feed.spec.ts` | Guarded Playwright runner; `npm run test:e2e:posts`, current-V5 read-only preflight and fresh Owner/ISN-B safety gates required |
 | Shared deterministic test data | `tests/fixtures/<domain-or-purpose>/` only when reused | Owned by the scenarios that consume it |
 
+
+
+The Spark ETL acceptance ledger records offline checks, preserved publications, and the gated full-driver procedure. [Spark ETL acceptance](integration/data_pipeline/acceptance.md).
+
 Current root tests:
 
 - `integration/api-proxy.test.mjs`: real API + Vite HTTP proxy contract, without browser automation.

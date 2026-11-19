@@ -1,0 +1,10 @@
+# Original synthetic edge-list fixture for ISN-B
+1 2
+2 1
+
+3 3
+4 x
+9223372036854775808 1
+5
+0 1
+0001 2
