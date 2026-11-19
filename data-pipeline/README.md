@@ -1,12 +1,12 @@
 # Standalone graph-edge ETL
 
-> **Current status (2026-11-19):** Synthetic processing is implemented. A historical SNAP publication has independent artifact verification, but current SNAP use remains blocked by unavailable explicit rights evidence. Full synthetic acceptance has not passed: local Docker image history identifies Java 17.0.20.1 while the candidate requires 17.0.21, and observed free RAM peaked near 3.2 GiB against the 4.5-GiB gate. See the [acceptance report](../tests/integration/data_pipeline/acceptance.md).
+> **Current status (2026-11-19)** Standalone ETL is implemented. The pinned Java 17.0.21 image built successfully. Current Doctor and synthetic full-driver acceptance remain pending a safe launch. Independent verification covers the preserved SNAP publication. Real-source reproduction remains pending verification of the applicable data-use terms. See the [acceptance report](../tests/integration/data_pipeline/acceptance.md).
 
 This folder contains the approved, standalone PySpark batch pipeline. It processes a locally supplied, manifest-pinned undirected edge list into Bronze, Silver/quarantine, and Gold Parquet. It has no API, Neo4j, live-user, event-generation, feature-engineering, model-training, or serving integration.
 
 ## Status and source gate
 
-The SNAP manifest has non-null SHA-256 and byte-size pins and its `rights_status: approved` field records a declared decision. Codex independently verified the source hashes and all eight SNAP Parquet schemas, rows and logical hashes for the recorded publication. The cited SNAP page is not explicit authorized-rights evidence; that evidence is unavailable and SNAP processing remains blocked. The output manifest records Java 17.0.21, while the local tag's preserved image identity is `sha256:e49006c31a9dc9681adbce6fb4ac77de042c19911a4548cf23cf071249c871cc` and its history identifies Java 17.0.20.1. There is no current image/Doctor PASS; do not describe the runtime as currently verified or weaken the runtime gate.
+The SNAP manifest records SHA-256 and byte-size pins and a declared rights decision. Independent checks verified source hashes and all eight Parquet schemas, rows and logical hashes of the preserved publication. The dataset page and a coauthor’s download and citation guidance establish the source and expected attribution. The scope for reuse and retention of derived outputs remains unverified. The [acceptance report](../tests/integration/data_pipeline/acceptance.md) records the evidence and current runtime.
 
 Only original synthetic data under `tests/fixtures/data_pipeline/` is used by the committed tests. Do not put source datasets or generated Parquet in Git.
 
@@ -51,7 +51,7 @@ See [the ingestion/run contract](../docs/big-data/ingestion-etl.md), [source pro
 
 ISN-B chuẩn bị dữ liệu đồ thị cạnh vô hướng từ file cục bộ để các bước phân tích/ML sau này có thể sử dụng hợp đồng Parquet rõ ràng. Đây là batch standalone, không gọi NestJS, không đọc/ghi Neo4j, không kết nối Posts & Feed, không huấn luyện hay phục vụ mô hình và không xử lý sự kiện người dùng. `node_id` ở Gold là định danh phân tích theo dataset, **không phải** UUID User của ứng dụng. Không suy diễn nghiệm thu synthetic thành nghiệm thu SNAP hoặc production readiness.
 
-Historical runtime evidence recorded Docker Desktop Linux/amd64, Python 3.12.15, PySpark 3.5.9, Py4J 0.10.9.7, OpenJDK 17.0.21+9, Spark `local[2]` and Parquet Snappy. It does not establish the current local image; preserved image history identifies Java 17.0.20.1. Python/build dependencies remain pinned in the lock files.
+Image build hiện tại ghi nhận Docker Desktop Linux/amd64, Python 3.12.15, PySpark 3.5.9, Py4J 0.10.9.7 và OpenJDK 17.0.21+9. Cần lượt Doctor trên đúng image để xác minh Spark `local[2]` và Snappy Parquet. Python và build dependencies được ghim bằng SHA-256 trong các lock file.
 
 ### Mã nguồn và luồng xử lý
 

@@ -1,5 +1,15 @@
 # ISN-B Spark ETL Scenario Acceptance
 
+## Integration and runtime follow-up — 2026-11-19
+
+PR #10 merged at `265f9d9`. The Spark integration starts at that commit and incorporates the original PR #8 head and the prior acceptance branch without rewriting their history.
+
+The candidate Linux/amd64 image built from the hash-pinned inputs as `sha256:d83be3bc743e53f3e53443c2ee380ed0ab5356098db22caf29d54d9665554f21` with UID/GID 10001, Python 3.12.15, PySpark 3.5.9, Py4J 0.10.9.7, and OpenJDK 17.0.21+9. The legacy tag remains separate. Windows had 2.592 GiB available at the build preflight and 0.580 GiB immediately after build. This is a before/after host observation, not a Spark peak or a Docker limit. Build logs and the compact synthetic probe are in the separate local evidence directory.
+
+A compact resource probe uses a graph authored for this task with 4,039 nodes, 88,234 unique edges, and extra duplicate and invalid records. The proposed test profile uses two CPUs, Spark `local[2]`, a 512 MiB driver heap, a 1.5 GiB cgroup limit with no swap, and 2.25 GiB available on Windows at launch. The probe records cgroup peak memory and OOM events and samples the host. This is a qualification step. The 4.5 GiB full-driver gate remains active until the lower profile has enough runtime evidence.
+
+The [Stanford dataset page](https://snap.stanford.edu/data/ego-Facebook.html) provides the archive and citation. [McAuley’s Social Circles page](https://cseweb.ucsd.edu/~jmcauley/datasets.html) points to this archive and asks users to cite the paper. The [BSD terms](https://snap.stanford.edu/snap/license.html) describe SNAP software. These sources establish provenance and attribution guidance. The scope of use and retention of derived artifacts remains unverified. The earlier read-only artifact checks remain valid.
+
 ## Dated acceptance follow-up — 2026-11-19
 
 New Codex proof verified all eight frozen fixture inputs byte-for-byte (including gzip, 163 bytes, SHA-256 `dfd2e2cb…`, and malformed-only, 7 bytes, SHA-256 `1f8458e7…`), all seven historical synthetic Parquet publications (56 tables) against the frozen specification using PyArrow exact rows/schema/metrics, and equal actual logical hashes for all six Silver/Gold tables across both historical LF publications. This does not reconstruct historical completion markers or manifests.
