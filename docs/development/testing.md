@@ -161,7 +161,7 @@ The guarded Posts runner starts runtime sampling immediately for each group, wai
 - First-group cleanup and final preservation passed: data fingerprint `0e86ee7f2c92de4a578ffcbe82da05ce5a742ffaa139864cf1507619dfce8bd4`, schema fingerprint `54e0c56b98e0caf9b7d6b4aa32ddd81a6ee748bd722155fdca8edf8f54683b1d`, privilege fingerprint `e35e491875f170d57913e74eba7257c4c7356dafbe1e65a2e900642cd5633645`. No recovery manifests remain; invocation processes were stopped, ports 3312/5182 are free, and owned temp/key/marker paths were cleaned. Summary is `.artifacts/playwright/posts/556ace7c-6387-420d-8140-6b56e26f114a/run-summary.json`.
 - The bounded authorization is consumed and not reused. Step 5 remains BLOCKED by the runtime-monitor zero-sample condition and unrun groups; no Step 6 or 7 work started.
 
-See the dated Spark ETL acceptance ledger for row-level verification of preserved outputs and the remaining runtime and full-driver checks. [Spark ETL acceptance](../../tests/integration/data_pipeline/acceptance.md).
+The standalone Spark ETL meets the synthetic-only Academic MVP criteria. The dated ledger records row-level evidence and the incomplete full-driver run. [Spark ETL acceptance](../../tests/integration/data_pipeline/acceptance.md).
 
 ## Verification record
 

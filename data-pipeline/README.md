@@ -1,6 +1,6 @@
 # Standalone graph-edge ETL
 
-> **Current status (2026-11-19)** Standalone ETL is implemented. The clean candidate image passed Doctor and a new 88,239-line synthetic resource run under the measured 1.5 GiB/no-swap profile. The full synthetic acceptance driver remains pending. Independent verification covers the preserved SNAP publication; real-source reproduction remains pending verification of applicable data-use terms. See the [acceptance report](../tests/integration/data_pipeline/acceptance.md).
+> **Current status (2026-11-19)** The standalone pipeline meets the Owner-approved synthetic-only Academic MVP criteria. The [acceptance report](../tests/integration/data_pipeline/acceptance.md) records the test evidence, the incomplete full-driver run and the unresolved SNAP data-use terms.
 
 This folder contains the approved, standalone PySpark batch pipeline. It processes a locally supplied, manifest-pinned undirected edge list into Bronze, Silver/quarantine, and Gold Parquet. It has no API, Neo4j, live-user, event-generation, feature-engineering, model-training, or serving integration.
 
@@ -106,14 +106,12 @@ Các lệnh launcher thực tế ở mục **Runtime and commands** phía trên.
 |---|---|
 | DONE | Code ETL, CLI, contract synthetic, kiểm tra publication/reuse; sửa hash bảng rỗng với regression. |
 | DONE | Lượt kiểm tra nhẹ sau sửa: 26/26 unit, 7/7 verifier schema/hash; gate resource và monitoring tests PASS. |
-| IN PROGRESS | Synthetic Acceptance: resource profile qualified by measured run; full acceptance driver remains pending. Fresh preservation inventory không thay thế artifact lịch sử vắng mặt. |
-| BLOCKED | Full-driver PASS remains pending; SNAP chưa có quyền/pin tin cậy. Legacy historical baseline/marker/manifests/reports cũ còn thiếu; fresh mode có inventory riêng. |
-| NOT STARTED | Independent Code Review; nghiệm thu và quyết định merge của Owner. |
+| DONE (Academic MVP) | Synthetic pipeline tests and independent verification of seven Parquet publications. |
+| BLOCKED | SNAP rights/source authorization remain unresolved and outside this acceptance. |
 
-Ưu tiên tiếp theo:
+Khi cần chạy lại full-driver:
 
 1. **Khôi phục input:** cả tám fixture đóng băng đã được phục hồi và kiểm tra độc lập; điều này không tái tạo marker/manifest lịch sử.
 2. **Chuẩn bị evidence:** inventory bền vững `D:\DoAn\BigData\_isn-b-artifacts\weylume-acceptance-20261119\fresh-preservation-baseline.json` và `recovered-synthetic-20261119` sibling là preservation evidence mới, không phải historical baseline; không hàm ý artifact vắng mặt đã được tạo lại.
-3. **Run acceptance:** dùng `-ProtectedInventory D:/DoAn/BigData/_isn-b-artifacts/weylume-acceptance-20261119/fresh-preservation-baseline.json -CandidateImageId sha256:<64 hex>` cho fresh mode, không yêu cầu/đọc historical baseline. Legacy mode không có `-ProtectedInventory` vẫn yêu cầu baseline lịch sử và xác minh image identity. Full-driver PASS, current Doctor, per-launch resource gates và independent current-candidate verification vẫn outstanding.
+3. **Run acceptance:** dùng `-ProtectedInventory D:/DoAn/BigData/_isn-b-artifacts/weylume-acceptance-20261119/fresh-preservation-baseline.json -CandidateImageId sha256:<64 hex>` cho fresh mode, không yêu cầu/đọc historical baseline. Legacy mode không có `-ProtectedInventory` vẫn yêu cầu baseline lịch sử và xác minh image identity. Mỗi lần chạy cần Doctor evidence hợp lệ, kiểm tra tài nguyên trước khi khởi chạy và kiểm chứng output.
 4. **Resource:** dùng đúng profile 2 CPUs, 1536 MiB memory, memory-swap bằng cap, 512 MiB driver heap và gate host tức thời 2.25 GiB; xác minh no-swap bằng Docker inspect. Chạy serial, fail closed; không retry liên tục hoặc tự hạ gate. Raw logs/reports mới phải được lưu ngoài Git, có provenance và có thể chia sẻ hợp lệ với reviewer.
-5. **Trước merge:** hoàn tất acceptance, Independent Code Review thật sự độc lập, xử lý defect có căn cứ và nhận quyết định Owner. Draft PR phục vụ cộng tác không phải phê duyệt merge.

@@ -1,5 +1,13 @@
 # ISN-B Spark ETL Scenario Acceptance
 
+## Academic MVP acceptance — 2026-11-19
+
+PR #8 meets the Owner-approved synthetic-only scope. Doctor passed on the pinned runtime. The later run at `8eca2c8` passed 26 unit tests and all 17 tests in the integration command, including 9 verifier checks. The final documentation changes leave the tested pipeline and verifier code intact.
+
+The synthetic publications produced at `5dd2bb1` passed independent PyArrow verification of all 56 Parquet tables. The fixed Spark verifier at `c0db843` independently passed the same seven cases. The two LF runs reproduced all six Silver/Gold logical hashes. The verifier peaked at 100 PIDs and 613,466,112 bytes with zero PID denials and memory OOM events. Its worker processes exited cleanly, and the preservation check passed for all 343 protected synthetic files.
+
+Full-driver retries stopped at the Windows host RAM gate and produced no final PASS. The Owner accepts the combined evidence above for the academic merge. Keep the live resource gates for future Spark launches. SNAP remains blocked pending verification of applicable data-use terms. The dated entries below record earlier checkpoints and their acceptance criteria.
+
 ## Integration and runtime follow-up — 2026-11-19
 
 PR #10 merged at `265f9d9`. The Spark integration starts at that commit and incorporates the original PR #8 head and the prior acceptance branch without rewriting their history.

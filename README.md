@@ -1,10 +1,10 @@
 # Intelligent Social Network
 
-A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes & Comments are implemented on this feature branch and passed focused end-to-end acceptance on restricted `isn-test`. The standalone PySpark edge-list pipeline is implemented; its full synthetic acceptance driver remains pending. Application-integrated Big Data/ML components remain planned.
+A university Big Data project foundation for an intelligent social network. The application includes the NestJS API, React/Weylume public and authenticated journeys, Neo4j connectivity and migrations, email/password browser sessions, authenticated profiles, member discovery, Friendship, and the ISN-C Posts & Feed source implementation. Likes & Comments are implemented on this feature branch and passed focused end-to-end acceptance on restricted `isn-test`. The standalone PySpark edge-list pipeline met the Owner-approved synthetic-only Academic MVP criteria. Application-integrated Big Data/ML components remain planned.
 
 ## Status
 
-**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. The Likes & Comments branch verifies V6, rollback-isolated interaction queries and the focused browser-to-database journey on restricted `isn-test`. The standalone data pipeline is implemented, while full synthetic acceptance, trained models, and production deployment remain pending/planned. Activity research data has a 30-day retention limit; operational Auth retention is separate, and automated scheduling is not implemented. Production retention policy remains unresolved.
+**Authentication, User Profile & Discovery, Friendship, and Posts & Feed are implemented in this feature worktree.** In a separately Owner-authorized continuation, V5 and the exact Post/AUTHORED grants were applied only to restricted `isn-test`; the focused real-Neo4j Posts suite passed and restored the recorded application-data fingerprint. `isn-dev` was not modified, and this evidence is not production readiness or Step 5 Scenario Testing. Focused Playwright MCP visual inspection used a temporary GET-only mock API, not the real application API. The Likes & Comments branch verifies V6, rollback-isolated interaction queries and the focused browser-to-database journey on restricted `isn-test`. The standalone data pipeline has passed synthetic-only Academic MVP acceptance. Trained models and production deployment remain planned. Activity research data has a 30-day retention limit; operational Auth retention is separate, and automated scheduling is not implemented. Production retention policy remains unresolved.
 
 ## Stack and architecture
 
@@ -67,7 +67,7 @@ Open `http://127.0.0.1:5173`. The API defaults to `127.0.0.1:3000`; Vite proxies
 
 Install the browser once with `npx playwright install chromium`. Full setup and test guidance: [Development docs](docs/development/README.md). Root test placement rules: [tests/README.md](tests/README.md).
 
-The standalone edge-list ETL is implemented. This PR gates the standalone pipeline on synthetic acceptance. SNAP real-source acceptance and its data-use review are separate work. [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md).
+The standalone edge-list ETL's synthetic-only Academic MVP acceptance is documented in [Spark ETL acceptance](tests/integration/data_pipeline/acceptance.md). SNAP remains blocked pending source authorization and is outside this acceptance. Launch gates remain mandatory.
 
 ## Documentation
 
