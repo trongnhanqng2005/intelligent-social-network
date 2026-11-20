@@ -87,6 +87,12 @@ export class FriendshipsController {
     return this.friendships.listFriends(user.id, query);
   }
 
+  @Get('recommendations')
+  @Header('Cache-Control', 'no-store')
+  listRecommendations(@CurrentUser() user: AuthPrincipal) {
+    return this.friendships.listRecommendations(user.id);
+  }
+
   @Delete(':friendshipId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Header('Cache-Control', 'no-store')

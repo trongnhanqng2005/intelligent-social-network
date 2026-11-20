@@ -21,7 +21,6 @@ export interface EnvironmentConfig extends Neo4jEnvironmentConfig {
   AUTH_AUDIENCE: string;
   AUTH_WEB_ORIGIN: string;
   ML_DEMO_BUNDLE_PATH?: string;
-  ML_DEMO_ALERT_REVIEWER_IDS?: string;
 }
 
 export function validateNeo4jEnvironment(
@@ -179,9 +178,6 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
     AUTH_WEB_ORIGIN: parsedOrigin.origin,
     ...(typeof config.ML_DEMO_BUNDLE_PATH === 'string'
       ? { ML_DEMO_BUNDLE_PATH: config.ML_DEMO_BUNDLE_PATH }
-      : {}),
-    ...(typeof config.ML_DEMO_ALERT_REVIEWER_IDS === 'string'
-      ? { ML_DEMO_ALERT_REVIEWER_IDS: config.ML_DEMO_ALERT_REVIEWER_IDS }
       : {}),
   };
 }

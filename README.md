@@ -34,7 +34,9 @@ Before first API startup, configure the local Neo4j settings in ignored
 `npm run auth:keys`. The API requires these local key paths even for
 `GET /health`; never commit generated keys or expose them through `VITE_*`.
 
-In terminal 1, start the API:
+For the V8 development demo, follow the [Social Demo Data v2 setup and sign-in guide](docs/social-demo-data.md). On Windows, you can start both servers with the [worktree launcher](docs/development/admin-preview.md).
+
+For manual startup, start the API in terminal 1.
 
 ```sh
 npm run dev:api

@@ -15,7 +15,7 @@ import './friendships.css';
 
 export function FriendshipActions({ memberId, onRelationshipChanged }: {
   memberId: string;
-  onRelationshipChanged?(): void;
+  onRelationshipChanged?(relationship?: FriendshipRelationship): void;
 }) {
   const { retry: retrySession } = useAuth();
   const [relationship, setRelationship] = useState<FriendshipRelationship>();
@@ -73,7 +73,7 @@ export function FriendshipActions({ memberId, onRelationshipChanged }: {
         const result = await createFriendshipRequest(memberId);
         setRelationship(result.relationship);
         setMessage('Đã gửi lời mời kết bạn.');
-        onRelationshipChanged?.();
+        onRelationshipChanged?.(result.relationship);
       } else if (action === 'unfriend') {
         if (!relationship.friendshipId) return;
         await unfriend(relationship.friendshipId);

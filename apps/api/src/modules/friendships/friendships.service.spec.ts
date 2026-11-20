@@ -19,6 +19,7 @@ describe('FriendshipsService', () => {
     actOnRequest: jest.fn(),
     listRequests: jest.fn(),
     listFriends: jest.fn(),
+    listRecommendations: jest.fn(),
     getRelationship: jest.fn(),
     unfriend: jest.fn(),
   };
@@ -37,6 +38,7 @@ describe('FriendshipsService', () => {
     });
     repository.listRequests.mockResolvedValue([]);
     repository.listFriends.mockResolvedValue([]);
+    repository.listRecommendations.mockResolvedValue([]);
     repository.getRelationship.mockResolvedValue({ kind: 'found', relationship: { memberId, state: 'none', requestId: null, friendshipId: null, friendsSince: null } });
     repository.unfriend.mockResolvedValue(undefined);
   });
@@ -100,6 +102,13 @@ describe('FriendshipsService', () => {
     await expect(service.getRelationship(viewerId, memberId)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
     await expect(service.unfriend(viewerId, request.id)).resolves.toBeUndefined();
     expect(repository.unfriend).toHaveBeenCalledWith(viewerId, request.id);
+  });
+
+  it('returns fixed-size recommendations under the read rate limit', async () => {
+    const items = [{ id: memberId, displayName: 'An', bio: null, location: null, mutualFriendCount: 2 }];
+    repository.listRecommendations.mockResolvedValue(items);
+    await expect(service.listRecommendations(viewerId)).resolves.toEqual({ items });
+    expect(repository.listRecommendations).toHaveBeenCalledWith({ viewerId, limit: 20 });
   });
 
   it('enforces process-local per-user read and mutation limits with a retry delay', async () => {

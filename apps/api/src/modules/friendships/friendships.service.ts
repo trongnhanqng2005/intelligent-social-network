@@ -89,6 +89,11 @@ export class FriendshipsService {
     };
   }
 
+  async listRecommendations(viewerId: string) {
+    this.consumeRead(viewerId);
+    return { items: await this.repository.listRecommendations({ viewerId, limit: 20 }) };
+  }
+
   async getRelationship(viewerId: string, memberId: string) {
     this.consumeRead(viewerId);
     const result = await this.repository.getRelationship(viewerId, memberId);

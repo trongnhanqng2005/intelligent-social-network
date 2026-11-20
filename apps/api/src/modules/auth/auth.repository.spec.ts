@@ -27,12 +27,13 @@ describe('AuthRepository', () => {
     await expect(repository.register({
       id: 'user-1', email: 'person@example.test', passwordHash: '$argon2id$hash',
       eventId: 'event-1', now: '2026-10-13T10:00:00.000Z',
-    })).resolves.toEqual({ id: 'user-1', email: 'person@example.test' });
+    })).resolves.toEqual({ id: 'user-1', email: 'person@example.test', role: 'USER' });
     expect(neo4j.executeWrite).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledTimes(1);
     expect(run.mock.calls[0][0]).toContain("eventType: 'AUTH_REGISTERED'");
     expect(run.mock.calls[0][0]).toContain('CREATE (user)-[:PERFORMED_AUTH_EVENT]->(event)');
     expect(run.mock.calls[0][0]).toContain('displayNameSearch: $displayNameSearch');
+    expect(run.mock.calls[0][0]).toContain("role: 'USER'");
     expect(run.mock.calls[0][1]).toMatchObject({
       displayName: 'Thành viên user-1',
       displayNameSearch: 'thanh vien user-1',

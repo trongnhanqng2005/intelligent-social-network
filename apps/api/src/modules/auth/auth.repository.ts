@@ -6,10 +6,19 @@ import { createDefaultProfile } from '../../domain/user-profile.js';
 export interface AuthUser {
   id: string;
   email: string;
+  role?: UserRole;
+  localDemo?: boolean;
+}
+
+export type UserRole = 'USER' | 'ADMIN';
+
+export function sanitizeRole(role: unknown): UserRole {
+  return role === 'ADMIN' ? 'ADMIN' : 'USER';
 }
 
 export interface Credentials extends AuthUser {
   passwordHash: string;
+  accountLocked: boolean;
 }
 
 @Injectable()
@@ -25,7 +34,7 @@ export class AuthRepository {
         const result = await tx.run(
           `CREATE (user:User {
              id: $id, email: $email, passwordHash: $passwordHash,
-             createdAt: datetime($now), updatedAt: datetime($now),
+             createdAt: datetime($now), updatedAt: datetime($now), role: 'USER',
              displayName: $displayName, displayNameSearch: $displayNameSearch,
              profileCreatedAt: datetime($profileCreatedAt),
              profileUpdatedAt: datetime($profileUpdatedAt), profileVersion: $profileVersion
@@ -35,12 +44,12 @@ export class AuthRepository {
              timestamp: datetime($now), source: 'APPLICATION', userId: $id
            })
            CREATE (user)-[:PERFORMED_AUTH_EVENT]->(event)
-           RETURN user.id AS id, user.email AS email`,
+           RETURN user.id AS id, user.email AS email, user.role AS role`,
           { ...input, ...profile },
         );
         const record = result.records[0];
         if (!record) throw new Error('Registration persistence returned no user');
-        return { id: String(record.get('id')), email: String(record.get('email')) };
+        return { id: String(record.get('id')), email: String(record.get('email')), role: sanitizeRole(record.get('role')) };
       });
     } catch (error) {
       if (isUniqueConstraintViolation(error)) throw new AccountConflictError();
@@ -52,7 +61,9 @@ export class AuthRepository {
     return this.neo4j.executeRead(async (tx) => {
       const result = await tx.run(
         `MATCH (user:User {email: $email})
-         RETURN user.id AS id, user.email AS email, user.passwordHash AS passwordHash LIMIT 1`,
+          RETURN user.id AS id, user.email AS email, user.passwordHash AS passwordHash, user.role AS role,
+                 coalesce(user.accountLocked, false) AS accountLocked,
+                 user.socialDemoVersion IS NOT NULL AS localDemo LIMIT 1`,
         { email },
       );
       const record = result.records[0];
@@ -60,6 +71,9 @@ export class AuthRepository {
         id: String(record.get('id')),
         email: String(record.get('email')),
         passwordHash: String(record.get('passwordHash')),
+        role: sanitizeRole(record.get('role')),
+        accountLocked: record.get('accountLocked') === true,
+        ...(record.get('localDemo') === true ? { localDemo: true } : {}),
       } : undefined;
     });
   }
@@ -70,8 +84,11 @@ export class AuthRepository {
   }): Promise<boolean> {
     return this.neo4j.executeWrite(async (tx) => {
       const result = await tx.run(
-        `MATCH (user:User {id: $userId, email: $email})
-         WHERE user.passwordHash = $expectedPasswordHash
+        `MATCH (user:User {id: $userId})
+         SET user.passwordHash = user.passwordHash
+         WITH user
+         WHERE user.passwordHash = $expectedPasswordHash AND user.email = $email
+           AND coalesce(user.accountLocked, false) = false
          SET user.passwordHash = CASE WHEN $replacementPasswordHash IS NULL
                                       THEN user.passwordHash ELSE $replacementPasswordHash END
          CREATE (session:AuthSession {
@@ -104,21 +121,26 @@ export class AuthRepository {
     userId: string,
     jti: string,
     expectedExpiresAt: string,
-  ): Promise<(AuthUser & { expiresAt: string }) | undefined> {
+  ): Promise<(AuthUser & { role: UserRole; expiresAt: string }) | undefined> {
     return this.neo4j.executeRead(async (tx) => {
       const result = await tx.run(
         `MATCH (user:User {id: $userId})-[:HAS_AUTH_SESSION]->(session:AuthSession {jti: $jti})
          WHERE session.revokedAt IS NULL
+           AND coalesce(user.accountLocked, false) = false
            AND session.expiresAt = datetime($expectedExpiresAt)
            AND session.expiresAt > datetime()
-         RETURN user.id AS id, user.email AS email, toString(session.expiresAt) AS expiresAt LIMIT 1`,
+         RETURN user.id AS id, user.email AS email, user.role AS role,
+                toString(session.expiresAt) AS expiresAt,
+                user.socialDemoVersion IS NOT NULL AS localDemo LIMIT 1`,
         { userId, jti, expectedExpiresAt },
       );
       const record = result.records[0];
       return record ? {
         id: String(record.get('id')),
         email: String(record.get('email')),
+        role: sanitizeRole(record.get('role')),
         expiresAt: String(record.get('expiresAt')),
+        ...(record.get('localDemo') === true ? { localDemo: true } : {}),
       } : undefined;
     });
   }

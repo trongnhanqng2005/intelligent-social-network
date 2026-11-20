@@ -9,8 +9,8 @@ function response(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: vi.fn().mockResolvedValue(body) } as unknown as Response;
 }
 const recs = (canViewAlerts: boolean, items = [recommendation]) => response(200, { source: 'synthetic', canViewAlerts, modelVersion: 'friend-v1', computedAt: '2026-11-19T08:00:00Z', items });
-const alerts = (items = [{ actorId: 'synthetic-test-actor-001', evaluatedAt: '2026-01-06T00:00:00Z', anomalyScore: .2 }]) =>
-  response(200, { source: 'synthetic', modelVersion: 'anomaly-v1', threshold: .14, evaluatedCount: 64, alerts: items });
+const alerts = (items = [{ actorId: 'synthetic-test-actor-001', evaluatedAt: '2026-01-06T00:00:00Z', anomalyScore: .2, reviewedAt: null }]) =>
+  response(200, { source: 'synthetic', snapshotId: 'snapshot-1', modelVersion: 'anomaly-v1', threshold: .14, evaluatedCount: 64, alerts: items });
 
 beforeEach(() => { vi.stubGlobal('fetch', fetchMock); fetchMock.mockReset(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -50,6 +50,25 @@ describe('ML demo member page', () => {
     expect(announcement).toHaveClass('visually-hidden');
     expect(screen.getByText('64')).toBeVisible();
     expect(screen.getByText('Cảnh báo').previousElementSibling).toHaveTextContent('1');
+  });
+
+  it('reviews an alert once using the snapshot and CSRF-protected PUT', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValueOnce(recs(true)).mockResolvedValueOnce(alerts())
+      .mockResolvedValueOnce(response(200, { csrfToken: 'review-csrf' }))
+      .mockResolvedValueOnce(response(200, { reviewedAt: '2026-11-20T10:00:00Z' }));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Đánh dấu đã xem' }));
+    expect(await screen.findByText(/đã được đánh dấu đã xem/)).toBeVisible();
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/auth/csrf');
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/ml-demo/anomalies/review');
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({
+      method: 'PUT',
+      headers: expect.objectContaining({ 'X-CSRF-Token': 'review-csrf' }),
+      body: JSON.stringify({ snapshotId: 'snapshot-1', actorId: 'synthetic-test-actor-001' }),
+    });
+    expect(screen.getByText(/Đã xem/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Đánh dấu đã xem' })).not.toBeInTheDocument();
   });
 
   it('renders a successful empty recommendation result', async () => {

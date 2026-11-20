@@ -393,6 +393,28 @@ paths:
         '422': { $ref: '#/components/responses/FriendshipValidationFailed' }
         '429': { $ref: '#/components/responses/FriendshipRateLimited' }
         '503': { $ref: '#/components/responses/FriendshipServiceUnavailable' }
+  /friendships/recommendations:
+    get:
+      tags: [Friendships]
+      operationId: listFriendRecommendations
+      summary: List up to 20 eligible members ranked by distinct common friends
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Member recommendations.
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 20
+                    items: { $ref: '#/components/schemas/FriendRecommendation' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /friendships/{friendshipId}:
     delete:
       tags: [Friendships]
@@ -970,25 +992,254 @@ paths:
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /admin/stats:
+    get:
+      tags: [Administration]
+      operationId: getAdminStats
+      summary: Read application totals as an administrator
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Current users, friendships, posts and comments excluding deleted comments.
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/AdminStats' } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+  /admin/members:
+    get:
+      tags: [Administration]
+      operationId: listAdminMembers
+      summary: List members as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, active, locked], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        email: { type: string, format: email }
+                        displayName: { type: string }
+                        role: { type: string, enum: [USER, ADMIN] }
+                        locked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/members/{id}/lock:
+    put:
+      tags: [Administration]
+      operationId: setAdminMemberLock
+      summary: Set member lock as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [locked]
+              properties:
+                locked: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, locked]
+                properties:
+                  id: { type: string, format: uuid }
+                  locked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/posts:
+    get:
+      tags: [Administration]
+      operationId: listAdminPosts
+      summary: List posts as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, visible, hidden], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        authorName: { type: string }
+                        content: { type: string }
+                        createdAt: { type: string, format: date-time }
+                        hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/posts/{id}/visibility:
+    put:
+      tags: [Administration]
+      operationId: setAdminPostVisibility
+      summary: Set post visibility as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, hidden]
+                properties:
+                  id: { type: string, format: uuid }
+                  hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/comments:
+    get:
+      tags: [Administration]
+      operationId: listAdminComments
+      summary: List comments as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, visible, hidden], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        authorName: { type: string }
+                        content: { type: string }
+                        createdAt: { type: string, format: date-time }
+                        hidden: { type: boolean }
+                        postId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/comments/{id}/visibility:
+    put:
+      tags: [Administration]
+      operationId: setAdminCommentVisibility
+      summary: Set comment visibility as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, hidden]
+                properties:
+                  id: { type: string, format: uuid }
+                  hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
   /ml-demo/recommendations:
     get:
       tags: [Synthetic ML Demo]
       operationId: getSyntheticRecommendations
-      summary: Read bounded synthetic recommendation results
+      summary: Read bounded synthetic recommendation results as an administrator
       security: [{ sessionCookie: [] }]
       responses:
         '200':
-          description: Recommendation rows and reviewer capability indicator.
+          description: Offline synthetic recommendation rows and alert access indicator.
           headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
           content: { application/json: { schema: { $ref: '#/components/schemas/MlRecommendations' } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /ml-demo/anomalies:
     get:
       tags: [Synthetic ML Demo]
       operationId: getSyntheticAnomalyAlerts
-      summary: Read synthetic anomaly results for an allowlisted reviewer
-      description: Reviewer access is determined solely by the server-side exact UUID allowlist; denied requests are rejected before bundle IO.
+      summary: Read synthetic anomaly alerts and review state as an administrator
       security: [{ sessionCookie: [] }]
       responses:
         '200':
@@ -997,9 +1248,48 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/MlAnomalies' } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403':
-          description: Authenticated member is not in the reviewer allowlist.
+          description: Administrator role required.
           headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /ml-demo/anomalies/review:
+    put:
+      tags: [Synthetic ML Demo]
+      operationId: markSyntheticAlertReviewed
+      summary: Review a synthetic alert in the current snapshot
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [snapshotId, actorId]
+              properties:
+                snapshotId: { type: string, pattern: '^[a-f0-9]{64}$' }
+                actorId: { type: string, pattern: '^synthetic-test-actor-[0-9]{3}$' }
+      responses:
+        '200':
+          description: Persisted review record for the snapshot and actor.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshotId, actorId, reviewedAt]
+                properties:
+                  snapshotId: { type: string }
+                  actorId: { type: string }
+                  reviewedAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator and CSRF authorization required. }
+        '404': { description: Alert absent from current snapshot. }
+        '409': { description: Snapshot changed. }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
@@ -1052,6 +1342,23 @@ components:
       description: Response must not be stored by caches.
       schema: { type: string, const: no-store }
   schemas:
+    FriendRecommendation:
+      type: object
+      required: [id, displayName, bio, location, mutualFriendCount]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        bio: { type: [string, 'null'] }
+        location: { type: [string, 'null'] }
+        mutualFriendCount: { type: integer, minimum: 1 }
+    AdminStats:
+      type: object
+      required: [users, friendships, posts, comments]
+      properties:
+        users: { type: integer, minimum: 0 }
+        friendships: { type: integer, minimum: 0 }
+        posts: { type: integer, minimum: 0 }
+        comments: { type: integer, minimum: 0 }
     MlRecommendations:
       type: object
       additionalProperties: false
@@ -1076,9 +1383,10 @@ components:
     MlAnomalies:
       type: object
       additionalProperties: false
-      required: [source, modelVersion, threshold, evaluatedCount, alerts]
+      required: [source, snapshotId, modelVersion, threshold, evaluatedCount, alerts]
       properties:
         source: { const: synthetic }
+        snapshotId: { type: string, pattern: '^[a-f0-9]{64}$' }
         modelVersion: { type: string }
         threshold: { type: number, minimum: 0, maximum: 1 }
         evaluatedCount: { type: integer, minimum: 0, maximum: 1000 }
@@ -1088,11 +1396,12 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [actorId, evaluatedAt, anomalyScore]
+            required: [actorId, evaluatedAt, anomalyScore, reviewedAt]
             properties:
               actorId: { type: string, pattern: '^synthetic-test-actor-[0-9]{3}$' }
               evaluatedAt: { type: string, format: date-time }
-              anomalyScore: { type: number, minimum: 0, maximum: 1 }
+              anomalyScore: { type: number, minimum: -1, maximum: 1 }
+              reviewedAt: { type: [string, 'null'], format: date-time }
     Credentials:
       type: object
       additionalProperties: false
@@ -1107,10 +1416,11 @@ components:
     User:
       type: object
       additionalProperties: false
-      required: [id, email]
+      required: [id, email, role]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
+        role: { type: string, enum: [USER, ADMIN] }
     Session:
       type: object
       additionalProperties: false

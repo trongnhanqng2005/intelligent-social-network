@@ -1,10 +1,10 @@
 import { createPrivateKey, createPublicKey } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const repositoryRoot = resolve(process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? fileURLToPath(new URL('..', import.meta.url)));
 const apiDirectory = resolve(repositoryRoot, 'apps/api');
 const webDirectory = resolve(repositoryRoot, 'apps/web');
 
@@ -91,8 +91,8 @@ async function readDotEnv(path, name) {
   catch { throw new Error(`Missing or unreadable ${name}: ${path}`); }
 }
 
-async function validateKeyMaterial(api) {
-  const authPath = (value) => isAbsolute(value) ? value : resolve(apiDirectory, value);
+async function validateKeyMaterial(api, directory) {
+  const authPath = (value) => isAbsolute(value) ? value : resolve(directory, value);
   const privatePath = authPath(api.AUTH_PRIVATE_KEY_PATH);
   const publicPath = authPath(api.AUTH_PUBLIC_KEY_PATH);
   const csrfPath = authPath(api.AUTH_CSRF_SECRET_PATH);
@@ -114,16 +114,16 @@ async function validateKeyMaterial(api) {
 }
 
 async function main() {
-  const apiFile = resolve(apiDirectory, '.env');
+  const apiFile = resolve(process.env.ISN_API_ENV_FILE || resolve(apiDirectory, '.env'));
   const webFile = resolve(webDirectory, '.env');
-  const api = { ...await readDotEnv(apiFile, 'apps/api/.env'), ...process.env };
+  const api = { ...await readDotEnv(apiFile, 'API environment file'), ...process.env };
   const webFileValues = await stat(webFile).then(() => readDotEnv(webFile, 'apps/web/.env')).catch((error) => {
     if (error?.code === 'ENOENT') return {};
     throw error;
   });
   const web = { ...webFileValues, ...process.env };
   const config = validateEffectiveConfig(api, web);
-  await validateKeyMaterial(api);
+  await validateKeyMaterial(api, dirname(apiFile));
   await stat(resolve(repositoryRoot, 'node_modules/.bin/nest.cmd'));
   await stat(resolve(repositoryRoot, 'node_modules/vite/bin/vite.js'));
   if (process.argv.includes('--json')) console.log(JSON.stringify(config));

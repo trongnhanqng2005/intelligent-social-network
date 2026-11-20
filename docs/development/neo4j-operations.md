@@ -2,7 +2,7 @@
 
 ## Approved runtime and credentials
 
-The project targets the Owner-provisioned Neo4j Desktop 2.2.1 / Server 2026.09.0 Enterprise instance at `neo4j://127.0.0.1:7687`, with existing databases `isn-dev` and `isn-test`. Do not install another DBMS, recreate either database, reset it, or seed application data.
+The project targets the Owner-provisioned Neo4j Desktop 2.2.1 / Server 2026.09.0 Enterprise instance at `neo4j://127.0.0.1:7687`, with existing databases `isn-dev` and `isn-test`. Use these existing databases for approved development and test operations. Seed only the [approved development demo](../social-demo-data.md).
 
 - Development/API and one-time provisioning use `apps/api/.env` with `NEO4J_DATABASE=isn-dev` and `NEO4J_USERNAME` / `NEO4J_PASSWORD`.
 - `npm run neo4j:provision-test` uses that administrator credential only for explicit user/role setup. It generates `isn_test_runner`'s password using Node's cryptographic random generator and writes it to ignored `apps/api/.env.test.local` (best-effort owner-only file permissions). It never prints the password. Keep the file local; do not put it in chat, shell arguments, logs, or source control.
@@ -27,6 +27,10 @@ Neo4j constraint/index DDL is run as explicit schema statements, outside the gra
 The history is stored in `ISNSchemaMigration` nodes with version, name, checksum, `appliedAt`, status, and verification time. Reapplying a verified version is a no-op. A changed applied definition, unexpected same-name constraint, wrong database, or mismatched history is reported as drift; migrations are never silently run by API startup. There is no automatic rollback or database reset.
 
 If a process fails after an `APPLYING` record or after a DDL statement, the graph transaction cannot undo already committed schema DDL. The runner refuses interrupted V4/V5 records or pre-existing reserved Friendship/Posts schema/data and performs no repair. Before V5 it requires a verified V1–V4 history and catalog, exact database identity, and no existing Post/AUTHORED data or reserved schema objects. The Posts preflight also checks the live V4 preservation fingerprint and effective grants, and is repeated between role provisioning and migration. Any partial state requires Owner-reviewed, narrowly scoped recovery; do not rerun writes, edit history, or alter V1–V5 definitions automatically.
+
+## V8 alert reviews rollout
+
+The V8 migration adds a unique key for `MLAlertReview` nodes. It requires verified V1–V7 history and catalog, and an empty review label with no reserved schema objects. An interrupted migration requires read-only inspection. Apply V8 to `isn-dev` only in an independently approved operation. Verify the database identity, backup, and catalog before applying, then confirm `/ready` reports V8. Provision the local demo administrator through the approved [Social Demo Data v2 workflow](../social-demo-data.md). See [Administration](../api/admin.md) for separately approved role changes to existing accounts.
 
 ## Commands
 
@@ -57,7 +61,7 @@ The dev and test commands load their respective local env files and verify the s
 ## Readiness and health
 
 - `GET /health` remains process liveness: HTTP 200 and exactly `{"status":"ok"}`, independent of Neo4j.
-- `GET /ready` returns HTTP 200 only when Neo4j is reachable, the selected database identity matches, current migration history/checksums are verified, and required constraint/index definitions through V6 (including the V3 TEXT index, V4 composite indexes, V5 Post index and V6 Comment catalog) are online. It does not scan Friendship, Post, or Comment graph data. Otherwise it returns HTTP 503 with a sanitized reason; it does not expose credentials or driver diagnostics. Verify readiness only against the explicitly selected database after an independently authorized migration; never use readiness as authorization to mutate `isn-dev`.
+- `GET /ready` returns HTTP 200 only when Neo4j is reachable, the selected database identity matches, current migration history/checksums are verified, and required schema through V8 is present, including the V8 `MLAlertReview.reviewKey` uniqueness constraint and required online indexes. It does not scan Friendship, Post, or Comment graph data. Otherwise it returns HTTP 503 with a sanitized reason; it does not expose credentials or driver diagnostics. Verify readiness only against the explicitly selected database after an independently authorized migration; never use readiness as authorization to mutate `isn-dev`.
 - API startup never applies migrations. Run an explicit migration command after reviewing its target and status.
 
 ## Verified runtime evidence (2026-10-14)

@@ -10,7 +10,9 @@ apps/web/src/
 │   ├── auth/                 # Auth API, session state, Vietnamese account UI/tests
 │   ├── profile/              # Own/member profiles, edit flow and authenticated layout
 │   ├── discovery/            # Authenticated member search and cursor navigation
-│   ├── friendships/          # Friends/requests lists and member-profile relationship actions
+│   ├── friendships/          # Friends, requests, suggestions and member-profile relationship actions
+│   ├── admin/                # Admin overview and application statistics
+│   ├── ml-demo/              # Admin synthetic research and alert review
 │   └── posts/                # Feed, profile Posts, detail, composer and versioned owner actions
 ├── pages/
 │   ├── home/                 # Weylume public homepage and responsive presentation
@@ -29,6 +31,8 @@ loading, anonymous, authenticated, and unavailable session states distinct. The
 auth feature owns request/response validation, session expiry, cross-tab
 notifications, and safe local return paths. Authentication keeps JWTs in
 HttpOnly cookies and handles signed CSRF tokens in memory only.
+
+The role from the authenticated session controls administration links and routes. The API independently authorizes administration and research requests. Recommendations in Bạn bè use real member profiles and the existing friendship actions.
 
 The Weylume homepage is a public product introduction and does not call `/health`
 to render connectivity status. API liveness/readiness and the Vite proxy remain

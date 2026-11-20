@@ -157,4 +157,25 @@ describe('FriendshipsRepository', () => {
     await expect(repository.unfriend('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', friendshipId)).resolves.toBeUndefined();
     expect(transaction.run).toHaveBeenCalledTimes(3);
   });
+
+  it('queries distinct common neighbors only through canonical accepted relationships', async () => {
+    transaction.run.mockResolvedValueOnce({ records: [record({
+      id: recipientId, displayName: 'An', bio: null, location: null, mutualFriendCount: 2,
+    })] } as never);
+
+    await expect(repository.listRecommendations({ viewerId: senderId, limit: 20 })).resolves.toEqual([{
+      id: recipientId, displayName: 'An', bio: null, location: null, mutualFriendCount: 2,
+    }]);
+    const [query, params] = transaction.run.mock.calls[0]!;
+    expect(String(query)).toContain("requestStatus: 'ACCEPTED'");
+    expect(String(query)).toContain('count(DISTINCT mutual.id)');
+    expect(String(query)).toContain("pair.requestStatus = 'PENDING'");
+    expect(String(query)).toContain("pairKey: candidatePairKey");
+    expect(String(query)).toContain('pair.friendshipId IS NOT NULL');
+    expect(String(query)).toContain('candidate.id = toLower(candidate.id)');
+    expect(String(query)).toContain("trim(candidate.displayName) <> ''");
+    expect(String(query)).toContain('ORDER BY mutualFriendCount DESC, id ASC LIMIT $limit');
+    expect(params.viewerId).toBe(senderId);
+    expect(params.limit.toNumber()).toBe(20);
+  });
 });

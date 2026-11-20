@@ -46,8 +46,8 @@ describe('Neo4jMigrationService', () => {
       .not.toBe(checksumMigration({ version: 1, name: 'foundation', statements: ['RETURN 1'] }));
   });
 
-  it('preserves V1–V6 checksums and appends activity events as V7', () => {
-    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  it('preserves V1–V7 definitions and appends ML alert reviews as V8', () => {
+    expect(migrationDefinitions.map(({ version }) => version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(checksumMigration(migrationDefinitions[0])).toBe(
       'e5b57d614d5384d465c77a9e5143076986fdb11178c7ed9278b2bbf4c7af44d2',
     );
@@ -84,6 +84,9 @@ describe('Neo4jMigrationService', () => {
     expect(migrationDefinitions[6].statements).toHaveLength(2);
     expect(migrationDefinitions[6].statements[0]).toContain('isn_activity_event_id');
     expect(migrationDefinitions[6].statements[1]).toContain('isn_activity_event_occurred_at');
+    expect(migrationDefinitions[7].name).toBe('ml-alert-reviews');
+    expect(migrationDefinitions[7].statements[0]).toContain('isn_ml_alert_review_key');
+    expect(migrationDefinitions[7].preflight).toContain('MLAlertReview');
     expect(checksumMigration({
       ...migrationDefinitions[2],
       dataStatements: ['RETURN 1'],
@@ -340,7 +343,7 @@ describe('Neo4jMigrationService', () => {
     expect(neo4j.executeWrite).not.toHaveBeenCalled();
   });
 
-  it('reports current only when verified V1–V7 history and the complete ONLINE catalog match', async () => {
+  it('reports current only when verified V1–V8 history and the complete ONLINE catalog match', async () => {
     const constraints = [
       ['isn_schema_metadata_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['ISNSchema'], ['key']],
       ['isn_schema_migration_version', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['ISNSchemaMigration'], ['version']],
@@ -357,6 +360,7 @@ describe('Neo4jMigrationService', () => {
       ['isn_comment_retry_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['Comment'], ['retryKey']],
       ['isn_comment_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['Comment'], ['id']],
       ['isn_activity_event_id', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['ActivityEvent'], ['eventId']],
+      ['isn_ml_alert_review_key', 'NODE_PROPERTY_UNIQUENESS', 'NODE', ['MLAlertReview'], ['reviewKey']],
     ].map(([name, type, entityType, labelsOrTypes, properties]) => record({
       name, type, entityType, labelsOrTypes, properties,
     }));
@@ -384,7 +388,7 @@ describe('Neo4jMigrationService', () => {
     run.mockReset().mockImplementation(async (query: unknown) => {
       const queryText = String(query);
       if (queryText.includes('CALL db.info()')) return { records: [record({ database: 'isn-test' })] };
-      if (queryText.includes("MATCH (schema:ISNSchema")) return { records: [record({ version: 7 })] };
+      if (queryText.includes("MATCH (schema:ISNSchema")) return { records: [record({ version: 8 })] };
       if (queryText.includes('MATCH (migration:ISNSchemaMigration')) {
         return { records: migrationDefinitions.map((migration) => record({
           version: migration.version, name: migration.name, checksum: checksumMigration(migration),
@@ -397,9 +401,9 @@ describe('Neo4jMigrationService', () => {
       return { records: [] };
     });
 
-    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'current', version: 7 });
+    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'current', version: 8 });
     postIndexState = 'POPULATING';
-    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'drift', version: 7 });
+    await expect(service.getStatus()).resolves.toMatchObject({ database: 'isn-test', status: 'drift', version: 8 });
   });
 
   it('reports checksum drift for an already recorded migration', async () => {

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Activity, Compass, LogOut, Newspaper, UserRound, UsersRound } from 'lucide-react';
+import { Compass, LayoutDashboard, LogOut, Newspaper, UserRound, UsersRound } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../auth/model/auth-context';
 import { Alert } from '../../../shared/ui/alert';
@@ -29,6 +29,8 @@ export function MemberLayout({ children }: { children: ReactNode }) {
     const returnTo = `${location.pathname}${location.search}`;
     return <Navigate to={`/dang-nhap?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
+  const adminOnly = location.pathname.startsWith('/quan-tri') || location.pathname.startsWith('/nghien-cuu');
+  if (adminOnly && state.session.user.role !== 'ADMIN') return <Navigate to="/ban-be" replace />;
 
   async function handleLogout() {
     setPending(true);
@@ -60,9 +62,9 @@ export function MemberLayout({ children }: { children: ReactNode }) {
           <Link to="/ban-be" aria-current={location.pathname === '/ban-be' || location.pathname.startsWith('/ban-be/') ? 'page' : undefined}>
             <UsersRound size={17} aria-hidden="true" /> Bạn bè
           </Link>
-          <Link to="/nghien-cuu" aria-current={location.pathname.startsWith('/nghien-cuu') ? 'page' : undefined}>
-            <Activity size={17} aria-hidden="true" /> Nghiên cứu
-          </Link>
+          {state.session.user.role === 'ADMIN' && <Link to="/quan-tri" aria-current={location.pathname.startsWith('/quan-tri') ? 'page' : undefined}>
+            <LayoutDashboard size={17} aria-hidden="true" /> Quản trị
+          </Link>}
         </nav>
         <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>
           <LogOut size={17} aria-hidden="true" /> Đăng xuất

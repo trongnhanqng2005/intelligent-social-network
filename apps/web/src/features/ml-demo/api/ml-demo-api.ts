@@ -6,8 +6,8 @@ export type RecommendationsResponse = {
   items: MlRecommendation[];
 };
 export type AnomaliesResponse = {
-  source: 'synthetic'; modelVersion: string; threshold: number; evaluatedCount: number;
-  alerts: { actorId: string; evaluatedAt: string; anomalyScore: number }[];
+  source: 'synthetic'; snapshotId: string; modelVersion: string; threshold: number; evaluatedCount: number;
+  alerts: { actorId: string; evaluatedAt: string; anomalyScore: number; reviewedAt: string | null }[];
 };
 
 export class MlDemoApiError extends Error {
@@ -52,9 +52,27 @@ export const getAnomalies = (signal?: AbortSignal) =>
         !('evaluatedCount' in body) || typeof body.evaluatedCount !== 'number' ||
         !('threshold' in body) || typeof body.threshold !== 'number' ||
         !('modelVersion' in body) || typeof body.modelVersion !== 'string' ||
+        !('snapshotId' in body) || typeof body.snapshotId !== 'string' ||
         !body.alerts.every((alert) => alert && typeof alert === 'object' &&
           'actorId' in alert && typeof alert.actorId === 'string' &&
           'evaluatedAt' in alert && typeof alert.evaluatedAt === 'string' &&
-          'anomalyScore' in alert && typeof alert.anomalyScore === 'number')) throw new MlDemoApiError();
+          'anomalyScore' in alert && typeof alert.anomalyScore === 'number' &&
+          'reviewedAt' in alert && (alert.reviewedAt === null || typeof alert.reviewedAt === 'string'))) throw new MlDemoApiError();
     return body as AnomaliesResponse;
   });
+
+export async function reviewAnomaly(snapshotId: string, actorId: string): Promise<string> {
+  const csrfResponse = await fetch(resolveApiUrl('/auth/csrf'), { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+  if (!csrfResponse.ok) throw new MlDemoApiError(csrfResponse.status);
+  const csrfBody: unknown = await csrfResponse.json();
+  if (!csrfBody || typeof csrfBody !== 'object' || !('csrfToken' in csrfBody) || typeof csrfBody.csrfToken !== 'string') throw new MlDemoApiError();
+  const response = await fetch(resolveApiUrl('/ml-demo/anomalies/review'), {
+    method: 'PUT', credentials: 'same-origin', cache: 'no-store',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfBody.csrfToken },
+    body: JSON.stringify({ snapshotId, actorId }),
+  });
+  if (!response.ok) throw new MlDemoApiError(response.status);
+  const body: unknown = await response.json();
+  if (!body || typeof body !== 'object' || !('reviewedAt' in body) || typeof body.reviewedAt !== 'string') throw new MlDemoApiError();
+  return body.reviewedAt;
+}

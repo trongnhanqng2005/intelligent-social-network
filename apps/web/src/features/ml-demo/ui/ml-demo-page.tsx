@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Activity, BrainCircuit, RefreshCw } from 'lucide-react';
 import { Alert } from '../../../shared/ui/alert';
 import { Button } from '../../../shared/ui/button';
-import { getAnomalies, getRecommendations, MlDemoApiError, type AnomaliesResponse, type RecommendationsResponse } from '../api/ml-demo-api';
+import { getAnomalies, getRecommendations, reviewAnomaly, MlDemoApiError, type AnomaliesResponse, type RecommendationsResponse } from '../api/ml-demo-api';
 import './ml-demo.css';
 
-export function MlDemoPage() {
+export function MlDemoPage({ onForbidden }: { onForbidden?(): void } = {}) {
   const [attempt, setAttempt] = useState(0);
   const [recommendations, setRecommendations] = useState<RecommendationsResponse>();
   const [anomalies, setAnomalies] = useState<AnomaliesResponse>();
@@ -15,6 +15,8 @@ export function MlDemoPage() {
   const [anomalyError, setAnomalyError] = useState(false);
   const [limitedAccess, setLimitedAccess] = useState(false);
   const [alertPage, setAlertPage] = useState(0);
+  const [reviewing, setReviewing] = useState<string>();
+  const [reviewMessage, setReviewMessage] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -25,8 +27,11 @@ export function MlDemoPage() {
       const sources = [...new Set(result.items.map((item) => item.sourceNodeId))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
       setSelected((current) => sources.includes(current) ? current : sources[0] ?? '');
       if (!controller.signal.aborted) setLoading(false);
-    }).catch(() => {
-      if (!controller.signal.aborted) { setError(true); setLoading(false); }
+    }).catch((cause: unknown) => {
+      if (!controller.signal.aborted) {
+        if (cause instanceof MlDemoApiError && cause.status === 403) onForbidden?.();
+        setError(true); setLoading(false);
+      }
     });
     return () => controller.abort();
   }, [attempt]);
@@ -40,11 +45,27 @@ export function MlDemoPage() {
       if (!controller.signal.aborted) setAnomalies(data);
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return;
-      if (error instanceof MlDemoApiError && error.status === 403) setLimitedAccess(true);
+      if (error instanceof MlDemoApiError && error.status === 403) { onForbidden?.(); setLimitedAccess(true); }
       else setAnomalyError(true);
     });
     return () => controller.abort();
-  }, [attempt, recommendations?.canViewAlerts]);
+  }, [attempt, recommendations?.canViewAlerts, onForbidden]);
+
+  async function markReviewed(actorId: string) {
+    if (!anomalies || reviewing) return;
+    const snapshotId = anomalies.snapshotId;
+    setReviewing(actorId); setReviewMessage('');
+    try {
+      const reviewedAt = await reviewAnomaly(snapshotId, actorId);
+      setAnomalies((current) => current?.snapshotId === snapshotId
+        ? ({ ...current, alerts: current.alerts.map((alert) => alert.actorId === actorId ? { ...alert, reviewedAt } : alert) })
+        : current);
+      setReviewMessage(`${actorId} đã được đánh dấu đã xem.`);
+    } catch (cause) {
+      if (cause instanceof MlDemoApiError && cause.status === 403) { onForbidden?.(); setLimitedAccess(true); setAnomalies(undefined); setReviewMessage('Quyền truy cập đã thay đổi. Đang xác minh quyền…'); }
+      else setReviewMessage('Không thể cập nhật trạng thái xem.');
+    } finally { setReviewing(undefined); }
+  }
 
   const sources = [...new Set(recommendations?.items.map((item) => item.sourceNodeId) ?? [])];
   sources.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
@@ -83,9 +104,10 @@ export function MlDemoPage() {
             <div className="ml-demo__counts"><div><strong>{anomalies.evaluatedCount}</strong><span>Tác nhân đã đánh giá</span></div><div><strong>{anomalies.alerts.length}</strong><span>Cảnh báo</span></div></div>
             <p className="ml-demo__meta">Phiên bản: {anomalies.modelVersion} · Ngưỡng: {anomalies.threshold.toFixed(4)}</p>
             {anomalies.alerts.length === 0 ? <p className="ml-demo__empty">Không có cảnh báo trong tập đánh giá.</p> :
-              <div className="ml-demo__table-wrap"><table><thead><tr><th>Mã tổng hợp</th><th>Điểm bất thường</th><th>Thời điểm (UTC)</th></tr></thead>
-                <tbody>{visibleAlerts.map((alert) => <tr key={alert.actorId}><td>{alert.actorId}</td><td>{alert.anomalyScore.toFixed(4)}</td><td>{new Date(alert.evaluatedAt).toLocaleString('vi-VN', { timeZone: 'UTC' })}</td></tr>)}</tbody>
+              <div className="ml-demo__table-wrap"><table><thead><tr><th>Mã tổng hợp</th><th>Điểm bất thường</th><th>Thời điểm (UTC)</th><th>Đánh giá</th></tr></thead>
+                <tbody>{visibleAlerts.map((alert) => <tr key={alert.actorId}><td>{alert.actorId}</td><td>{alert.anomalyScore.toFixed(4)}</td><td>{new Date(alert.evaluatedAt).toLocaleString('vi-VN', { timeZone: 'UTC' })}</td><td>{alert.reviewedAt ? `Đã xem · ${new Date(alert.reviewedAt).toLocaleString('vi-VN', { timeZone: 'UTC' })}` : <Button variant="secondary" disabled={Boolean(reviewing)} pending={reviewing === alert.actorId} pendingLabel="Đang lưu…" onClick={() => void markReviewed(alert.actorId)}>Đánh dấu đã xem</Button>}</td></tr>)}</tbody>
               </table></div>}
+            {reviewMessage && <p role="status">{reviewMessage}</p>}
             {sortedAlerts.length > 10 && <nav className="ml-demo__pagination" aria-label="Trang cảnh báo">
               <Button variant="secondary" disabled={alertPage === 0} onClick={() => setAlertPage((page) => page - 1)}>Trước</Button>
               <span aria-live="polite">Trang {alertPage + 1}/{Math.ceil(sortedAlerts.length / 10)}</span>

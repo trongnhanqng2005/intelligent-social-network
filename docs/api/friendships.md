@@ -26,6 +26,10 @@ All mutations require the configured exact `Origin` and signed `X-CSRF-Token`. P
 
 Relationship states are `self`, `none`, `outgoing_pending`, `incoming_pending`, and `friends`. Nonapplicable IDs/timestamps are `null`. Reject/cancel/unfriend clears current relationship state; only the latest request lifecycle remains on the pair node. Separately, opt-in Activity Logging v1 records allowlisted transitions; it is not a complete Activity Events history.
 
+## Account recommendations
+
+`GET /friendships/recommendations` returns `{ items }` for the authenticated member. Each item has `id`, `displayName`, `bio`, `location`, and `mutualFriendCount`. The query follows accepted relationships through existing friends, excludes the viewer, friends, pending requests in either direction and invalid profiles, then returns up to 20 accounts. Higher common-friend counts come first and User UUID breaks ties. An empty list means the member has no eligible two-hop candidates. Use the existing request endpoint to send an invitation.
+
 ## State transitions and conflicts
 
 - No self-friendship. Per unordered pair, at most one pending request or one accepted friendship.

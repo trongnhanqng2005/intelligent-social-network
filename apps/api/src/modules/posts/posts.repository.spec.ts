@@ -116,7 +116,7 @@ describe('PostsRepository', () => {
       .mockResolvedValueOnce({ records: [storedRecord({ authorId: viewerId, likeCount: 0, commentCount: 0, likedByViewer: false })] })
       .mockResolvedValueOnce({ records: [record({
         id: '44444444-4444-4444-8444-444444444444', clientId: '55555555-5555-4555-8555-555555555555',
-        content: 'edited', deleted: false, originalContentHash: originalHash,
+        content: 'edited', deleted: false, adminHidden: false, originalContentHash: originalHash,
         createdAt, updatedAt: createdAt, version: 1, authorId: viewerId, displayName: 'Viewer',
       })] });
     const result = await repository.createComment(viewerId, postId, {
@@ -219,7 +219,7 @@ describe('PostsRepository', () => {
       .mockResolvedValueOnce({ records: [storedRecord()] })
       .mockResolvedValueOnce({ records: [record({
         id: '44444444-4444-4444-8444-444444444444',
-        clientId: '55555555-5555-4555-8555-555555555555', content: 'hello', deleted: false,
+        clientId: '55555555-5555-4555-8555-555555555555', content: 'hello', deleted: false, adminHidden: false,
         originalContentHash: createHash('sha256').update('hello').digest('hex'),
         createdAt, updatedAt: createdAt, version: 0, authorId: viewerId, displayName: 'Viewer',
       })] });
@@ -241,10 +241,10 @@ describe('PostsRepository', () => {
       .mockResolvedValueOnce({ records: [storedRecord()] })
       .mockResolvedValueOnce({ records: [record({ pairKey: `${viewerId}:${authorId}`, version: 0 })] })
       .mockResolvedValueOnce({ records: [storedRecord()] })
-      .mockResolvedValueOnce({ records: [record({ version: 0, deleted: false, authorId: viewerId })] })
+      .mockResolvedValueOnce({ records: [record({ version: 0, deleted: false, adminHidden: false, authorId: viewerId })] })
       .mockResolvedValueOnce({ records: [record({
         id: '44444444-4444-4444-8444-444444444444', clientId: '55555555-5555-4555-8555-555555555555',
-        content: 'updated', deleted: false, createdAt, updatedAt: createdAt, version: 1,
+        content: 'updated', deleted: false, adminHidden: false, createdAt, updatedAt: createdAt, version: 1,
         authorId: viewerId, displayName: 'Viewer',
       })] });
 
@@ -267,7 +267,7 @@ describe('PostsRepository', () => {
       .mockResolvedValueOnce({ records: [storedRecord()] })
       .mockResolvedValueOnce({ records: [record({ pairKey: `${viewerId}:${authorId}`, version: 0 })] })
       .mockResolvedValueOnce({ records: [storedRecord()] })
-      .mockResolvedValueOnce({ records: [record({ version: 0, deleted: false, authorId: viewerId })] })
+      .mockResolvedValueOnce({ records: [record({ version: 0, deleted: false, adminHidden: false, authorId: viewerId })] })
       .mockResolvedValueOnce({ records: [record({ changed: 1 })] });
 
     await repository.deleteComment(viewerId, postId, '44444444-4444-4444-8444-444444444444', 0);
@@ -318,7 +318,7 @@ describe('PostsRepository', () => {
     expect(String(query)).toContain('WITH DISTINCT viewer, authorId, isOwner');
     expect(String(query)).toContain('WITH DISTINCT viewer, author, isOwner');
     expect(String(query)).toContain('CALL (author, isOwner, viewer)');
-    expect(String(query)).toMatch(/LIMIT \$perAuthorLimit[\s\S]*CALL \(post\).*AS likeCount[\s\S]*CALL \(post\).*AS commentCount[\s\S]*CALL \(viewer, post\).*AS likedByViewer/u);
+    expect(String(query)).toMatch(/LIMIT \$perAuthorLimit[\s\S]*CALL \(post\).*AS likeCount[\s\S]*CALL \(post\)[\s\S]*?AS commentCount[\s\S]*CALL \(viewer, post\).*AS likedByViewer/u);
     expect(String(query)).toContain('ORDER BY sortCreatedAt DESC, id DESC LIMIT $perAuthorLimit');
     expect(String(query)).toContain('ORDER BY sortCreatedAt DESC, id DESC LIMIT $fetchLimit');
     expect(String(query)).not.toMatch(/\bSKIP\b|\bOFFSET\b/iu);

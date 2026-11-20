@@ -1,134 +1,173 @@
-import { main } from './cli-main.js';
 import { NestFactory } from '@nestjs/core';
-import { readManifest, loadOrCreateManifest } from './manifest.js';
-import { applyFixture } from './fixture.js';
+import { AuthRepository } from '../modules/auth/auth.repository.js';
 import { PasswordService } from '../modules/auth/password.service.js';
+import { UsersService } from '../modules/users/users.service.js';
+import { DEMO_ACCOUNTS, DEMO_ADMIN, DEMO_MEMBERS, DEMO_PASSWORD, LEGACY_EMAILS } from './accounts.js';
+import { main } from './cli-main.js';
+import { applyFixture } from './fixture.js';
+import { readManifest } from './manifest.js';
 
 jest.mock('@nestjs/core', () => ({ NestFactory: { createApplicationContext: jest.fn() } }));
 jest.mock('../neo4j/neo4j-operations.module.js', () => ({ Neo4jOperationsModule: class {} }));
-jest.mock('./manifest.js', () => ({ readManifest: jest.fn(), loadOrCreateManifest: jest.fn() }));
 jest.mock('./fixture.js', () => ({ applyFixture: jest.fn() }));
+jest.mock('./manifest.js', () => ({ readManifest: jest.fn() }));
 
-const manifest = {
-  datasetVersion: 1, database: 'isn-dev', databaseId: 'db-id',
-  users: Array.from({ length: 12 }, (_, i) => ({
-    id: `id-${i}`, email: `social-demo-${String(i + 1).padStart(2, '0')}@example.test`,
-    password: `strong-password-${i}-long-enough`, displayName: `User ${i}`,
-  })),
-};
+const oldUsers = DEMO_MEMBERS.map(({ displayName }, index) => ({
+  id: `owned-${index}`, email: LEGACY_EMAILS[index]!, password: 'legacy-fixture-password', displayName,
+}));
+
+type Row = Record<string, unknown>;
+
+function result(rows: Row[]) {
+  return { records: rows.map(row => ({ get: (key: string) => row[key] })) };
+}
 
 describe('social demo CLI', () => {
-  const originalEnv = { nodeEnv: process.env.NODE_ENV, capture: process.env.ACTIVITY_CAPTURE_ENABLED, argv: process.argv };
-  let context: any;
-  let ownership: Array<{ id: string; email: string }>;
-  let writeCount: number;
-  let neo4j: any;
-  let getStatus: jest.Mock;
+  const originalArgv = process.argv;
+  const originalEnv = process.env;
+  let identity: Row;
+  let roster: Row[];
+  let legacy: Row[];
+  let databaseVersion: number;
+  let legacyGraphVerified: boolean;
+  let uri: string;
+  let run: jest.Mock;
+  let write: jest.Mock;
+  let read: jest.Mock;
+  let status: jest.Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    process.env.NODE_ENV = 'development';
-    delete process.env.ACTIVITY_CAPTURE_ENABLED;
+    process.env = { ...originalEnv, NODE_ENV: 'development', ACTIVITY_CAPTURE_ENABLED: 'false' };
     process.argv = ['node', 'cli.js', '--apply'];
-    ownership = [];
-    writeCount = 0;
-    getStatus = jest.fn(async () => ({ status: 'current', version: 7, database: 'isn-dev' }));
-    (readManifest as jest.Mock).mockResolvedValue(manifest);
-    (loadOrCreateManifest as jest.Mock).mockResolvedValue(manifest);
-    (applyFixture as jest.Mock).mockResolvedValue({ users: 12, friendships: 18, pending: 5, posts: 32, comments: 50, likes: 75 });
-    const records = (value: any) => ({ records: [{ get: (key: string) => value[key] }] });
-    const tx = { run: jest.fn(async (query: string) => query.includes('db.info')
-      ? records({ database: 'isn-dev', id: 'db-id' })
-      : records({ users: ownership })) };
-    neo4j = {
-      database: 'isn-dev',
-      executeRead: jest.fn(async (callback: any) => callback(tx)),
-      executeWriteOnce: jest.fn(async (callback: any) => {
-        writeCount++;
-        const writeTx = { run: jest.fn(async (query: string) => query.includes('db.info')
-          ? records({ database: 'isn-dev', id: 'db-id' })
-          : records({ users: [] })) };
-        return callback(writeTx);
-      }),
-    };
-    context = {
-      get: (token: any) => token?.name === 'ConfigService'
-        ? { getOrThrow: (key: string) => key === 'NEO4J_URI' ? 'bolt://localhost:7687' : 'isn-dev' }
-        : token?.name === 'Neo4jService' ? neo4j
-          : token?.name === 'Neo4jMigrationService' ? { getStatus }
-            : {},
+    identity = { database: 'isn-dev', id: 'db-id' };
+    roster = [];
+    legacy = [];
+    databaseVersion = 8;
+    legacyGraphVerified = true;
+    uri = 'bolt://localhost:7687';
+    run = jest.fn(async (query: string, params?: Row) => {
+      if (query.includes('db.info')) return result([identity]);
+      if (query.includes('AS owned')) return result(roster);
+      if (query.includes('u.passwordHash AS hash')) return result(legacy);
+      if (query.includes('AS verified')) return result([{ verified: legacyGraphVerified }]);
+      if (query.includes('UNWIND $updates')) {
+        // Legacy fixture accounts have an implicit USER role until the upgrade persists it.
+        roster = (params!.updates as Array<{ email: string }>).map(({ email }) => ({
+          email, role: query.includes("u.role = 'USER'")
+            ? 'USER' : null, owned: true,
+        }));
+        return result([{ changed: DEMO_MEMBERS.length }]);
+      }
+      if (query.includes("u.role = 'ADMIN'")) {
+        roster.push({ email: params!.email, role: 'ADMIN', owned: true });
+        return result([]);
+      }
+      if (query.includes('u.socialDemoVersion = 2')) {
+        roster = DEMO_MEMBERS.map(({ email, role }) => ({ email, role, owned: true }));
+        return result([]);
+      }
+      throw new Error(`Unhandled fake transaction query: ${query}`);
+    });
+    read = jest.fn(async (callback) => callback({ run }));
+    write = jest.fn(async (callback) => callback({ run }));
+    status = jest.fn(async () => ({ status: 'current', version: databaseVersion, database: 'isn-dev' }));
+    jest.mocked(readManifest).mockImplementation(async () => legacy.length
+      ? { datasetVersion: 1, database: 'isn-dev', databaseId: 'db-id', users: oldUsers }
+      : undefined);
+    jest.mocked(applyFixture).mockResolvedValue({ users: 12, friendships: 18, pending: 5, posts: 27, comments: 48, likes: 75 });
+    jest.mocked(NestFactory.createApplicationContext).mockResolvedValue({
+      get: (token: { name?: string }) => {
+        if (token?.name === 'ConfigService') return { getOrThrow: (key: string) => key === 'NEO4J_URI' ? uri : 'isn-dev' };
+        if (token?.name === 'Neo4jService') return { database: 'isn-dev', executeRead: read, executeWriteOnce: write };
+        if (token?.name === 'Neo4jMigrationService') return { getStatus: status };
+        return {};
+      },
       close: jest.fn(),
-    };
-    (NestFactory.createApplicationContext as jest.Mock).mockResolvedValue(context);
+    } as never);
     jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(PasswordService.prototype, 'hash').mockResolvedValue('new-hash');
+    jest.spyOn(PasswordService.prototype, 'verify').mockResolvedValue(true);
+    jest.spyOn(AuthRepository.prototype, 'register').mockResolvedValue({ id: 'admin', email: DEMO_ADMIN.email, role: 'USER' });
+    jest.spyOn(UsersService.prototype, 'updateOwnProfile').mockResolvedValue({} as never);
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
-    process.argv = originalEnv.argv;
-    if (originalEnv.nodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalEnv.nodeEnv;
-    if (originalEnv.capture === undefined) delete process.env.ACTIVITY_CAPTURE_ENABLED; else process.env.ACTIVITY_CAPTURE_ENABLED = originalEnv.capture;
+    process.argv = originalArgv;
+    process.env = originalEnv;
   });
 
-  it('blocks a non-V7 schema without writes', async () => {
-    context.get = (token: any) => token?.name === 'ConfigService'
-      ? { getOrThrow: (key: string) => key === 'NEO4J_URI' ? 'bolt://localhost:7687' : 'isn-dev' }
-      : token?.name === 'Neo4jService' ? { database: 'isn-dev', executeRead: async (cb: any) => cb({ run: async () => ({ records: [{ get: (key: string) => key === 'database' ? 'isn-dev' : 'db-id' }] }) }), executeWriteOnce: jest.fn() }
-        : token?.name === 'Neo4jMigrationService' ? { getStatus: async () => ({ status: 'current', version: 4, database: 'isn-dev' }) } : {};
-    await expect(main()).rejects.toThrow();
-    expect(writeCount).toBe(0);
+  function legacyRoster() {
+    return oldUsers.map(({ id, email, displayName }) => ({ id, email, displayName, role: 'USER', version: null, hash: 'old-hash' }));
+  }
+
+  it('blocks a non-V8 schema without inspecting or writing fixtures', async () => {
+    databaseVersion = 7;
+    await expect(main()).rejects.toThrow('Current V8 required');
+    expect(readManifest).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
-  it('refuses a wrong configured target', async () => {
-    const get = context.get;
-    context.get = (token: any) => token?.name === 'ConfigService'
-      ? { getOrThrow: (key: string) => key === 'NEO4J_URI' ? 'bolt://remote.example:7687' : 'isn-dev' }
-      : get(token);
-    await expect(main()).rejects.toThrow();
-    expect(neo4j.executeRead).toHaveBeenCalledTimes(0);
-    expect(getStatus).toHaveBeenCalledTimes(0);
-    expect(writeCount).toBe(0);
+  it('refuses a non-local target before querying the database', async () => {
+    uri = 'bolt://remote.example:7687';
+    await expect(main()).rejects.toThrow('requires loopback isn-dev');
+    expect(read).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
-  it('refuses an unexpected reported identity before migration status or inventory reads', async () => {
-    const run = jest.fn(async (query: string) => query.includes('db.info')
-      ? { records: [{ get: (key: string) => key === 'database' ? 'unexpected-db' : 'db-id' }] }
-      : { records: [{ get: () => ownership }] });
-    neo4j.executeRead.mockImplementation(async (callback: any) => callback({ run }));
+  it('refuses an unexpected reported identity before migration or inventory reads', async () => {
+    identity.database = 'unexpected-db';
     await expect(main()).rejects.toThrow('database identity mismatch');
-    expect(neo4j.executeRead).toHaveBeenCalledTimes(1);
-    expect(getStatus).toHaveBeenCalledTimes(0);
-    expect(writeCount).toBe(0);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(status).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
-  it('does not write an exact owned replay', async () => {
-    ownership = manifest.users.map(({ id, email }) => ({ id, email }));
+  it('does not write a complete owned v2 roster on replay', async () => {
+    roster = DEMO_ACCOUNTS.map(({ email, role }) => ({ email, role, owned: true }));
     await main();
-    expect(writeCount).toBe(0);
+    expect(write).not.toHaveBeenCalled();
+    expect(PasswordService.prototype.hash).not.toHaveBeenCalled();
   });
 
-  it.each([
-    [['other-id', manifest.users[0]!.email]],
-    [['id-0', 'other@example.test']],
-  ])('refuses colliding ownership without writing', async ([pair]) => {
-    ownership = [{ id: pair![0] as string, email: pair![1] as string }];
-    await expect(main()).rejects.toThrow();
-    expect(writeCount).toBe(0);
+  it.each([false, true])('refuses an unowned collision or partial roster (owned=%s)', async owned => {
+    roster = [{ email: DEMO_MEMBERS[0]!.email, role: 'USER', owned }];
+    await expect(main()).rejects.toThrow('collides with an unowned account');
+    expect(write).not.toHaveBeenCalled();
   });
 
-  it('refuses a partial owned roster without writing', async () => {
-    ownership = [{ id: manifest.users[0]!.id, email: manifest.users[0]!.email }];
-    await expect(main()).rejects.toThrow();
-    expect(writeCount).toBe(0);
-  });
-
-  it('hashes sequentially with PasswordService before dispatching one write', async () => {
-    const hashing = jest.spyOn(PasswordService.prototype, 'hash');
+  it('seeds 12 members and a separate administrator using the application password hasher', async () => {
     await main();
-    expect(hashing).toHaveBeenCalledTimes(12);
-    expect(writeCount).toBe(1);
-    expect(applyFixture).toHaveBeenCalledTimes(1);
-    expect((applyFixture as jest.Mock).mock.calls[0][0].passwordHashes).toHaveLength(12);
+    expect(PasswordService.prototype.hash).toHaveBeenCalledTimes(13);
+    expect(PasswordService.prototype.hash).toHaveBeenCalledWith(DEMO_PASSWORD);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(applyFixture).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: { users: DEMO_MEMBERS.map(account => expect.objectContaining(account)) },
+    }));
+    expect(AuthRepository.prototype.register).toHaveBeenCalledWith(expect.objectContaining({ email: DEMO_ADMIN.email, passwordHash: 'new-hash' }));
+  });
+
+  it('upgrades the verified v1 IDs in place and materializes the implicit USER role before checking v2', async () => {
+    process.argv.push('--expected-comments=50');
+    process.argv[2] = '--upgrade-v1';
+    legacy = legacyRoster();
+    await main();
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('AS verified'), { ids: oldUsers.map(user => user.id), expectedComments: 50 });
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('UNWIND $updates'), {
+      updates: oldUsers.map((user, index) => ({
+        id: user.id, email: DEMO_MEMBERS[index]!.email, oldEmail: user.email, oldHash: 'old-hash', passwordHash: 'new-hash',
+      })),
+    });
+    expect(roster).toEqual(DEMO_ACCOUNTS.map(({ email, role }) => ({ email, role, owned: true })));
+    expect(applyFixture).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a legacy boundary mismatch before starting a write', async () => {
+    process.argv[2] = '--upgrade-v1';
+    legacy = legacyRoster();
+    legacyGraphVerified = false;
+    await expect(main()).rejects.toThrow('Legacy graph differs from the fixture');
+    expect(write).not.toHaveBeenCalled();
   });
 });

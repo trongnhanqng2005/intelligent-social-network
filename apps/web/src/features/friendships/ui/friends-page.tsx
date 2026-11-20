@@ -105,6 +105,7 @@ export function FriendsPage() {
       </header>
       <nav className="friendship-subnav" aria-label="Kết nối bạn bè">
         <Link aria-current="page" to="/ban-be">Bạn bè</Link>
+        <Link to="/ban-be/goi-y">Gợi ý</Link>
         <Link to="/ban-be/loi-moi?direction=received">Lời mời nhận</Link>
         <Link to="/ban-be/loi-moi?direction=sent">Lời mời đã gửi</Link>
       </nav>

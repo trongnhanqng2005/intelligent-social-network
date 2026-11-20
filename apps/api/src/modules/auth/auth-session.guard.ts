@@ -9,10 +9,12 @@ import type { Request, Response } from 'express';
 import { AuthException } from './auth.errors.js';
 import { AuthService } from './auth.service.js';
 import { AuthSecurityService } from './auth-security.service.js';
+import { sanitizeRole } from './auth.repository.js';
 
 export interface AuthPrincipal {
   id: string;
   email: string;
+  role: 'USER' | 'ADMIN';
   jti: string;
   expiresAt: string;
 }
@@ -42,6 +44,7 @@ export class AuthSessionGuard implements CanActivate {
     request.authPrincipal = {
       id: session.user.id,
       email: session.user.email,
+      role: sanitizeRole(session.user.role),
       jti: session.jti,
       expiresAt: session.expiresAt,
     };

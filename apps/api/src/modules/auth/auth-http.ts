@@ -36,7 +36,8 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
         request.path === '/users' || request.path.startsWith('/users/') ||
         request.path === '/feed' || request.path === '/posts' || request.path.startsWith('/posts/') ||
         request.path === '/friendships' || request.path.startsWith('/friendships/') ||
-        request.path === '/ml-demo' || request.path.startsWith('/ml-demo/')) {
+        request.path === '/ml-demo' || request.path.startsWith('/ml-demo/') ||
+        request.path === '/admin' || request.path.startsWith('/admin/')) {
       response.setHeader('Cache-Control', 'no-store');
     }
     next();
@@ -77,7 +78,9 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     }
     const postsJsonWrite = (request.method === 'POST' && request.path === '/posts') ||
       (request.method === 'PATCH' && /^\/posts\/[^/]+$/u.test(request.path));
-    if (postsJsonWrite && !request.is('application/json')) {
+    const adminJsonWrite = request.method === 'PUT' &&
+      (request.path.startsWith('/admin/') || request.path === '/ml-demo/anomalies/review');
+    if ((postsJsonWrite || adminJsonWrite) && !request.is('application/json')) {
       response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
         error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
       });

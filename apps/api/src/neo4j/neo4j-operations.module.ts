@@ -7,6 +7,7 @@ import { Neo4jModule } from './neo4j.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: process.env.ISN_API_ENV_FILE ?? '.env',
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate: validateNeo4jEnvironment,
     }),

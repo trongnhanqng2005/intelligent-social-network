@@ -11,6 +11,7 @@ export class UsersRepository {
     return this.neo4j.executeRead(async (transaction) => {
       const result = await transaction.run(
         `MATCH (user:User {id: $userId})
+         WHERE coalesce(user.accountLocked, false) = false
          RETURN user.id AS id, user.displayName AS displayName,
                 user.bio AS bio, user.location AS location,
                 toString(user.profileCreatedAt) AS createdAt,
@@ -32,6 +33,7 @@ export class UsersRepository {
     return this.neo4j.executeRead(async (transaction) => {
       const result = await transaction.run(
         `MATCH (user:User {id: $userId})
+         WHERE coalesce(user.accountLocked, false) = false
          RETURN user.id AS id, user.displayName AS displayName,
                 user.bio AS bio, user.location AS location LIMIT 1`,
         { userId },
@@ -49,7 +51,7 @@ export class UsersRepository {
       if (input.afterId) filters.push('user.id > $afterId');
       const result = await transaction.run(
         `MATCH (user:User)
-         WHERE ${filters.join('\n           AND ')}
+          WHERE coalesce(user.accountLocked, false) = false AND ${filters.join('\n           AND ')}
          RETURN user.id AS id, user.displayName AS displayName,
                 user.bio AS bio, user.location AS location
          ORDER BY user.id ASC LIMIT $fetchLimit`,
@@ -63,6 +65,7 @@ export class UsersRepository {
     return this.neo4j.executeWrite(async (transaction) => {
       const result = await transaction.run(
         `MATCH (user:User {id: $userId})
+         WHERE coalesce(user.accountLocked, false) = false
          SET user.profileVersion = user.profileVersion + 0
          WITH user, user.profileVersion AS currentVersion
          WHERE currentVersion = $expectedVersion

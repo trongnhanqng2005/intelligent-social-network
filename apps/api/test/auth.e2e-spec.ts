@@ -18,7 +18,7 @@ const origin = 'http://127.0.0.1:3000';
 
 describe('Authentication HTTP contract (in-memory persistence double)', () => {
   let app: NestExpressApplication;
-  let users: Array<{ id: string; email: string; passwordHash: string }>;
+  let users: Array<{ id: string; email: string; passwordHash: string; role: string }>;
   let sessions: Array<{ jti: string; userId: string; expiresAt: string; revoked: boolean }>;
   let profiles: Map<string, OwnProfile>;
   let friendshipsRepository: {
@@ -88,7 +88,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
         if (users.some((user) => user.email === input.email)) {
           throw new AccountConflictError();
         }
-        users.push({ id: input.id, email: input.email, passwordHash: input.passwordHash });
+        users.push({ id: input.id, email: input.email, passwordHash: input.passwordHash, role: input.role ?? 'USER' });
         const profile = createDefaultProfile(input.id, input.now);
         profiles.set(input.id, {
           id: profile.id,
@@ -99,7 +99,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
           updatedAt: profile.profileUpdatedAt,
           version: profile.profileVersion,
         });
-        return { id: input.id, email: input.email };
+        return { id: input.id, email: input.email, role: 'USER' };
       }),
       findCredentials: jest.fn(async (email) => users.find((user) => user.email === email)),
       createSession: jest.fn(async (input) => {
@@ -111,7 +111,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       findActiveSession: jest.fn(async (userId, jti) => {
         const session = sessions.find((entry) => entry.userId === userId && entry.jti === jti && !entry.revoked && Date.parse(entry.expiresAt) > Date.now());
         const user = users.find((entry) => entry.id === userId);
-        return session && user ? { id: user.id, email: user.email, expiresAt: session.expiresAt } : undefined;
+        return session && user ? { id: user.id, email: user.email, role: user.role, expiresAt: session.expiresAt } : undefined;
       }),
       revokeSession: jest.fn(async (input) => {
         const session = sessions.find((entry) => entry.userId === input.userId && entry.jti === input.jti && !entry.revoked);
@@ -235,6 +235,13 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       .send({ email: 'Alice@Example.test', password: 'a sufficiently long password' })
       .expect(201)
       .expect(({ body }) => expect(body.user).toMatchObject({ email: 'alice@example.test' }));
+    expect(users.find((user) => user.email === 'alice@example.test')?.role).toBe('USER');
+
+    await browser.post('/auth/register')
+      .set('Origin', origin)
+      .set('X-CSRF-Token', csrf)
+      .send({ email: 'role-attempt@example.test', password: 'a sufficiently long password', role: 'ADMIN' })
+      .expect(422);
 
     await browser.post('/auth/register')
       .set('Origin', origin)
@@ -253,6 +260,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       .expect(200);
     expect(login.body).not.toHaveProperty('token');
     expect(login.body.session.expiresAt).toBeTruthy();
+    expect(login.body.user.role).toBe('USER');
     expect(login.body.csrfToken).not.toBe(csrf);
     const setCookie = String(login.headers['set-cookie'] ?? '');
     expect(setCookie).toMatch(/HttpOnly/);
@@ -267,7 +275,23 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     const restoredCsrf = await browser.get('/auth/csrf').expect(200);
 
     const session = await browser.get('/auth/session').expect(200);
-    expect(session.body.user.email).toBe('alice@example.test');
+    expect(session.body.user).toMatchObject({ email: 'alice@example.test', role: 'USER' });
+    const alice = users.find((user) => user.email === 'alice@example.test')!;
+    alice.role = 'ADMIN';
+    await browser.get('/auth/session').expect(200)
+      .expect(({ body }) => expect(body.user.role).toBe('ADMIN'));
+    const alert = { snapshotId: 'a'.repeat(64), actorId: 'synthetic-test-actor-001' };
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).send(alert).expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('CSRF_FAILED'));
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).set('X-CSRF-Token', restoredCsrf.body.csrfToken)
+      .type('text').send(JSON.stringify(alert)).expect(415);
+    alice.role = 'USER';
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).set('X-CSRF-Token', restoredCsrf.body.csrfToken)
+      .send(alert).expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('FORBIDDEN'));
 
     await browser.post('/auth/logout')
       .set('Origin', origin)
