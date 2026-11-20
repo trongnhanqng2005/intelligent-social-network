@@ -37,7 +37,8 @@ playwright/.cache/
 /task/
 /AGENTS.md
 .agents/
-
+cau_truc_bao_cao.md
+.archives/
 # Environment files and credentials
 .env
 .env.*
