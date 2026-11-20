@@ -175,4 +175,35 @@ describe('application routes', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Trang này chưa có ở đây.' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'Quay về trang chủ' })).toHaveAttribute('href', '/');
   });
+
+  it('shows the admin navigation link only when the authenticated user is an admin', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response(200, {
+        user: { id: 'd723b01f-7048-4efd-80c7-2d59cfb88319', email: 'an@example.test', isAdmin: false },
+        session: { expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
+      }))
+      .mockResolvedValueOnce(response(200, { profile: {
+        id: 'd723b01f-7048-4efd-80c7-2d59cfb88319', displayName: 'Nguyễn An', bio: null, location: null,
+        createdAt: '2026-10-14T10:00:00.000Z', updatedAt: '2026-10-14T10:00:00.000Z', version: 0,
+      } }));
+    renderAt('/ho-so');
+    expect(await screen.findByText('Nguyễn An')).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Quản trị' })).not.toBeInTheDocument();
+    cleanup();
+
+    fetchMock
+      .mockResolvedValueOnce(response(200, {
+        user: { id: 'd723b01f-7048-4efd-80c7-2d59cfb88319', email: 'admin@example.test', isAdmin: true },
+        session: { expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
+      }))
+      .mockResolvedValueOnce(response(200, {
+        evaluatedAt: '2026-11-20T02:00:00.000Z',
+        threshold: { suspicious: 0.45, high: 0.7 },
+        summary: { totalUsers: 1, suspiciousCount: 0, highRiskCount: 0 },
+        items: [],
+      }));
+    renderAt('/quan-tri');
+    expect(await screen.findByRole('link', { name: 'Quản trị' })).toHaveAttribute('href', '/quan-tri');
+    expect(await screen.findByRole('heading', { name: 'Giám sát tài khoản bất thường' })).toBeVisible();
+  });
 });

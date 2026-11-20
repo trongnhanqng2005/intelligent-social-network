@@ -20,6 +20,9 @@ export interface EnvironmentConfig extends Neo4jEnvironmentConfig {
   AUTH_ISSUER: string;
   AUTH_AUDIENCE: string;
   AUTH_WEB_ORIGIN: string;
+  ML_DEMO_BUNDLE_PATH?: string;
+  ML_DEMO_ALERT_REVIEWER_IDS?: string;
+  ADMIN_USER_IDS?: string;
 }
 
 export function validateNeo4jEnvironment(
@@ -171,9 +174,20 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
       : 'AUTH_WEB_ORIGIN must be a valid HTTP(S) origin');
   }
 
+  const optionalFeatureConfig: Partial<
+    Pick<EnvironmentConfig, 'ML_DEMO_BUNDLE_PATH' | 'ML_DEMO_ALERT_REVIEWER_IDS' | 'ADMIN_USER_IDS'>
+  > = {};
+  for (const key of ['ML_DEMO_BUNDLE_PATH', 'ML_DEMO_ALERT_REVIEWER_IDS', 'ADMIN_USER_IDS'] as const) {
+    const value = config[key];
+    if (typeof value === 'string' && value.trim()) {
+      optionalFeatureConfig[key] = value.trim();
+    }
+  }
+
   return {
     ...databaseConfig,
     ...authConfig,
     AUTH_WEB_ORIGIN: parsedOrigin.origin,
+    ...optionalFeatureConfig,
   };
 }

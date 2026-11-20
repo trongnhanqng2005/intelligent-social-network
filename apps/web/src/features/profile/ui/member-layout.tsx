@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Activity, Compass, LogOut, Newspaper, UserRound, UsersRound } from 'lucide-react';
+import { Activity, Compass, LogOut, Newspaper, ShieldAlert, UserRound, UsersRound } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuth } from '../../auth/model/auth-context';
 import { Alert } from '../../../shared/ui/alert';
@@ -63,6 +63,11 @@ export function MemberLayout({ children }: { children: ReactNode }) {
           <Link to="/nghien-cuu" aria-current={location.pathname.startsWith('/nghien-cuu') ? 'page' : undefined}>
             <Activity size={17} aria-hidden="true" /> Nghiên cứu
           </Link>
+          {state.session.user.isAdmin && (
+            <Link to="/quan-tri" aria-current={location.pathname.startsWith('/quan-tri') ? 'page' : undefined}>
+              <ShieldAlert size={17} aria-hidden="true" /> Quản trị
+            </Link>
+          )}
         </nav>
         <Button variant="ghost" pending={pending} pendingLabel="Đang đăng xuất…" onClick={handleLogout}>
           <LogOut size={17} aria-hidden="true" /> Đăng xuất

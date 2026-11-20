@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { open } from 'node:fs/promises';
+import { isAllowedUserId } from '../../config/uuid-allowlist.js';
 import { AuthPrincipal } from '../auth/auth-session.guard.js';
 
 type Recommendation = { sourceNodeId: string; candidateNodeId: string; rank: number; score: number };
@@ -16,14 +17,7 @@ export class MlDemoService {
   constructor(private readonly config: ConfigService) {}
 
   canViewAlerts(user: AuthPrincipal): boolean {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-    if (!uuid.test(user.id)) return false;
-    const raw = this.config.get<unknown>('ML_DEMO_ALERT_REVIEWER_IDS');
-    if (typeof raw !== 'string' || raw.length > 4096) return false;
-    const configured = raw;
-    const entries = configured.split(',');
-    if (entries.length > 32 || entries.some((id) => !uuid.test(id))) return false;
-    return entries.includes(user.id);
+    return isAllowedUserId(this.config, 'ML_DEMO_ALERT_REVIEWER_IDS', user.id);
   }
 
   async recommendations(user: AuthPrincipal) {

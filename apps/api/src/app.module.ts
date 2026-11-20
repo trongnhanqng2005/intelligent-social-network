@@ -7,6 +7,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { FriendshipsModule } from './modules/friendships/friendships.module.js';
 import { PostsModule } from './modules/posts/posts.module.js';
 import { MlDemoModule } from './modules/ml-demo/ml-demo.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MlDemoModule } from './modules/ml-demo/ml-demo.module.js';
     FriendshipsModule,
     PostsModule,
     MlDemoModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

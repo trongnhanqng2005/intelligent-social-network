@@ -5,12 +5,15 @@ import {
   Header,
   HttpCode,
   HttpStatus,
+  Optional,
   Post,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
+import { isAllowedUserId } from '../../config/uuid-allowlist.js';
 import { AuthException } from './auth.errors.js';
 import { AuthCredentialsDto } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
@@ -22,6 +25,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly security: AuthSecurityService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   @Get('csrf')
@@ -55,7 +59,7 @@ export class AuthController {
     const result = await this.auth.login(body.email, body.password, clientIp(request));
     const csrfToken = this.security.issueSession(request, response, result.token);
     return {
-      user: result.user,
+      user: { ...result.user, isAdmin: isAllowedUserId(this.config, 'ADMIN_USER_IDS', result.user.id) },
       session: { expiresAt: result.expiresAt },
       csrfToken,
     };
@@ -66,7 +70,11 @@ export class AuthController {
   @UseGuards(AuthSessionGuard)
   getSession(@CurrentUser() user: AuthPrincipal) {
     return {
-      user: { id: user.id, email: user.email },
+      user: {
+        id: user.id,
+        email: user.email,
+        isAdmin: isAllowedUserId(this.config, 'ADMIN_USER_IDS', user.id),
+      },
       session: { expiresAt: user.expiresAt },
     };
   }

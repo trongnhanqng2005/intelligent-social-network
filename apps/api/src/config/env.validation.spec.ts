@@ -173,4 +173,26 @@ describe('validateEnvironment', () => {
       AUTH_WEB_ORIGIN: 'https://social.example.test',
     })).toThrow('AUTH_ISSUER must be an HTTPS URL in production');
   });
+
+  it('forwards optional ML demo and admin settings when configured', () => {
+    const validated = validateEnvironment({
+      ...developmentDatabaseConfig,
+      ML_DEMO_BUNDLE_PATH: ' C:/demo/bundle.json ',
+      ML_DEMO_ALERT_REVIEWER_IDS: '8f831a36-fc45-4e96-aa5b-34a2abea7c35',
+      ADMIN_USER_IDS: ' 8f831a36-fc45-4e96-aa5b-34a2abea7c35 ',
+    });
+    expect(validated.ML_DEMO_BUNDLE_PATH).toBe('C:/demo/bundle.json');
+    expect(validated.ML_DEMO_ALERT_REVIEWER_IDS).toBe('8f831a36-fc45-4e96-aa5b-34a2abea7c35');
+    expect(validated.ADMIN_USER_IDS).toBe('8f831a36-fc45-4e96-aa5b-34a2abea7c35');
+
+    const empty = validateEnvironment({
+      ...developmentDatabaseConfig,
+      ML_DEMO_BUNDLE_PATH: '   ',
+      ML_DEMO_ALERT_REVIEWER_IDS: '',
+      ADMIN_USER_IDS: '  ',
+    });
+    expect(empty.ML_DEMO_BUNDLE_PATH).toBeUndefined();
+    expect(empty.ML_DEMO_ALERT_REVIEWER_IDS).toBeUndefined();
+    expect(empty.ADMIN_USER_IDS).toBeUndefined();
+  });
 });
