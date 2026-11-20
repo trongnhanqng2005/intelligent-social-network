@@ -66,7 +66,7 @@ export class AuthController {
   @UseGuards(AuthSessionGuard)
   getSession(@CurrentUser() user: AuthPrincipal) {
     return {
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, email: user.email, role: user.role },
       session: { expiresAt: user.expiresAt },
     };
   }

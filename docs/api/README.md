@@ -19,8 +19,8 @@ remains separately recorded in the database-operation and acceptance records.
   canonical graph and authenticated API behavior.
 - [Posts & Feed](posts-feed.md) — approved visibility, content, CRUD, feed,
   pagination, concurrency and error contracts; V5 operational state is separate.
-- [Synthetic ML demo](ml-demo.md) — authenticated synthetic recommendations and
-  reviewer-only anomaly alerts.
+- [Synthetic ML demo](ml-demo.md) — admin-only synthetic research and alert review.
+- [Administration](admin.md) — roles, overview statistics and role provisioning.
 - [OpenAPI 3.1](openapi.yaml) — machine-readable contract for health/readiness,
   Authentication, User, Friendship, Posts, Feed and synthetic ML demo routes.
 
@@ -37,4 +37,4 @@ Update the prose and OpenAPI document alongside endpoint changes. Verify them
 against the controller, validation, HTTP contract tests, and observed responses;
 do not document planned social capabilities as implemented.
 
-Activity Logging v1 adds no public HTTP endpoint. It extends committed domain writes only under the research opt-in. Readiness now requires V7 source metadata. The restricted event and batch contract is documented in [Activity Logging](../big-data/activity-logging.md).
+Activity Logging v1 adds no public HTTP endpoint. It extends committed domain writes only under the research opt-in. Readiness requires V8 source metadata. The restricted event and batch contract is documented in [Activity Logging](../big-data/activity-logging.md).

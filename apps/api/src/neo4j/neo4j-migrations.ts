@@ -132,6 +132,17 @@ export const migrationDefinitions = [
       `CREATE RANGE INDEX isn_activity_event_occurred_at IF NOT EXISTS FOR (event:ActivityEvent) ON (event.occurredAt)`,
     ],
   },
+  {
+    version: 8,
+    name: 'ml-alert-reviews',
+    statements: [
+      `CREATE CONSTRAINT isn_ml_alert_review_key IF NOT EXISTS
+       FOR (review:MLAlertReview) REQUIRE review.reviewKey IS UNIQUE`,
+    ],
+    preflight: `
+      CALL { MATCH (review:MLAlertReview) RETURN count(review) AS reviews }
+      RETURN reviews AS conflicts`,
+  },
 ] as const;
 
 const requiredConstraints = [
@@ -199,6 +210,9 @@ const activityConstraints = [
 ] as const;
 const activityIndexes = [
   { name: 'isn_activity_event_occurred_at', type: 'RANGE', entityType: 'NODE', labelsOrTypes: ['ActivityEvent'], properties: ['occurredAt'] },
+] as const;
+const mlReviewConstraints = [
+  { name: 'isn_ml_alert_review_key', type: 'NODE_PROPERTY_UNIQUENESS', entityType: 'NODE', labelsOrTypes: ['MLAlertReview'], properties: ['reviewKey'] },
 ] as const;
 
 export type MigrationStatus = {
@@ -304,6 +318,10 @@ export class Neo4jMigrationService {
     if (recordedV7 && recordedV7.status !== 'VERIFIED') {
       throw new Error('An interrupted V7 migration requires manual read-only inspection; no migration writes were made');
     }
+    const recordedV8 = priorStatus.migrations.find((migration) => migration.version === 8);
+    if (recordedV8 && recordedV8.status !== 'VERIFIED') {
+      throw new Error('An interrupted V8 migration requires manual read-only inspection; no migration writes were made');
+    }
     if (priorStatus.version === 4) await this.assertVerifiedV4Baseline();
     const verifiedV3 = priorStatus.version === 3 && priorStatus.migrations.length === 3 &&
       migrationDefinitions.slice(0, 3).every((definition) => {
@@ -350,6 +368,9 @@ export class Neo4jMigrationService {
           if (migration.version === 6) {
             throw new Error('Likes and comments migration found existing Comment data that requires manual review; no V6 writes were made');
           }
+          if (migration.version === 8) {
+            throw new Error('ML alert review migration found existing review data that requires manual review; no V8 writes were made');
+          }
         }
       }
 
@@ -363,6 +384,7 @@ export class Neo4jMigrationService {
         await this.preflightCommentSchema();
       }
       if (migration.version === 7) await this.assertVerifiedV6Baseline();
+      if (migration.version === 8) await this.assertVerifiedV7Baseline();
 
       if (migration.version === 3) {
         const usersWithoutId = await this.neo4jService.executeRead((transaction) =>
@@ -554,6 +576,28 @@ export class Neo4jMigrationService {
     }
   }
 
+  private async assertVerifiedV7Baseline(): Promise<void> {
+    const inspection = await this.neo4jService.executeRead((transaction) => this.inspect(transaction));
+    const expected = migrationDefinitions.slice(0, 7);
+    const valid = inspection.history.length === expected.length && expected.every((definition) => {
+      const record = inspection.history.find((entry) => entry.version === definition.version);
+      return record?.name === definition.name && record.checksum === checksumMigration(definition) &&
+        record.status === 'VERIFIED' && record.appliedAt !== null && record.verifiedAt !== null;
+    });
+    if (inspection.database !== this.neo4jService.database || inspection.markerVersion !== 7 || !valid || !inspection.schemaValid) {
+      throw new Error('ML alert reviews migration requires a verified V1–V7 schema baseline; no V8 writes were made');
+    }
+    const existing = await this.neo4jService.executeRead(async (transaction) => {
+      const constraints = await transaction.run('SHOW CONSTRAINTS YIELD name, labelsOrTypes RETURN name, labelsOrTypes');
+      const indexes = await transaction.run('SHOW INDEXES YIELD name, labelsOrTypes RETURN name, labelsOrTypes');
+      return [...constraints.records, ...indexes.records].filter((record) =>
+        record.get('name') === 'isn_ml_alert_review_key' ||
+        (Array.isArray(record.get('labelsOrTypes')) && (record.get('labelsOrTypes') as string[]).includes('MLAlertReview')),
+      ).map((record) => String(record.get('name')));
+    });
+    if (existing.length) throw new Error(`Unexpected MLAlertReview schema objects exist (${existing.join(', ')}); no V8 writes were made`);
+  }
+
   private async findHistory(version: number): Promise<HistoryRecord | undefined> {
     return this.neo4jService.executeRead(async (transaction) => {
       const result = await transaction.run(
@@ -623,6 +667,7 @@ export class Neo4jMigrationService {
     if (markerVersion >= 5) expectedConstraints.push(...postConstraints);
     if (markerVersion >= 6) expectedConstraints.push(...commentConstraints);
     if (markerVersion >= 7) expectedConstraints.push(...activityConstraints);
+    if (markerVersion >= 8) expectedConstraints.push(...mlReviewConstraints);
     const constraintsValid = expectedConstraints.every((expected) => {
       const actual = constraintRows.find((constraint) => constraint.name === expected.name);
       return actual !== undefined && matchesConstraint(actual, expected);

@@ -1,54 +1,76 @@
-import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { open } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { AuthPrincipal } from '../auth/auth-session.guard.js';
+import { Neo4jService } from '../../neo4j/neo4j.service.js';
 
 type Recommendation = { sourceNodeId: string; candidateNodeId: string; rank: number; score: number };
-type Alert = { actorId: string; evaluatedAt: string; anomalyScore: number };
+type Alert = { actorId: string; evaluatedAt: string; anomalyScore: number; reviewedAt?: string | null };
 type Snapshot = {
   schemaVersion: 1; source: 'synthetic'; recommendationModelVersion: string | null;
   anomalyModelVersion: string; computedAt: string | null;
-  recommendations: Recommendation[]; threshold: number; evaluatedCount: number; alerts: Alert[];
+  recommendations: Recommendation[]; threshold: number; evaluatedCount: number; alerts: Alert[]; snapshotId: string;
 };
 
 @Injectable()
 export class MlDemoService {
-  constructor(private readonly config: ConfigService) {}
-
-  canViewAlerts(user: AuthPrincipal): boolean {
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-    if (!uuid.test(user.id)) return false;
-    const raw = this.config.get<unknown>('ML_DEMO_ALERT_REVIEWER_IDS');
-    if (typeof raw !== 'string' || raw.length > 4096) return false;
-    const configured = raw;
-    const entries = configured.split(',');
-    if (entries.length > 32 || entries.some((id) => !uuid.test(id))) return false;
-    return entries.includes(user.id);
-  }
+  constructor(private readonly config: ConfigService, private readonly neo4j: Neo4jService) {}
 
   async recommendations(user: AuthPrincipal) {
     const snapshot = await this.loadSnapshot();
     return {
       source: 'synthetic' as const,
-      canViewAlerts: this.canViewAlerts(user),
+      canViewAlerts: true,
       modelVersion: snapshot.recommendationModelVersion,
       computedAt: snapshot.computedAt,
       items: snapshot.recommendations,
     };
   }
 
-  async anomalies(user: AuthPrincipal) {
-    if (!this.canViewAlerts(user)) throw new ForbiddenException({
-      error: { code: 'ML_DEMO_FORBIDDEN', message: 'Bạn không có quyền xem phần nghiên cứu này.' },
-    });
+  async anomalies(_user: AuthPrincipal) {
     const snapshot = await this.loadSnapshot();
+    const reviews = await this.neo4j.executeRead(async (tx) => {
+      const keys = snapshot.alerts.map((alert) => alert.actorId);
+      if (!keys.length) return new Map<string, string>();
+      const result = await tx.run(
+        'MATCH (review:MLAlertReview) WHERE review.snapshotId = $snapshotId AND review.actorId IN $actorIds RETURN review.actorId AS actorId, toString(review.reviewedAt) AS reviewedAt',
+        { snapshotId: snapshot.snapshotId, actorIds: keys },
+      );
+      return new Map(result.records.map((record) => [String(record.get('actorId')), String(record.get('reviewedAt'))]));
+    });
     return {
       source: 'synthetic' as const,
+      snapshotId: snapshot.snapshotId,
       modelVersion: snapshot.anomalyModelVersion,
       threshold: snapshot.threshold,
       evaluatedCount: snapshot.evaluatedCount,
-      alerts: snapshot.alerts,
+      alerts: snapshot.alerts.map((alert) => ({ ...alert, reviewedAt: reviews.get(alert.actorId) ?? null })),
     };
+  }
+
+  async review(user: AuthPrincipal, snapshotId: string, actorId: string) {
+    const snapshot = await this.loadSnapshot();
+    if (snapshot.snapshotId !== snapshotId) throw new ConflictException({ error: { code: 'ML_SNAPSHOT_STALE', message: 'Snapshot đã thay đổi.' } });
+    if (!snapshot.alerts.some((alert) => alert.actorId === actorId)) throw new NotFoundException({ error: { code: 'ML_ALERT_NOT_FOUND', message: 'Cảnh báo không hợp lệ.' } });
+    const reviewKey = createHash('sha256').update(`${snapshotId}\0${actorId}`).digest('hex');
+    const reviewedAt = await this.neo4j.executeWrite(async (tx) => {
+      const result = await tx.run(
+        `MATCH (schema:ISNSchema {key: 'application', version: 8})
+         MATCH (migration:ISNSchemaMigration {version: 8, status: 'VERIFIED'})
+         WHERE migration.appliedAt IS NOT NULL AND migration.verifiedAt IS NOT NULL
+         MATCH (user:User {id: $userId, role: 'ADMIN'})
+         MERGE (review:MLAlertReview {reviewKey: $reviewKey})
+         ON CREATE SET review.snapshotId = $snapshotId, review.actorId = $actorId,
+                        review.reviewedAt = datetime()
+         RETURN toString(review.reviewedAt) AS reviewedAt`,
+        { userId: user.id, reviewKey, snapshotId, actorId },
+      );
+      const record = result.records[0];
+      if (!record) throw new ServiceUnavailableException('Review prerequisites are not verified');
+      return String(record.get('reviewedAt'));
+    });
+    return { snapshotId, actorId, reviewedAt };
   }
 
   private async loadSnapshot(): Promise<Snapshot> {
@@ -61,7 +83,8 @@ export class MlDemoService {
         const bytes = Buffer.alloc(2_000_001);
         const { bytesRead } = await file.read(bytes, 0, bytes.length, 0);
         if (bytesRead > 2_000_000) throw new Error();
-        return validateSnapshot(JSON.parse(bytes.subarray(0, bytesRead).toString('utf8')));
+        const raw = bytes.subarray(0, bytesRead);
+        return { ...validateSnapshot(JSON.parse(raw.toString('utf8'))), snapshotId: createHash('sha256').update(raw).digest('hex') };
       } finally {
         await file.close();
       }

@@ -53,9 +53,9 @@ export async function main(): Promise<void> {
     });
     if (!inventory) throw new Error('Read-only inventory unavailable');
     console.log(`Target=${String(identity.database)} schema=${status.status}/V${status.version ?? 'unknown'} inventory users=${number(inventory.get('users'))} posts=${number(inventory.get('posts'))} friendshipPairs=${number(inventory.get('pairs'))} comments=${number(inventory.get('comments'))}.`);
-    const schemaReady = status.status === 'current' && status.version === 7 && status.database === 'isn-dev';
+    const schemaReady = status.status === 'current' && status.version === 8 && status.database === 'isn-dev';
     if (!schemaReady) {
-      console.error(`Blocked: current V7 schema required; read-only status=${status.status} version=${status.version ?? 'unknown'}`);
+      console.error(`Blocked: current V8 schema required; read-only status=${status.status} version=${status.version ?? 'unknown'}`);
       throw new Error('schema readiness failed');
     }
     if (!apply) {

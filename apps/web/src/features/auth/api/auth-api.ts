@@ -3,6 +3,7 @@ import { resolveApiUrl } from '../../../shared/config/env';
 export interface AuthUser {
   id: string;
   email: string;
+  role: 'USER' | 'ADMIN';
 }
 
 export interface AuthSession {
@@ -30,7 +31,7 @@ function parseUser(value: unknown): AuthUser {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.email !== 'string') {
     throw new AuthApiError('Phản hồi xác thực không hợp lệ.');
   }
-  return { id: value.id, email: value.email };
+  return { id: value.id, email: value.email, role: value.role === 'ADMIN' ? 'ADMIN' : 'USER' };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

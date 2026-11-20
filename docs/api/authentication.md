@@ -27,6 +27,10 @@ social, account-recovery, or administrator endpoints.
 - All auth responses set `Cache-Control: no-store`. Browser requests use
   credentials and must not persist tokens in local/session storage.
 
+## Account roles
+
+Registration stores `USER` on the account. Login and session responses include the role. A missing or unrecognized stored role resolves to `USER`. The API reads the current role from Neo4j on each authenticated request, so role changes apply to existing sessions. Operator provisioning is documented in [Administration](admin.md).
+
 ## Routes
 
 The API route paths below are the NestJS paths, without the Vite development

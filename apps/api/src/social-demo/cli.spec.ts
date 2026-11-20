@@ -32,7 +32,7 @@ describe('social demo CLI', () => {
     process.argv = ['node', 'cli.js', '--apply'];
     ownership = [];
     writeCount = 0;
-    getStatus = jest.fn(async () => ({ status: 'current', version: 7, database: 'isn-dev' }));
+    getStatus = jest.fn(async () => ({ status: 'current', version: 8, database: 'isn-dev' }));
     (readManifest as jest.Mock).mockResolvedValue(manifest);
     (loadOrCreateManifest as jest.Mock).mockResolvedValue(manifest);
     (applyFixture as jest.Mock).mockResolvedValue({ users: 12, friendships: 18, pending: 5, posts: 32, comments: 50, likes: 75 });
@@ -71,7 +71,7 @@ describe('social demo CLI', () => {
     if (originalEnv.capture === undefined) delete process.env.ACTIVITY_CAPTURE_ENABLED; else process.env.ACTIVITY_CAPTURE_ENABLED = originalEnv.capture;
   });
 
-  it('blocks a non-V7 schema without writes', async () => {
+  it('blocks a non-V8 schema without writes', async () => {
     context.get = (token: any) => token?.name === 'ConfigService'
       ? { getOrThrow: (key: string) => key === 'NEO4J_URI' ? 'bolt://localhost:7687' : 'isn-dev' }
       : token?.name === 'Neo4jService' ? { database: 'isn-dev', executeRead: async (cb: any) => cb({ run: async () => ({ records: [{ get: (key: string) => key === 'database' ? 'isn-dev' : 'db-id' }] }) }), executeWriteOnce: jest.fn() }

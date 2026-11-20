@@ -28,6 +28,10 @@ The history is stored in `ISNSchemaMigration` nodes with version, name, checksum
 
 If a process fails after an `APPLYING` record or after a DDL statement, the graph transaction cannot undo already committed schema DDL. The runner refuses interrupted V4/V5 records or pre-existing reserved Friendship/Posts schema/data and performs no repair. Before V5 it requires a verified V1–V4 history and catalog, exact database identity, and no existing Post/AUTHORED data or reserved schema objects. The Posts preflight also checks the live V4 preservation fingerprint and effective grants, and is repeated between role provisioning and migration. Any partial state requires Owner-reviewed, narrowly scoped recovery; do not rerun writes, edit history, or alter V1–V5 definitions automatically.
 
+## V8 alert reviews rollout
+
+The V8 migration adds a unique key for `MLAlertReview` nodes. It requires verified V1–V7 history and catalog, and an empty review label with no reserved schema objects. An interrupted migration requires read-only inspection. Apply V8 to `isn-dev` only in an independently approved operation. Verify the database identity, backup, and catalog before applying, then confirm `/ready` reports V8. The role change for the demo ADMIN needs its own approval. See [Administration](../api/admin.md) for the operator procedure.
+
 ## Commands
 
 Run from the repository root:

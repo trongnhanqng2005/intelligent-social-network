@@ -81,7 +81,7 @@ export class AuthService {
       throw invalidCredentials();
     }
     return {
-      user: { id: credentials.id, email: credentials.email },
+      user: { id: credentials.id, email: credentials.email, role: credentials.role === 'ADMIN' ? 'ADMIN' : 'USER' },
       token,
       issuedAt: now.iso,
       expiresAt,
@@ -89,7 +89,7 @@ export class AuthService {
   }
 
   async restoreSession(token: string): Promise<{
-    user: { id: string; email: string };
+    user: { id: string; email: string; role: 'USER' | 'ADMIN' };
     jti: string;
     expiresAt: string;
   } | undefined> {
@@ -106,7 +106,7 @@ export class AuthService {
     );
     if (!session) return undefined;
     return {
-      user: { id: session.id, email: session.email },
+      user: { id: session.id, email: session.email, role: session.role === 'ADMIN' ? 'ADMIN' : 'USER' },
       jti: claims.jti,
       expiresAt: session.expiresAt,
     };

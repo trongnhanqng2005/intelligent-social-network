@@ -68,6 +68,37 @@ describe('application routes', () => {
     );
   });
 
+  it('hides admin navigation and redirects USER away from both research routes', async () => {
+    fetchMock.mockResolvedValue(response(200, {
+      user: { id: 'user-1', email: 'user@example.test' },
+      session: { expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
+    }));
+    renderAt('/quan-tri');
+    expect(await screen.findByRole('heading', { name: 'Bạn bè' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Quản trị' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/ban-be');
+    cleanup();
+    fetchMock.mockResolvedValue(response(200, {
+      user: { id: 'user-1', email: 'user@example.test', role: 'USER' },
+      session: { expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
+    }));
+    renderAt('/nghien-cuu');
+    expect(await screen.findByRole('heading', { name: 'Bạn bè' })).toBeVisible();
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/ban-be');
+  });
+
+  it('shows admin navigation and loads the application statistics dashboard', async () => {
+    fetchMock.mockResolvedValueOnce(response(200, {
+      user: { id: 'admin-1', email: 'admin@example.test', role: 'ADMIN' },
+      session: { expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
+    })).mockResolvedValueOnce(response(200, { users: 12, friendships: 9, posts: 4, comments: 2 }));
+    renderAt('/quan-tri');
+    expect(await screen.findByRole('heading', { name: 'Tổng quan hệ thống' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Quản trị' })).toBeVisible();
+    expect(await screen.findByText('12')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Mở nghiên cứu tổng hợp' })).toHaveAttribute('href', '/quan-tri/nghien-cuu');
+  });
+
   it.each(['/bang-tin', '/bai-viet/22222222-2222-4222-8222-222222222222'])(
     'protects the authenticated Posts route %s and preserves it for login', async (path) => {
       renderAt(path);

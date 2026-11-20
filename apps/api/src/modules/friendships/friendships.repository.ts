@@ -267,6 +267,57 @@ export class FriendshipsRepository {
     });
   }
 
+  async listRecommendations(input: { viewerId: string; limit: number }) {
+    return this.neo4j.executeRead(async (transaction) => {
+      const result = await transaction.run(
+        `MATCH (viewer:User {id: $viewerId})-[firstFriendship:FRIEND_WITH]-(mutual:User)
+         MATCH (firstPair:FriendshipPair {
+           pairKey: firstFriendship.pairKey, friendshipId: firstFriendship.id,
+           requestStatus: 'ACCEPTED'
+         })
+         MATCH (mutual)-[secondFriendship:FRIEND_WITH]-(candidate:User)
+         MATCH (secondPair:FriendshipPair {
+           pairKey: secondFriendship.pairKey, friendshipId: secondFriendship.id,
+           requestStatus: 'ACCEPTED'
+         })
+          WHERE candidate.id =~ '(?i)[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}' AND
+                candidate.id = toLower(candidate.id) AND
+                candidate.displayName IS NOT NULL AND trim(candidate.displayName) <> '' AND
+                candidate.id <> viewer.id AND
+               ((secondPair.lowUserId = mutual.id AND secondPair.highUserId = candidate.id) OR
+                (secondPair.lowUserId = candidate.id AND secondPair.highUserId = mutual.id)) AND
+               ((firstPair.lowUserId = viewer.id AND firstPair.highUserId = mutual.id) OR
+                (firstPair.lowUserId = mutual.id AND firstPair.highUserId = viewer.id))
+          WITH viewer, candidate, count(DISTINCT mutual.id) AS mutualFriendCount,
+               CASE WHEN viewer.id < candidate.id
+                    THEN toLower(viewer.id) + ':' + toLower(candidate.id)
+                    ELSE toLower(candidate.id) + ':' + toLower(viewer.id) END AS candidatePairKey
+          WHERE NOT EXISTS {
+            MATCH (pair:FriendshipPair {pairKey: candidatePairKey})
+            WHERE pair.requestStatus = 'PENDING' OR pair.friendshipId IS NOT NULL
+         } AND NOT EXISTS {
+           MATCH (viewer)-[friendship:FRIEND_WITH]-(candidate)
+           MATCH (pair:FriendshipPair {
+             pairKey: friendship.pairKey, friendshipId: friendship.id,
+             requestStatus: 'ACCEPTED'
+           })
+         }
+         RETURN candidate.id AS id, candidate.displayName AS displayName,
+                candidate.bio AS bio, candidate.location AS location,
+                mutualFriendCount
+         ORDER BY mutualFriendCount DESC, id ASC LIMIT $limit`,
+        { viewerId: input.viewerId, limit: int(input.limit) },
+      );
+      return result.records.map((record) => ({
+        id: String(record.get('id')),
+        displayName: String(record.get('displayName')),
+        bio: nullableString(record.get('bio')),
+        location: nullableString(record.get('location')),
+        mutualFriendCount: asNumber(record.get('mutualFriendCount')),
+      }));
+    });
+  }
+
   async getRelationship(viewerId: string, memberId: string) {
     if (viewerId === memberId) return { kind: 'found' as const, relationship: relationshipState(viewerId, memberId) };
     const canonical = canonicalizeFriendshipPair(viewerId, memberId);

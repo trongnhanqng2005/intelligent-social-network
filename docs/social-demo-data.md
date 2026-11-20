@@ -4,9 +4,9 @@ The seed command is intentionally fail-closed. Codex performed a read-only live 
 
 ## Readiness and later authorization
 
-Do not apply until the owner separately authorizes necessary migration/readiness work and the actual database reports exact current V7 checksums/catalog. This code does not migrate or repair schema.
+Do not apply until the owner separately authorizes necessary migration/readiness work and the actual database reports exact current application schema checksums/catalog. This code does not migrate or repair schema.
 
-The preflight requires `NODE_ENV=development`, configured and server-reported `isn-dev`, a loopback Neo4j URI, `ACTIVITY_CAPTURE_ENABLED` off, and `Neo4jMigrationService.getStatus()` current V7. It reads the database for identity, migration status, and inventory. It does not create or read a local ownership manifest. It uses `Neo4jOperationsModule`; API signing keys are not required. When target identity is verified it prints sanitized inventory and reports the exact readiness failure; mismatched real identity withholds inventory.
+The preflight requires `NODE_ENV=development`, configured and server-reported `isn-dev`, a loopback Neo4j URI, `ACTIVITY_CAPTURE_ENABLED` off, and `Neo4jMigrationService.getStatus()` current for the application schema. It reads the database for identity, migration status, and inventory. It does not create or read a local ownership manifest. It uses `Neo4jOperationsModule`; API signing keys are not required. When target identity is verified it prints sanitized inventory and reports the exact readiness failure; mismatched real identity withholds inventory.
 
 ## Local ownership manifest
 
@@ -23,6 +23,6 @@ npm run social-demo:preflight
 npm run social-demo:apply
 ```
 
-Before applying, migration/readiness work must be independently authorized and the actual database must report exact current V7 checksums/catalog.
+Before applying, migration/readiness work must be independently authorized and the actual database must report exact current application schema checksums/catalog.
 
 The preflight command is read-only with respect to database and manifest state; its npm script builds the API into local `apps/api/dist/` before running the preflight. The apply command applies only when every gate passes. Neither command runs migrations or targets `isn-test`. Offline tests do not prove behavior against Neo4j.

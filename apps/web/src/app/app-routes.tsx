@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router';
+import { useCallback } from 'react';
 import { AuthProvider } from '../features/auth/model/auth-context';
 import { LoginPage, RegisterPage } from '../features/auth/ui/auth-pages';
 import { HomePage } from '../pages/home/home-page';
@@ -12,6 +13,21 @@ import { FriendshipRequestsPage } from '../features/friendships/ui/friendship-re
 import { FeedPage } from '../features/posts/ui/feed-page';
 import { PostDetailPage } from '../features/posts/ui/post-detail-page';
 import { MlDemoPage } from '../features/ml-demo/ui/ml-demo-page';
+import { AdminDashboardPage } from '../features/admin/ui/admin-dashboard-page';
+import { RecommendationsPage } from '../features/friendships/ui/recommendations-page';
+import { useAuth } from '../features/auth/model/auth-context';
+
+function AdminResearchPage() {
+  const { retry } = useAuth();
+  const refreshRole = useCallback(() => retry(), [retry]);
+  return <MlDemoPage onForbidden={refreshRole} />;
+}
+
+function AdminDashboardRoute() {
+  const { retry } = useAuth();
+  const refreshRole = useCallback(() => retry(), [retry]);
+  return <AdminDashboardPage onForbidden={refreshRole} />;
+}
 
 export function AppRoutes() {
   return (
@@ -23,9 +39,12 @@ export function AppRoutes() {
         <Route path="/ho-so" element={<MemberLayout><ProfilePage /></MemberLayout>} />
         <Route path="/kham-pha" element={<MemberLayout><DiscoveryPage /></MemberLayout>} />
         <Route path="/ban-be" element={<MemberLayout><FriendsPage /></MemberLayout>} />
+        <Route path="/ban-be/goi-y" element={<MemberLayout><RecommendationsPage /></MemberLayout>} />
         <Route path="/ban-be/loi-moi" element={<MemberLayout><FriendshipRequestsPage /></MemberLayout>} />
         <Route path="/bang-tin" element={<MemberLayout><FeedPage /></MemberLayout>} />
-        <Route path="/nghien-cuu" element={<MemberLayout><MlDemoPage /></MemberLayout>} />
+        <Route path="/nghien-cuu" element={<MemberLayout><AdminResearchPage /></MemberLayout>} />
+        <Route path="/quan-tri" element={<MemberLayout><AdminDashboardRoute /></MemberLayout>} />
+        <Route path="/quan-tri/nghien-cuu" element={<MemberLayout><AdminResearchPage /></MemberLayout>} />
         <Route path="/bai-viet/:postId" element={<MemberLayout><PostDetailPage /></MemberLayout>} />
         <Route path="/thanh-vien/:id" element={<MemberLayout><MemberProfilePage /></MemberLayout>} />
         <Route path="*" element={<NotFoundPage />} />
