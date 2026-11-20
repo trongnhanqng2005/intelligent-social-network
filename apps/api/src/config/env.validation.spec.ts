@@ -48,6 +48,28 @@ describe('validateEnvironment', () => {
     });
   });
 
+  it('retains optional ML demo settings only when they are strings', () => {
+    const config = validateEnvironment({
+      ...developmentDatabaseConfig,
+      ML_DEMO_BUNDLE_PATH: 'C:\\private\\ml-demo-v1.json',
+      ML_DEMO_ALERT_REVIEWER_IDS: '00000000-0000-4000-8000-000000000001',
+    });
+
+    expect(config.ML_DEMO_BUNDLE_PATH).toBe('C:\\private\\ml-demo-v1.json');
+    expect(config.ML_DEMO_ALERT_REVIEWER_IDS).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  it('does not expose non-string optional ML demo settings', () => {
+    const config = validateEnvironment({
+      ...developmentDatabaseConfig,
+      ML_DEMO_BUNDLE_PATH: 42,
+      ML_DEMO_ALERT_REVIEWER_IDS: ['00000000-0000-4000-8000-000000000001'],
+    });
+
+    expect(config.ML_DEMO_BUNDLE_PATH).toBeUndefined();
+    expect(config.ML_DEMO_ALERT_REVIEWER_IDS).toBeUndefined();
+  });
+
   it.each(['development', 'test', 'production'])(
     'accepts NODE_ENV=%s',
     (nodeEnv) => {
