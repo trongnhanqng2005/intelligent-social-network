@@ -11,6 +11,7 @@ export function RecommendationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [invitedName, setInvitedName] = useState('');
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(false);
@@ -22,6 +23,7 @@ export function RecommendationsPage() {
   return <section className="friendship-page recommendations" aria-labelledby="recommendations-title">
     <header className="friendship-heading"><span className="profile-eyebrow">CỘNG ĐỒNG WEYLUME</span><h1 id="recommendations-title">Gợi ý kết bạn</h1><p>Thành viên được gợi ý qua các kết nối chung của bạn.</p></header>
     <nav className="friendship-subnav" aria-label="Kết nối bạn bè"><Link to="/ban-be">Bạn bè</Link><Link to="/ban-be/goi-y" aria-current="page">Gợi ý</Link><Link to="/ban-be/loi-moi?direction=received">Lời mời nhận</Link><Link to="/ban-be/loi-moi?direction=sent">Lời mời đã gửi</Link></nav>
+    {invitedName && <p role="status">Đã gửi lời mời đến {invitedName}. <Link to="/ban-be/loi-moi?direction=sent">Xem lời mời đã gửi</Link></p>}
     {loading && <p role="status">Đang tải gợi ý…</p>}
     {error && <Alert tone="error">Chưa thể tải gợi ý kết bạn. <Button variant="ghost" onClick={() => setRevision((value) => value + 1)}>Thử lại</Button></Alert>}
     {!loading && !error && items.length === 0 && <p>Hiện chưa có gợi ý phù hợp.</p>}
@@ -29,7 +31,10 @@ export function RecommendationsPage() {
       <div className="friendship-card__body"><h2><Link to={`/thanh-vien/${encodeURIComponent(person.id)}`}>{person.displayName}</Link></h2>
         {person.bio && <p>{person.bio}</p>}{person.location && <p className="friendship-card__meta">{person.location}</p>}
         <p className="friendship-card__meta">{person.mutualFriendCount === 1 ? '1 bạn chung' : `${person.mutualFriendCount} bạn chung`}</p>
-        <FriendshipActions memberId={person.id} onRelationshipChanged={() => setRevision((value) => value + 1)} />
+        <FriendshipActions memberId={person.id} onRelationshipChanged={(relationship) => {
+          if (relationship?.state === 'outgoing_pending') setInvitedName(person.displayName);
+          setRevision((value) => value + 1);
+        }} />
       </div></li>)}</ul>}
   </section>;
 }

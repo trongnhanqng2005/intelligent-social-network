@@ -43,6 +43,7 @@ export class FriendshipsRepository {
     return this.neo4j.executeWrite(async (transaction) => {
       const locked = await transaction.run(
         `MATCH (sender:User {id: $senderId}), (recipient:User {id: $recipientId})
+         WHERE coalesce(sender.accountLocked, false) = false AND coalesce(recipient.accountLocked, false) = false
          MERGE (pair:FriendshipPair {pairKey: $pairKey})
          ON CREATE SET pair.lowUserId = $lowUserId, pair.highUserId = $highUserId,
                        pair.version = 0
@@ -65,6 +66,7 @@ export class FriendshipsRepository {
 
       const result = await transaction.run(
         `MATCH (sender:User {id: $senderId}), (recipient:User {id: $recipientId})
+         WHERE coalesce(sender.accountLocked, false) = false AND coalesce(recipient.accountLocked, false) = false
          MATCH (pair:FriendshipPair {pairKey: $pairKey})
          SET pair.requestId = $requestId, pair.senderId = $senderId,
              pair.recipientId = $recipientId, pair.requestStatus = 'PENDING',
@@ -283,7 +285,7 @@ export class FriendshipsRepository {
           WHERE candidate.id =~ '(?i)[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}' AND
                 candidate.id = toLower(candidate.id) AND
                 candidate.displayName IS NOT NULL AND trim(candidate.displayName) <> '' AND
-                candidate.id <> viewer.id AND
+                 candidate.id <> viewer.id AND coalesce(candidate.accountLocked, false) = false AND
                ((secondPair.lowUserId = mutual.id AND secondPair.highUserId = candidate.id) OR
                 (secondPair.lowUserId = candidate.id AND secondPair.highUserId = mutual.id)) AND
                ((firstPair.lowUserId = viewer.id AND firstPair.highUserId = mutual.id) OR

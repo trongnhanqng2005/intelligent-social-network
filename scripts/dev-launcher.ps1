@@ -13,6 +13,7 @@ $rootHash = [Security.Cryptography.SHA256]::Create()
 try { $rootHashText = [BitConverter]::ToString($rootHash.ComputeHash([Text.Encoding]::UTF8.GetBytes($Root.ToLowerInvariant()))).Replace('-', '') }
 finally { $rootHash.Dispose() }
 $mutexName = 'Local\ISNDevLauncher_' + $rootHashText.Substring(0, 24)
+$jobName = 'Local\ISNDevLauncherJob_' + $rootHashText.Substring(0, 24)
 
 function Get-LauncherState {
   if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) { return $null }
@@ -104,7 +105,21 @@ try {
   if ([version]$npmVersion -lt [version]'11.19.0' -or [version]$npmVersion -ge [version]'12.0.0') {
     throw "npm 11.19.x or later in the 11.x line is required; found $npmVersion."
   }
-  $configJson = & $node (Join-Path $Root 'scripts/dev-config.mjs') --json
+  $gitTop = (& git -C $Root rev-parse --show-toplevel).Trim()
+  if ($LASTEXITCODE -ne 0 -or [IO.Path]::GetFullPath($gitTop).TrimEnd('\') -ine $Root.TrimEnd('\')) {
+    throw "Selected root is not the Git top level: $Root"
+  }
+  $gitBranch = (& git -C $Root branch --show-current).Trim()
+  $gitSha = (& git -C $Root rev-parse HEAD).Trim()
+  Write-Host "Working root: $Root"
+  Write-Host "Git branch: $gitBranch"
+  Write-Host "Git SHA: $gitSha"
+  $schemaSource = Get-Content -LiteralPath (Join-Path $Root 'apps/api/src/neo4j/neo4j.constants.ts') -Raw
+  if ($schemaSource -notmatch '(?m)^export const APPLICATION_SCHEMA_VERSION = ([1-9][0-9]*);\r?$') {
+    throw 'Could not strictly parse APPLICATION_SCHEMA_VERSION from apps/api/src/neo4j/neo4j.constants.ts.'
+  }
+  $expectedSchemaVersion = [int]$Matches[1]
+  $configJson = & $node (Join-Path $Root 'scripts/dev-config.mjs') $Root --json
   if ($LASTEXITCODE -ne 0) { throw 'Development configuration preflight failed. Review the message above; secret values are never printed.' }
   $config = ($configJson -join "`n") | ConvertFrom-Json
   Write-Host "Configuration verified for Neo4j database $($config.database)."
@@ -138,8 +153,8 @@ public static class DevLauncherNative {
   [DllImport("kernel32.dll", SetLastError=true)] public static extern bool CloseHandle(IntPtr handle);
   [DllImport("kernel32.dll", SetLastError=true)] public static extern bool TerminateJobObject(IntPtr job, uint code);
   [DllImport("kernel32.dll", SetLastError=true)] public static extern bool TerminateProcess(IntPtr process, uint code);
-  public static IntPtr NewKillOnCloseJob() {
-    IntPtr job = CreateJobObject(IntPtr.Zero, null);
+  public static IntPtr NewKillOnCloseJob(string name) {
+    IntPtr job = CreateJobObject(IntPtr.Zero, name);
     if (job == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
     ExtendedLimit limits = new ExtendedLimit(); limits.BasicLimitInformation.LimitFlags = 0x2000;
     if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimit)))) { CloseHandle(job); throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()); }
@@ -156,7 +171,7 @@ public static class DevLauncherNative {
 }
 '@
   Add-Type -TypeDefinition $nativeSource -ErrorAction Stop
-  $jobHandle = [DevLauncherNative]::NewKillOnCloseJob()
+  $jobHandle = [DevLauncherNative]::NewKillOnCloseJob($jobName)
 
   $state = [ordered]@{ pid = $PID; startedUtcTicks = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks; root = $Root; token = $stateToken; apiLog = $apiLog; webLog = $webLog }
   $tempState = "$statePath.tmp"
@@ -218,7 +233,7 @@ public static class DevLauncherNative {
       try {
         $probe = & $probeHttp $url
         if ($probe) {
-          if ($probe.StatusCode -ge 200 -and $probe.StatusCode -lt 300 -and (& $validResponse $probe.Payload)) {
+          if ((& $validResponse $probe.Payload) -and $probe.StatusCode -ge 200 -and $probe.StatusCode -lt 300) {
             Write-Host "$stage is ready: $url" -ForegroundColor Green
             return
           }
@@ -226,7 +241,7 @@ public static class DevLauncherNative {
           $lastFailure = $reason
           if ($reason -ne $lastReason) { Write-Host "$stage is waiting: $reason" -ForegroundColor Yellow; $lastReason = $reason }
         }
-      } catch { }
+      } catch { throw }
       Start-Sleep -Seconds 2
     }
     throw "$stage did not become ready within 90 seconds (last response: $lastFailure). See $($owned.Log)."
@@ -234,7 +249,15 @@ public static class DevLauncherNative {
 
   Write-Host "Starting API with npm run dev:api; log: $apiLog"
   $apiProcess = & $startOwnedProcess 'dev:api' $apiLog
-  $apiReady = { param($response) $response.status -eq 'ready' -and $response.database -eq 'isn-dev' }
+  $apiReady = {
+    param($response)
+    if ($response.status -eq 'not_ready' -and $response.reason -ne 'DATABASE_UNAVAILABLE' -and $response.reason -ne 'SCHEMA_INSPECTION_FAILED') {
+      $expected = if ($null -ne $response.expectedSchemaVersion) { $response.expectedSchemaVersion } else { $expectedSchemaVersion }
+      $actual = if ($null -ne $response.actualSchemaVersion) { $response.actualSchemaVersion } else { 'unavailable' }
+      throw "Database schema is incompatible: expected V$expected, actual V$actual ($($response.reason)). No migration was run."
+    }
+    $response.status -eq 'ready' -and $response.database -eq 'isn-dev' -and $response.schemaVersion -eq $expectedSchemaVersion
+  }
   & $waitForReady $config.apiProbeUrl 'API and Neo4j/schema' $apiReady $apiProcess
 
   Write-Host "Starting frontend with npm run dev:web; log: $webLog"

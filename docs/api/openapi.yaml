@@ -1000,11 +1000,227 @@ paths:
       security: [{ sessionCookie: [] }]
       responses:
         '200':
-          description: Current users, friendships, posts and visible comments.
+          description: Current users, friendships, posts and comments excluding deleted comments.
           headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
           content: { application/json: { schema: { $ref: '#/components/schemas/AdminStats' } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { description: Administrator role required. }
+  /admin/members:
+    get:
+      tags: [Administration]
+      operationId: listAdminMembers
+      summary: List members as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, active, locked], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        email: { type: string, format: email }
+                        displayName: { type: string }
+                        role: { type: string, enum: [USER, ADMIN] }
+                        locked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/members/{id}/lock:
+    put:
+      tags: [Administration]
+      operationId: setAdminMemberLock
+      summary: Set member lock as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [locked]
+              properties:
+                locked: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, locked]
+                properties:
+                  id: { type: string, format: uuid }
+                  locked: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/posts:
+    get:
+      tags: [Administration]
+      operationId: listAdminPosts
+      summary: List posts as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, visible, hidden], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        authorName: { type: string }
+                        content: { type: string }
+                        createdAt: { type: string, format: date-time }
+                        hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/posts/{id}/visibility:
+    put:
+      tags: [Administration]
+      operationId: setAdminPostVisibility
+      summary: Set post visibility as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, hidden]
+                properties:
+                  id: { type: string, format: uuid }
+                  hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/comments:
+    get:
+      tags: [Administration]
+      operationId: listAdminComments
+      summary: List comments as an administrator
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: state, in: query, schema: { type: string, enum: [all, visible, hidden], default: all } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Filtered page of records
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        authorName: { type: string }
+                        content: { type: string }
+                        createdAt: { type: string, format: date-time }
+                        hidden: { type: boolean }
+                        postId: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Administrator role required. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/comments/{id}/visibility:
+    put:
+      tags: [Administration]
+      operationId: setAdminCommentVisibility
+      summary: Set comment visibility as an administrator
+      security: [{ sessionCookie: [], csrfToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        '200':
+          description: Resulting moderation state
+          headers: { Cache-Control: { $ref: '#/components/headers/NoStore' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, hidden]
+                properties:
+                  id: { type: string, format: uuid }
+                  hidden: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { description: Operation forbidden. }
+        '404': { description: Record unavailable. }
+        '415': { description: Expected application/json. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
   /ml-demo/recommendations:
     get:
       tags: [Synthetic ML Demo]

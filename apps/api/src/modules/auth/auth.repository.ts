@@ -17,6 +17,7 @@ export function sanitizeRole(role: unknown): UserRole {
 
 export interface Credentials extends AuthUser {
   passwordHash: string;
+  accountLocked: boolean;
 }
 
 @Injectable()
@@ -59,7 +60,8 @@ export class AuthRepository {
     return this.neo4j.executeRead(async (tx) => {
       const result = await tx.run(
         `MATCH (user:User {email: $email})
-         RETURN user.id AS id, user.email AS email, user.passwordHash AS passwordHash, user.role AS role LIMIT 1`,
+          RETURN user.id AS id, user.email AS email, user.passwordHash AS passwordHash, user.role AS role,
+                 coalesce(user.accountLocked, false) AS accountLocked LIMIT 1`,
         { email },
       );
       const record = result.records[0];
@@ -68,6 +70,7 @@ export class AuthRepository {
         email: String(record.get('email')),
         passwordHash: String(record.get('passwordHash')),
         role: sanitizeRole(record.get('role')),
+        accountLocked: record.get('accountLocked') === true,
       } : undefined;
     });
   }
@@ -79,7 +82,7 @@ export class AuthRepository {
     return this.neo4j.executeWrite(async (tx) => {
       const result = await tx.run(
         `MATCH (user:User {id: $userId, email: $email})
-         WHERE user.passwordHash = $expectedPasswordHash
+         WHERE user.passwordHash = $expectedPasswordHash AND coalesce(user.accountLocked, false) = false
          SET user.passwordHash = CASE WHEN $replacementPasswordHash IS NULL
                                       THEN user.passwordHash ELSE $replacementPasswordHash END
          CREATE (session:AuthSession {
@@ -117,6 +120,7 @@ export class AuthRepository {
       const result = await tx.run(
         `MATCH (user:User {id: $userId})-[:HAS_AUTH_SESSION]->(session:AuthSession {jti: $jti})
          WHERE session.revokedAt IS NULL
+           AND coalesce(user.accountLocked, false) = false
            AND session.expiresAt = datetime($expectedExpiresAt)
            AND session.expiresAt > datetime()
          RETURN user.id AS id, user.email AS email, user.role AS role,

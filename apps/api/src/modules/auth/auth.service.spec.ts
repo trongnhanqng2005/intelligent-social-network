@@ -45,7 +45,7 @@ describe('AuthService', () => {
 
   it('creates the fixed 24-hour session and transaction data for successful login', async () => {
     repository.findCredentials.mockResolvedValue({
-      id: 'user-1', email: 'alice@example.test', passwordHash: '$argon2id$old',
+      id: 'user-1', email: 'alice@example.test', passwordHash: '$argon2id$old', accountLocked: false,
     });
     const result = await service.login('alice@example.test', 'long enough password', '127.0.0.1');
 

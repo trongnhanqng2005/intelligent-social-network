@@ -57,6 +57,10 @@ export class AuthService {
       await this.recordFailure(email);
       throw invalidCredentials();
     }
+    if (credentials.accountLocked) {
+      await this.recordFailure(email);
+      throw invalidCredentials();
+    }
 
     const replacementPasswordHash = this.passwords.needsRehash(credentials.passwordHash)
       ? await this.passwords.hash(password)

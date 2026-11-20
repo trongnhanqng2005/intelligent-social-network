@@ -23,6 +23,12 @@ const canonicalFriendship = `
   }
 `;
 
+const visibleCommentCount = `
+  OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post)
+  WHERE comment.deleted = false AND coalesce(comment.adminHidden, false) = false
+  RETURN count(comment) AS commentCount
+`;
+
 export const postsFeedQuery = `
   MATCH (viewer:User {id: $viewerId})
   CALL (viewer) {
@@ -47,10 +53,10 @@ export const postsFeedQuery = `
         MATCH (post:Post)
         USING INDEX post:Post(authorId, createdAt, id)
           WHERE post.authorId IN [author.id] AND post.createdAt IS NOT NULL AND post.id IS NOT NULL AND
-                post.visibility IN ['members', 'friends']
+                  post.visibility IN ['members', 'friends'] AND coalesce(post.adminHidden, false) = false
         MATCH (author)-[authored:AUTHORED]->(post)
          WITH author, isOwner, viewer, post, count(authored) AS authorLinks
-    WHERE post.visibility IN ['members', 'friends'] AND
+     WHERE post.visibility IN ['members', 'friends'] AND coalesce(post.adminHidden, false) = false AND
           (isOwner OR post.visibility = 'members' OR post.visibility = 'friends') AND
           ($cursorCreatedAt IS NULL OR post.createdAt < datetime($cursorCreatedAt) OR
            (post.createdAt = datetime($cursorCreatedAt) AND post.id < $cursorId))
@@ -61,7 +67,7 @@ export const postsFeedQuery = `
         WITH post, author, viewer, isOwner, authorLinks, authorCount, post.createdAt AS sortCreatedAt, post.id AS id
         ORDER BY sortCreatedAt DESC, id DESC LIMIT $perAuthorLimit
         CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-        CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+          CALL (post) { ${visibleCommentCount} }
         CALL (viewer, post) { OPTIONAL MATCH (viewer)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
         RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
              post.visibility AS visibility, sortCreatedAt,
@@ -105,16 +111,16 @@ export class PostsRepository {
     return this.neo4j.executeRead(async (tx) => {
       const result = await tx.run(
         `MATCH (viewer:User {id: $viewerId})
-          OPTIONAL MATCH (author:User)-[:AUTHORED]->(post:Post {id: $postId})
+           OPTIONAL MATCH (author:User)-[:AUTHORED]->(post:Post {id: $postId})
           WITH viewer, author, post
-          WHERE author IS NOT NULL AND post.authorId = author.id AND
+          WHERE author IS NOT NULL AND post.authorId = author.id AND coalesce(post.adminHidden, false) = false AND
                (viewer.id = author.id OR post.visibility = 'members' OR
                 (post.visibility = 'friends' AND ${canonicalFriendship}))
           OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post)
-          WHERE comment.deleted = false AND
+          WHERE comment.deleted = false AND coalesce(comment.adminHidden, false) = false AND
                 ($cursorCreatedAt IS NULL OR comment.createdAt < datetime($cursorCreatedAt) OR
                  (comment.createdAt = datetime($cursorCreatedAt) AND comment.id < $cursorId))
-          OPTIONAL MATCH (commentAuthor:User)-[:WROTE_COMMENT]->(comment)
+           OPTIONAL MATCH (commentAuthor:User)-[:WROTE_COMMENT]->(comment)
           RETURN post.id AS visiblePostId, comment.id AS id, comment.clientId AS clientId, comment.content AS content,
                 toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt,
                 comment.version AS version, commentAuthor.id AS authorId,
@@ -145,10 +151,10 @@ export class PostsRepository {
       await lockVisiblePostForAction(tx, viewerId, postId);
         const key = createHash('sha256').update(`${postId}:${viewerId}:${input.clientId}`).digest('hex');
         const contentHash = createHash('sha256').update(input.content).digest('hex');
-        const result = await tx.run(`MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (comment:Comment {retryKey:$key}) ON CREATE SET comment.id=$id, comment.clientId=$clientId, comment.postId=$postId, comment.content=$content, comment.originalContentHash=$contentHash, comment.createdAt=datetime($now), comment.updatedAt=datetime($now), comment.version=0, comment.deleted=false WITH viewer, post, comment, comment.id = $id AS created MERGE (comment)-[:ON_POST]->(post) MERGE (viewer)-[:WROTE_COMMENT]->(comment) RETURN comment.id AS id, created, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, comment.originalContentHash AS originalContentHash, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`, {viewerId,postId,key,id,clientId:input.clientId,content:input.content,contentHash,now});
+        const result = await tx.run(`MATCH (viewer:User {id:$viewerId}), (author:User)-[:AUTHORED]->(post:Post {id:$postId}) WHERE post.authorId = author.id AND (viewer.id = author.id OR post.visibility = 'members' OR (post.visibility = 'friends' AND ${canonicalFriendship})) MERGE (comment:Comment {retryKey:$key}) ON CREATE SET comment.id=$id, comment.clientId=$clientId, comment.postId=$postId, comment.content=$content, comment.originalContentHash=$contentHash, comment.createdAt=datetime($now), comment.updatedAt=datetime($now), comment.version=0, comment.deleted=false WITH viewer, post, comment, comment.id = $id AS created MERGE (comment)-[:ON_POST]->(post) MERGE (viewer)-[:WROTE_COMMENT]->(comment) RETURN comment.id AS id, created, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, coalesce(comment.adminHidden, false) AS adminHidden, comment.originalContentHash AS originalContentHash, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`, {viewerId,postId,key,id,clientId:input.clientId,content:input.content,contentHash,now});
        const record = result.records[0];
         if (!record) throw new PostActionOutcomeError('not-found');
-         if (record.get('deleted') === true || record.get('clientId') !== input.clientId || record.get('originalContentHash') !== contentHash) throw new PostActionOutcomeError('conflict');
+          if (record.get('deleted') === true || record.get('adminHidden') === true || record.get('clientId') !== input.clientId || record.get('originalContentHash') !== contentHash) throw new PostActionOutcomeError('conflict');
           if (event && record.get('created') === true) await recordActivityEvent(tx, event);
         return mapComment(record, postId, viewerId);
     });
@@ -161,7 +167,7 @@ export class PostsRepository {
       const status = await commentMutationStatus(tx, viewerId, postId, commentId, expectedVersion);
       if (status) throw new PostActionOutcomeError(status);
       const result = await tx.run(
-        `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.deleted=false AND comment.version=$expectedVersion SET comment.content=$content, comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN comment.id AS id, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`,
+        `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.deleted=false AND coalesce(comment.adminHidden, false)=false AND comment.version=$expectedVersion SET comment.content=$content, comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN comment.id AS id, comment.clientId AS clientId, comment.content AS content, comment.deleted AS deleted, toString(comment.createdAt) AS createdAt, toString(comment.updatedAt) AS updatedAt, comment.version AS version, viewer.id AS authorId, viewer.displayName AS displayName`,
         { viewerId, postId, commentId, content, expectedVersion },
       );
        if (result.records.length !== 1) throw new PostActionOutcomeError('conflict');
@@ -177,7 +183,7 @@ export class PostsRepository {
       const status = await commentMutationStatus(tx, viewerId, postId, commentId, expectedVersion);
       if (status) throw new PostActionOutcomeError(status);
       const result = await tx.run(
-        `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.version=$expectedVersion AND comment.deleted=false SET comment.deleted=true, comment.content='', comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN count(comment) AS changed`,
+        `MATCH (viewer:User {id:$viewerId})-[:WROTE_COMMENT]->(comment:Comment {id:$commentId})-[:ON_POST]->(post:Post {id:$postId}) MATCH (author:User)-[:AUTHORED]->(post) WHERE post.authorId=author.id AND (viewer.id=author.id OR post.visibility='members' OR (post.visibility='friends' AND ${canonicalFriendship})) AND comment.version=$expectedVersion AND comment.deleted=false AND coalesce(comment.adminHidden, false)=false SET comment.deleted=true, comment.content='', comment.updatedAt=datetime(), comment.version=comment.version+1 RETURN count(comment) AS changed`,
         { viewerId, postId, commentId, expectedVersion },
       );
        if (result.records.length !== 1 || numberValue(result.records[0]?.get('changed')) !== 1) {
@@ -214,6 +220,7 @@ export class PostsRepository {
     return this.neo4j.executeWriteOnce(async (transaction) => {
       const result = await transaction.run(
         `MATCH (author:User {id: $authorId})
+         WHERE coalesce(author.accountLocked, false) = false
          MERGE (post:Post {id: $id})
          ON CREATE SET post.authorId = $authorId, post.content = $content,
                        post.visibility = $visibility, post.createdAt = datetime($createdAt),
@@ -225,7 +232,7 @@ export class PostsRepository {
             RETURN count(authored) AS authorLinks
           }
           CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-          CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+           CALL (post) { ${visibleCommentCount} }
           CALL (author, post) { OPTIONAL MATCH (author)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
           OPTIONAL MATCH (post)-[relationship]-()
          RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
@@ -261,11 +268,11 @@ export class PostsRepository {
             RETURN count(owned) AS authorCount
           }
           WITH viewer, author, post, authorLinks, authorCount
-      WHERE post.authorId = author.id AND
+          WHERE post.authorId = author.id AND coalesce(post.adminHidden, false) = false AND
             (viewer.id = author.id OR post.visibility = 'members' OR
              (post.visibility = 'friends' AND ${canonicalFriendship}))
     CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-       CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+        CALL (post) { ${visibleCommentCount} }
        CALL (viewer, post) { OPTIONAL MATCH (viewer)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
       RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
                 post.visibility AS visibility, toString(post.createdAt) AS createdAt,
@@ -295,7 +302,7 @@ export class PostsRepository {
         `MATCH (viewer:User {id: $viewerId}), (author:User {id: $authorId})
          MATCH (author)-[authored:AUTHORED]->(post:Post {authorId: $authorId})
          WITH viewer, author, post, count(authored) AS authorLinks
-         WHERE post.visibility IN ['members', 'friends'] AND
+           WHERE post.visibility IN ['members', 'friends'] AND coalesce(post.adminHidden, false) = false AND
                (viewer.id = author.id OR post.visibility = 'members' OR
                 (post.visibility = 'friends' AND ${canonicalFriendship})) AND
                ($cursorCreatedAt IS NULL OR post.createdAt < datetime($cursorCreatedAt) OR
@@ -305,7 +312,7 @@ export class PostsRepository {
             RETURN count(owned) AS authorCount
           }
           CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-          CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+           CALL (post) { ${visibleCommentCount} }
           CALL (viewer, post) { OPTIONAL MATCH (viewer)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
           RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
                 post.visibility AS visibility, toString(post.createdAt) AS createdAt,
@@ -376,7 +383,7 @@ export class PostsRepository {
               RETURN count(owned) AS authorCount
             }
             CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-            CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+             CALL (post) { ${visibleCommentCount} }
              CALL (author, post) { OPTIONAL MATCH (author)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
       RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
                   post.visibility AS visibility, toString(post.createdAt) AS createdAt,
@@ -496,11 +503,13 @@ async function commentMutationStatus(
   const result = await transaction.run(
     `MATCH (comment:Comment {id:$commentId})-[:ON_POST]->(:Post {id:$postId})
      OPTIONAL MATCH (author:User)-[:WROTE_COMMENT]->(comment)
-     RETURN comment.version AS version, comment.deleted AS deleted, author.id AS authorId`,
+     RETURN comment.version AS version, comment.deleted AS deleted,
+             coalesce(comment.adminHidden, false) AS adminHidden, author.id AS authorId`,
     { commentId, postId },
   );
   const record = result.records[0];
   if (!record) return 'not-found';
+   if (record.get('adminHidden') === true) return 'not-found';
   if (record.get('authorId') !== viewerId) return 'forbidden';
   if (record.get('deleted') === true || asNumber(record.get('version')) !== expectedVersion) return 'conflict';
   return undefined;
@@ -514,6 +523,7 @@ async function findVisibleInTransaction(
 ): Promise<StoredPost | undefined> {
   const result = await transaction.run(
     `MATCH (viewer:User {id: $viewerId}), (post:Post {id: $postId})
+     WHERE coalesce(viewer.accountLocked, false) = false
      CALL (post) {
        MATCH (author:User)-[authored:AUTHORED]->(post)
        RETURN author, count(authored) AS authorLinks
@@ -524,11 +534,11 @@ async function findVisibleInTransaction(
      }
      ${includeRelationshipCount ? 'OPTIONAL MATCH (post)-[relationship]-()' : ''}
      WITH viewer, author, post, authorLinks, authorCount${includeRelationshipCount ? ', count(DISTINCT relationship) AS relationshipCount' : ''}
-      WHERE post.authorId = author.id AND
+        WHERE post.authorId = author.id AND coalesce(post.adminHidden, false) = false AND
             (viewer.id = author.id OR post.visibility = 'members' OR
              (post.visibility = 'friends' AND ${canonicalFriendship}))
       CALL (post) { OPTIONAL MATCH (:User)-[like:LIKED]->(post) RETURN count(like) AS likeCount }
-      CALL (post) { OPTIONAL MATCH (comment:Comment)-[:ON_POST]->(post) WHERE comment.deleted = false RETURN count(comment) AS commentCount }
+       CALL (post) { ${visibleCommentCount} }
       CALL (viewer, post) { OPTIONAL MATCH (viewer)-[viewerLike:LIKED]->(post) RETURN count(viewerLike) > 0 AS likedByViewer }
       RETURN post.id AS id, post.authorId AS authorId, post.content AS content,
             post.visibility AS visibility, toString(post.createdAt) AS createdAt,

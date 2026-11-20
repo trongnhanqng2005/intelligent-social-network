@@ -14,6 +14,9 @@ import { FeedPage } from '../features/posts/ui/feed-page';
 import { PostDetailPage } from '../features/posts/ui/post-detail-page';
 import { MlDemoPage } from '../features/ml-demo/ui/ml-demo-page';
 import { AdminDashboardPage } from '../features/admin/ui/admin-dashboard-page';
+import { AdminLayout } from '../features/admin/ui/admin-layout';
+import { ModerationPage } from '../features/admin/ui/moderation-page';
+import { AdminAlertsPage } from '../features/admin/ui/admin-alerts-page';
 import { RecommendationsPage } from '../features/friendships/ui/recommendations-page';
 import { useAuth } from '../features/auth/model/auth-context';
 
@@ -29,6 +32,12 @@ function AdminDashboardRoute() {
   return <AdminDashboardPage onForbidden={refreshRole} />;
 }
 
+function AdminAlertsRoute() {
+  const { retry } = useAuth();
+  const refreshRole = useCallback(() => retry(), [retry]);
+  return <AdminAlertsPage onForbidden={refreshRole} />;
+}
+
 export function AppRoutes() {
   return (
     <AuthProvider>
@@ -42,9 +51,13 @@ export function AppRoutes() {
         <Route path="/ban-be/goi-y" element={<MemberLayout><RecommendationsPage /></MemberLayout>} />
         <Route path="/ban-be/loi-moi" element={<MemberLayout><FriendshipRequestsPage /></MemberLayout>} />
         <Route path="/bang-tin" element={<MemberLayout><FeedPage /></MemberLayout>} />
-        <Route path="/nghien-cuu" element={<MemberLayout><AdminResearchPage /></MemberLayout>} />
-        <Route path="/quan-tri" element={<MemberLayout><AdminDashboardRoute /></MemberLayout>} />
-        <Route path="/quan-tri/nghien-cuu" element={<MemberLayout><AdminResearchPage /></MemberLayout>} />
+        <Route path="/nghien-cuu" element={<AdminLayout><AdminResearchPage /></AdminLayout>} />
+        <Route path="/quan-tri" element={<AdminLayout><AdminDashboardRoute /></AdminLayout>} />
+        <Route path="/quan-tri/thanh-vien" element={<AdminLayout><ModerationPage kind="members" /></AdminLayout>} />
+        <Route path="/quan-tri/bai-viet" element={<AdminLayout><ModerationPage kind="posts" /></AdminLayout>} />
+        <Route path="/quan-tri/binh-luan" element={<AdminLayout><ModerationPage kind="comments" /></AdminLayout>} />
+        <Route path="/quan-tri/canh-bao" element={<AdminLayout><AdminAlertsRoute /></AdminLayout>} />
+        <Route path="/quan-tri/nghien-cuu" element={<AdminLayout><AdminResearchPage /></AdminLayout>} />
         <Route path="/bai-viet/:postId" element={<MemberLayout><PostDetailPage /></MemberLayout>} />
         <Route path="/thanh-vien/:id" element={<MemberLayout><MemberProfilePage /></MemberLayout>} />
         <Route path="*" element={<NotFoundPage />} />
