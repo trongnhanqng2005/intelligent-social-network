@@ -62,7 +62,7 @@ const posts: Array<{
 ];
 
 export async function applyFixture(input: {
-  driver: Driver; database: string; transaction: Transaction; manifest: DemoManifest;
+  driver: Driver; database: string; transaction: Transaction; manifest: Pick<DemoManifest, 'users'>;
   passwordHashes: string[];
 }): Promise<{ users: number; friendships: number; pending: number; posts: number; comments: number; likes: number }> {
   const neo4j = new TransactionNeo4jService(input.driver, input.database, input.transaction);

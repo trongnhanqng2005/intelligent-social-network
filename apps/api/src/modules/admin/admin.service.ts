@@ -69,7 +69,11 @@ export class AdminService {
        SET user.accountLocked = CASE WHEN coalesce(user.role, 'USER') = 'ADMIN' AND $locked
                                      THEN user.accountLocked
                                      ELSE CASE WHEN $locked THEN true ELSE null END END
-       RETURN user.id AS id, coalesce(user.role, 'USER') AS role,
+       WITH user
+       OPTIONAL MATCH (user)-[:HAS_AUTH_SESSION]->(session:AuthSession)
+       WHERE $locked AND coalesce(user.role, 'USER') <> 'ADMIN' AND session.revokedAt IS NULL
+       SET session.revokedAt = coalesce(session.revokedAt, datetime())
+       RETURN DISTINCT user.id AS id, coalesce(user.role, 'USER') AS role,
               coalesce(user.accountLocked, false) AS locked`,
       { actorId, id, locked },
     ));

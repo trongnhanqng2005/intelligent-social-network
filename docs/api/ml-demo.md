@@ -31,4 +31,4 @@ New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
 
 The verified demo bundle contains 480 recommendations, 64 evaluated actors, and 39 alerts. Compare source artifact hashes with the verified copies before rebuilding.
 
-After V8 and the role grant are authorized and verified, start the API and web app normally. On `/ban-be/goi-y`, check that a regular member can open a profile and send an invitation. As the approved ADMIN, open `/quan-tri` and enter the research workspace. Mark a synthetic alert reviewed and confirm the timestamp after restarting. Use the same session after revoking the role to verify the API denies admin access.
+After V8 is verified and the approved ADMIN is available, start the [V8 worktree](../development/admin-preview.md). On `/ban-be/goi-y`, check that a regular member can open a profile and send an invitation. As the approved ADMIN, open `/quan-tri` and enter the research workspace. Mark a synthetic alert reviewed and confirm the timestamp after restarting. Use the same session after revoking the role to verify the API denies admin access.

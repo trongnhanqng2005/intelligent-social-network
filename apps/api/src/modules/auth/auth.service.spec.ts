@@ -1,3 +1,5 @@
+import { ConfigService } from '@nestjs/config';
+import { DEMO_ADMIN, DEMO_PASSWORD } from '../../social-demo/accounts.js';
 import { AuthRepository, AccountConflictError } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
 import { JwtService } from './jwt.service.js';
@@ -13,6 +15,7 @@ describe('AuthService', () => {
     repository = {
       register: jest.fn().mockResolvedValue({ id: 'user-1', email: 'alice@example.test' }),
       findCredentials: jest.fn(),
+      findActiveSession: jest.fn(),
       createSession: jest.fn().mockResolvedValue(true),
       recordLoginFailure: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuthRepository>;
@@ -22,7 +25,7 @@ describe('AuthService', () => {
       dummyVerify: jest.fn().mockResolvedValue(undefined),
       needsRehash: jest.fn().mockReturnValue(false),
     } as unknown as jest.Mocked<PasswordService>;
-    jwt = { signSession: jest.fn().mockResolvedValue('signed-jwt') } as unknown as jest.Mocked<JwtService>;
+    jwt = { signSession: jest.fn().mockResolvedValue('signed-jwt'), verifySessionToken: jest.fn() } as unknown as jest.Mocked<JwtService>;
     service = new AuthService(repository, passwords, jwt);
   });
 
@@ -60,6 +63,40 @@ describe('AuthService', () => {
     repository.register.mockRejectedValue(new AccountConflictError());
     await expect(service.register('alice@example.test', 'long enough password', '127.0.0.1'))
       .rejects.toMatchObject({ response: { error: { code: 'REGISTRATION_CONFLICT' } }, status: 409 });
+  });
+
+  it.each([
+    ['production', '127.0.0.1', false],
+    ['development', '0.0.0.0', false],
+    ['development', '127.0.0.1', true],
+  ])('permits demo login and session restoration only for local development (%s, %s)', async (environment, host, allowed) => {
+    const values: Record<string, string> = {
+      NODE_ENV: environment, HOST: host, NEO4J_DATABASE: 'isn-dev',
+      NEO4J_URI: 'bolt://127.0.0.1:7687', AUTH_WEB_ORIGIN: 'http://localhost:5173',
+    };
+    const config = { get: (key: string) => values[key] } as ConfigService;
+    service = new AuthService(repository, passwords, jwt, config);
+    const account = { id: 'demo-admin', email: DEMO_ADMIN.email, role: 'ADMIN', localDemo: true } as const;
+    repository.findCredentials.mockResolvedValue({ ...account, accountLocked: false, passwordHash: 'demo-hash' });
+    repository.findActiveSession.mockResolvedValue({ ...account, expiresAt: '2026-11-20T00:00:00Z' });
+    jwt.verifySessionToken.mockResolvedValue({ sub: account.id, jti: 'demo-jti', exp: 1_800_000_000 } as never);
+
+    const login = service.login(account.email, DEMO_PASSWORD, '127.0.0.1');
+    const session = service.restoreSession('session-token');
+    if (allowed) {
+      await expect(login).resolves.toMatchObject({ user: { role: 'ADMIN' } });
+      await expect(session).resolves.toMatchObject({ user: { role: 'ADMIN' } });
+    } else {
+      await expect(login).rejects.toMatchObject({ status: 401 });
+      await expect(session).resolves.toBeUndefined();
+      expect(repository.createSession).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects public registration with the shared demo account credential', async () => {
+    await expect(service.register(DEMO_ADMIN.email, DEMO_PASSWORD, '127.0.0.1'))
+      .rejects.toMatchObject({ status: 409 });
+    expect(repository.register).not.toHaveBeenCalled();
   });
 
   it('bounds repeated login attempts by identity and registration attempts by address', async () => {

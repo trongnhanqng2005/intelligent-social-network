@@ -1,37 +1,21 @@
-# Preview a PR worktree on Windows
+# Preview PR #16 on Windows
 
-The canonical launcher can run a separate Git worktree without switching branches
-or changing roles or migrations. Install dependencies in the worktree first if
-it does not share `node_modules`, and prepare its ignored/local development
-environment and key files before launch.
+Install dependencies with `npm ci` in the V8 feature worktree. Prepare a local API env file and authentication keys using the [environment guide](setup.md). Start the approved Neo4j instance separately and verify the existing `isn-dev` database is on V8.
 
-Run the PR worktree’s launcher from that worktree. You can also pass a target root to the updated wrapper:
+On the Owner's machine, run these commands in PowerShell.
 
-```cmd
-scripts\start-dev.cmd D:\path\to\pr-worktree
+```powershell
+Set-Location 'D:\DoAn\BigData\isn-worktrees\user-recommendations-admin-rbac'
+$env:ISN_API_ENV_FILE = 'D:\DoAn\BigData\intelligent-social-network\apps\api\.env'
+.\scripts\start-dev.cmd
 ```
 
-The launcher prints the resolved root, branch, and commit SHA, and starts both
-`npm run dev:api` and `npm run dev:web` from that root. Stop it using the
-PR worktree's `scripts\stop-dev.cmd`. Both
-wrappers use the selected checkout's launcher, so start and stop share its
-supervisor identity. Launcher state, mutex, and Windows Job are scoped to that
-root. It refuses ports already in use and never terminates unrelated listeners.
+On another machine, substitute the V8 feature worktree and local API env file paths. If the API env file is already at `apps/api/.env` inside the feature worktree, the launcher can use it directly. The updated `start-dev.cmd` also accepts the target worktree path as its first argument. Relative auth key paths resolve from the selected API env file.
 
-For a preview needing distinct API and Vite ports, prepare the worktree's local
-environment values together: `PORT`, `AUTH_ISSUER`, `AUTH_WEB_ORIGIN`,
-`ISN_WEB_PORT`, and `API_PROXY_TARGET` must agree. For example, API port 3300
-and web port 5180 require issuer `http://127.0.0.1:3300`, web origin
-`http://localhost:5180`, web port `5180`, and proxy target
-`http://127.0.0.1:3300`. Keep the API's `NEO4J_DATABASE` set to `isn-dev`.
+The launcher prints the Git root, branch and commit SHA and starts both servers from that worktree. It checks API readiness for `isn-dev` at V8 and validates the web proxy before opening the UI. For a reachable schema mismatch, it reports the expected and actual versions and stops startup. The launcher only checks readiness and leaves Git and database state intact.
 
-Prepare the worktree's ignored/local `apps/api/.env` and `apps/web/.env`
-before launch. To use the canonical checkout's existing ignored API env file,
-set `ISN_API_ENV_FILE` to its absolute path before launching; do not copy
-credentials. The API ConfigModule and preflight both read the selected file.
-Relative signing-key and CSRF paths resolve from the directory containing the selected API env file. Keep secrets and local key material out of commits.
+Stop both servers with `.\scripts\stop-dev.cmd` from the same worktree. Both wrappers use the selected worktree's launcher, so start and stop share its supervisor identity. An occupied port causes startup to stop while the existing listener stays active.
 
-Before opening the UI, the launcher waits for `/ready`. An incompatible
-reachable database reports expected and actual schema versions and fails
-startup; this is read-only and does not run migrations. No database, Git
-branch, or role changes are performed by the launcher.
+If using different ports, configure the API env file and the worktree's optional `apps/web/.env` together. For API port 3300 and web port 5180, set `PORT=3300`, `AUTH_ISSUER=http://127.0.0.1:3300`, `AUTH_WEB_ORIGIN=http://127.0.0.1:5180`, `ISN_WEB_PORT=5180` and `API_PROXY_TARGET=http://127.0.0.1:3300`. Keep `NEO4J_DATABASE=isn-dev`.
+
+Use the V8 feature worktree while PR #16 is in draft. The V7 checkout of `main` is incompatible with an `isn-dev` already at V8. See [demo sign-in and seed instructions](../social-demo-data.md).

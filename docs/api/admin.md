@@ -14,7 +14,7 @@ Friendships are counted from `FRIEND_WITH` relationships. Comments count records
 
 ## Explicit operator provisioning
 
-There is no role-management HTTP endpoint. Only after independent approval of V8, verify the exact database name and ID with `CALL db.info() YIELD name, id RETURN name, id` against the approved target. Execute a parameterized transaction only after separately confirming the exact UUID, email, and current role of the existing account:
+For the local demo administrator, use the [approved Social Demo Data v2 seeder](../social-demo-data.md). For a separately approved role change to an existing account, verify the exact database name and ID with `CALL db.info() YIELD name, id RETURN name, id` against the approved target. Execute a parameterized transaction only after separately confirming the exact UUID, email, and current role of the existing account:
 
 ```cypher
 CALL db.info() YIELD name, id
@@ -52,7 +52,7 @@ name, or post/comment content and author display name.
 Mutations accept a JSON boolean and return the resulting state:
 
 * `PUT /admin/members/:id/lock` with `{ "locked": true|false }` returns
-  `{ id, locked }`. Administrators cannot be locked.
+  `{ id, locked }`. Locking a USER revokes their existing sessions. After unlocking, the USER signs in again. Administrators cannot be locked.
 * `PUT /admin/posts/:id/visibility` with `{ "hidden": true|false }` returns
   `{ id, hidden }`.
 * `PUT /admin/comments/:id/visibility` with `{ "hidden": true|false }` returns

@@ -1,6 +1,13 @@
-import { main } from './cli-main.js';
+import { SocialDemoRefusal } from './accounts.js';
 
-main().catch(() => {
-  console.error('Social demo command refused or failed. Inspect local configuration and readiness; sensitive error details are suppressed.');
+async function run(): Promise<void> {
+  process.loadEnvFile(process.env.ISN_API_ENV_FILE ?? '.env');
+  const { main } = await import('./cli-main.js');
+  await main();
+}
+
+run().catch((error: unknown) => {
+  console.error(error instanceof SocialDemoRefusal ? error.message :
+    'Social demo failed. Check target, readiness, ownership, and local configuration.');
   process.exitCode = 1;
 });

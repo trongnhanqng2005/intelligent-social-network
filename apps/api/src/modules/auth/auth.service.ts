@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import { AccountConflictError, AuthRepository } from './auth.repository.js';
+import { ConfigService } from '@nestjs/config';
+import { DEMO_ACCOUNTS, DEMO_PASSWORD, isLoopbackHost, isLoopbackUrl } from '../../social-demo/accounts.js';
 import { AuthException } from './auth.errors.js';
 import { normalizeEmail, validatePassword } from './identity.js';
 import { JwtService } from './jwt.service.js';
@@ -15,6 +17,7 @@ export class AuthService {
     private readonly repository: AuthRepository,
     private readonly passwords: PasswordService,
     private readonly jwt: JwtService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   private readonly limiter = new AuthRateLimiter();
@@ -23,6 +26,9 @@ export class AuthService {
     const email = this.normalizedEmail(emailInput);
     const password = this.validPassword(passwordInput);
     this.enforceLimit(AuthRateLimiter.identityKey('register-ip', clientIp), 5, 3_600_000);
+    if (password === DEMO_PASSWORD && DEMO_ACCOUNTS.some(account => account.email === email)) {
+      throw new AuthException(HttpStatus.CONFLICT, 'REGISTRATION_CONFLICT', 'Không thể tạo tài khoản với thông tin này.');
+    }
     const passwordHash = await this.passwords.hash(password);
     const now = currentTimestamp();
     try {
@@ -57,7 +63,8 @@ export class AuthService {
       await this.recordFailure(email);
       throw invalidCredentials();
     }
-    if (credentials.accountLocked) {
+    if (credentials.accountLocked || (credentials.localDemo && !this.allowsLocalDemo()) ||
+        (password === DEMO_PASSWORD && DEMO_ACCOUNTS.some(account => account.email === email) && !credentials.localDemo)) {
       await this.recordFailure(email);
       throw invalidCredentials();
     }
@@ -108,7 +115,7 @@ export class AuthService {
       claims.jti,
       new Date(claims.exp * 1000).toISOString(),
     );
-    if (!session) return undefined;
+    if (!session || (session.localDemo && !this.allowsLocalDemo())) return undefined;
     return {
       user: { id: session.id, email: session.email, role: session.role === 'ADMIN' ? 'ADMIN' : 'USER' },
       jti: claims.jti,
@@ -133,6 +140,13 @@ export class AuthService {
 
   rateLimitCsrf(clientIp: string): void {
     this.enforceLimit(AuthRateLimiter.identityKey('csrf-ip', clientIp), 60, 60_000);
+  }
+
+  private allowsLocalDemo(): boolean {
+    const config = this.config;
+    return config?.get('NODE_ENV') === 'development' && config.get('NEO4J_DATABASE') === 'isn-dev' &&
+      isLoopbackHost(config.get<string>('HOST')) && isLoopbackUrl(config.get<string>('NEO4J_URI')) &&
+      isLoopbackUrl(config.get<string>('AUTH_WEB_ORIGIN'));
   }
 
   private normalizedEmail(input: string): string {

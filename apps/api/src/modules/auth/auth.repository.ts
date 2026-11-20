@@ -7,6 +7,7 @@ export interface AuthUser {
   id: string;
   email: string;
   role?: UserRole;
+  localDemo?: boolean;
 }
 
 export type UserRole = 'USER' | 'ADMIN';
@@ -61,7 +62,8 @@ export class AuthRepository {
       const result = await tx.run(
         `MATCH (user:User {email: $email})
           RETURN user.id AS id, user.email AS email, user.passwordHash AS passwordHash, user.role AS role,
-                 coalesce(user.accountLocked, false) AS accountLocked LIMIT 1`,
+                 coalesce(user.accountLocked, false) AS accountLocked,
+                 user.socialDemoVersion IS NOT NULL AS localDemo LIMIT 1`,
         { email },
       );
       const record = result.records[0];
@@ -71,6 +73,7 @@ export class AuthRepository {
         passwordHash: String(record.get('passwordHash')),
         role: sanitizeRole(record.get('role')),
         accountLocked: record.get('accountLocked') === true,
+        ...(record.get('localDemo') === true ? { localDemo: true } : {}),
       } : undefined;
     });
   }
@@ -81,8 +84,11 @@ export class AuthRepository {
   }): Promise<boolean> {
     return this.neo4j.executeWrite(async (tx) => {
       const result = await tx.run(
-        `MATCH (user:User {id: $userId, email: $email})
-         WHERE user.passwordHash = $expectedPasswordHash AND coalesce(user.accountLocked, false) = false
+        `MATCH (user:User {id: $userId})
+         SET user.passwordHash = user.passwordHash
+         WITH user
+         WHERE user.passwordHash = $expectedPasswordHash AND user.email = $email
+           AND coalesce(user.accountLocked, false) = false
          SET user.passwordHash = CASE WHEN $replacementPasswordHash IS NULL
                                       THEN user.passwordHash ELSE $replacementPasswordHash END
          CREATE (session:AuthSession {
@@ -124,7 +130,8 @@ export class AuthRepository {
            AND session.expiresAt = datetime($expectedExpiresAt)
            AND session.expiresAt > datetime()
          RETURN user.id AS id, user.email AS email, user.role AS role,
-                toString(session.expiresAt) AS expiresAt LIMIT 1`,
+                toString(session.expiresAt) AS expiresAt,
+                user.socialDemoVersion IS NOT NULL AS localDemo LIMIT 1`,
         { userId, jti, expectedExpiresAt },
       );
       const record = result.records[0];
@@ -133,6 +140,7 @@ export class AuthRepository {
         email: String(record.get('email')),
         role: sanitizeRole(record.get('role')),
         expiresAt: String(record.get('expiresAt')),
+        ...(record.get('localDemo') === true ? { localDemo: true } : {}),
       } : undefined;
     });
   }
