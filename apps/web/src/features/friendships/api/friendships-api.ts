@@ -47,6 +47,13 @@ export interface FriendshipPage<T> {
   pagination: { limit: number; hasMore: boolean; nextCursor: string | null };
 }
 
+export interface FriendSuggestionItem {
+  member: FriendshipMember;
+  mutualFriendsCount: number;
+  score: number;
+  reason: string;
+}
+
 export interface FriendshipMutationResult {
   request: FriendshipRequest;
   relationship: FriendshipRelationship;
@@ -230,5 +237,30 @@ export async function unfriend(friendshipId: string): Promise<void> {
   await requestJson(`/friendships/${encodeURIComponent(friendshipId)}`, {
     method: 'DELETE',
     headers: { 'X-CSRF-Token': csrfToken },
+  });
+}
+
+export async function listFriendSuggestions(
+  limit?: number,
+  signal?: AbortSignal,
+): Promise<FriendSuggestionItem[]> {
+  const query = new URLSearchParams();
+  if (limit !== undefined) query.set('limit', String(limit));
+  const suffix = query.toString();
+  const value = await requestJson(`/friendships/suggestions${suffix ? `?${suffix}` : ''}`, { signal });
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new FriendshipApiError('Danh sách gợi ý kết bạn nhận được không hợp lệ.');
+  }
+  return value.items.map((item) => {
+    if (!isRecord(item) || typeof item.mutualFriendsCount !== 'number' ||
+        typeof item.score !== 'number' || typeof item.reason !== 'string') {
+      throw new FriendshipApiError('Thông tin gợi ý kết bạn nhận được không hợp lệ.');
+    }
+    return {
+      member: parseMember(item.member),
+      mutualFriendsCount: item.mutualFriendsCount,
+      score: item.score,
+      reason: item.reason,
+    };
   });
 }

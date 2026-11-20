@@ -19,6 +19,7 @@ describe('FriendshipsService', () => {
     actOnRequest: jest.fn(),
     listRequests: jest.fn(),
     listFriends: jest.fn(),
+    listSuggestions: jest.fn(),
     getRelationship: jest.fn(),
     unfriend: jest.fn(),
   };
@@ -37,6 +38,7 @@ describe('FriendshipsService', () => {
     });
     repository.listRequests.mockResolvedValue([]);
     repository.listFriends.mockResolvedValue([]);
+    repository.listSuggestions.mockResolvedValue([]);
     repository.getRelationship.mockResolvedValue({ kind: 'found', relationship: { memberId, state: 'none', requestId: null, friendshipId: null, friendsSince: null } });
     repository.unfriend.mockResolvedValue(undefined);
   });
@@ -122,5 +124,25 @@ describe('FriendshipsService', () => {
       response: { error: { code: 'RATE_LIMITED' } },
     });
     expect(repository.getRelationship).toHaveBeenCalledTimes(120);
+  });
+
+  it('lists friend suggestions with bounded limits', async () => {
+    const suggestion = {
+      member: { id: memberId, displayName: 'Bình', bio: null, location: 'Huế' },
+      mutualFriendsCount: 2,
+      score: 1.4427,
+      reason: '2 bạn chung',
+    };
+    repository.listSuggestions.mockResolvedValueOnce([suggestion]);
+
+    await expect(service.listSuggestions(viewerId)).resolves.toEqual({ items: [suggestion] });
+    expect(repository.listSuggestions).toHaveBeenCalledWith({ viewerId, limit: 8 });
+
+    await expect(service.listSuggestions(viewerId, 5)).resolves.toEqual({ items: [] });
+    expect(repository.listSuggestions).toHaveBeenLastCalledWith({ viewerId, limit: 5 });
+
+    await expect(service.listSuggestions(viewerId, 0)).rejects.toMatchObject({
+      status: HttpStatus.UNPROCESSABLE_ENTITY,
+    });
   });
 });

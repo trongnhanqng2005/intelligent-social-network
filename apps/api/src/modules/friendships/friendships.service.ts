@@ -89,6 +89,13 @@ export class FriendshipsService {
     };
   }
 
+  async listSuggestions(viewerId: string, limitInput?: unknown) {
+    this.consumeRead(viewerId);
+    const limit = parseSuggestionLimit(limitInput);
+    const items = await this.repository.listSuggestions({ viewerId, limit });
+    return { items };
+  }
+
   async getRelationship(viewerId: string, memberId: string) {
     this.consumeRead(viewerId);
     const result = await this.repository.getRelationship(viewerId, memberId);
@@ -163,6 +170,19 @@ function parseLimit(value: unknown): number {
   } catch (error) {
     throw validationException(error, 'limit');
   }
+}
+
+function parseSuggestionLimit(value: unknown): number {
+  if (value === undefined) return 8;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > 20) {
+    throw new FriendshipException(
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      'VALIDATION_ERROR',
+      'Dữ liệu không hợp lệ.',
+      { limit: ['Số kết quả gợi ý phải nằm trong khoảng từ 1 đến 20.'] },
+    );
+  }
+  return value;
 }
 
 function parseCursor(

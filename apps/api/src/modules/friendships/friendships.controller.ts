@@ -23,6 +23,7 @@ import {
   FriendshipRequestIdParamsDto,
   FriendshipRequestsQueryDto,
   FriendshipsQueryDto,
+  FriendSuggestionsQueryDto,
 } from './friendships.dto.js';
 import { FriendshipsService } from './friendships.service.js';
 
@@ -85,6 +86,12 @@ export class FriendshipsController {
   @Header('Cache-Control', 'no-store')
   listFriends(@CurrentUser() user: AuthPrincipal, @Query() query: FriendshipsQueryDto) {
     return this.friendships.listFriends(user.id, query);
+  }
+
+  @Get('suggestions')
+  @Header('Cache-Control', 'no-store')
+  listSuggestions(@CurrentUser() user: AuthPrincipal, @Query() query: FriendSuggestionsQueryDto) {
+    return this.friendships.listSuggestions(user.id, query.limit);
   }
 
   @Delete(':friendshipId')

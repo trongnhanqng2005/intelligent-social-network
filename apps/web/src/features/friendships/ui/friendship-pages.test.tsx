@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router';
 import {
   actOnFriendshipRequest,
+  createFriendshipRequest,
+  listFriendSuggestions,
   listFriendshipRequests,
   listFriendships,
   unfriend,
+  type FriendSuggestionItem,
   type FriendshipListItem,
   type FriendshipPage,
   type FriendshipRequestListItem,
@@ -21,6 +24,8 @@ vi.mock('../api/friendships-api', async (importOriginal) => {
   return {
     ...actual,
     actOnFriendshipRequest: vi.fn(),
+    createFriendshipRequest: vi.fn(),
+    listFriendSuggestions: vi.fn(),
     listFriendshipRequests: vi.fn(),
     listFriendships: vi.fn(),
     unfriend: vi.fn(),
@@ -63,7 +68,12 @@ function LocationText() {
 beforeEach(() => {
   retry.mockReset();
   vi.mocked(listFriendships).mockReset().mockResolvedValue(page([friendItem]));
+  vi.mocked(listFriendSuggestions).mockReset().mockResolvedValue([]);
   vi.mocked(listFriendshipRequests).mockReset().mockResolvedValue(page([requestItem]));
+  vi.mocked(createFriendshipRequest).mockReset().mockResolvedValue({
+    request: { ...requestItem.request, senderId: '11111111-1111-4111-8111-111111111111', recipientId: secondMember.id },
+    relationship: { memberId: secondMember.id, state: 'outgoing_pending', requestId: requestItem.request.id, friendshipId: null, friendsSince: null },
+  });
   vi.mocked(actOnFriendshipRequest).mockReset().mockResolvedValue({
     request: { ...requestItem.request, status: 'ACCEPTED', resolvedAt: 'later' },
     relationship: { memberId, state: 'friends', requestId: null, friendshipId, friendsSince: 'later' },
@@ -183,5 +193,31 @@ describe('friendship list pages', () => {
     expect(screen.queryByRole('button', { name: 'Chấp nhận' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Hủy lời mời' }));
     expect(actOnFriendshipRequest).toHaveBeenCalledWith(requestId, 'cancel');
+  });
+
+  it('shows real-time friend suggestions on the friends page and supports sending/cancelling requests', async () => {
+    const user = userEvent.setup();
+    const suggestion: FriendSuggestionItem = {
+      member: secondMember,
+      mutualFriendsCount: 2,
+      score: 1.4427,
+      reason: '2 bạn chung',
+    };
+    vi.mocked(listFriendSuggestions).mockResolvedValue([suggestion]);
+
+    render(<MemoryRouter initialEntries={['/ban-be']}><FriendsPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('heading', { name: 'Gợi ý kết bạn' })).toBeVisible();
+    expect(await screen.findByRole('link', { name: secondMember.displayName })).toBeVisible();
+    expect(screen.getByText(/2 bạn chung · Điểm gợi ý: 1\.44/)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Kết bạn' }));
+    await waitFor(() => expect(createFriendshipRequest).toHaveBeenCalledWith(secondMember.id));
+    expect(await screen.findByText(`Đã gửi lời mời kết bạn tới ${secondMember.displayName}.`)).toBeVisible();
+    expect(screen.getByText('Đã gửi lời mời')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Hủy lời mời' }));
+    await waitFor(() => expect(actOnFriendshipRequest).toHaveBeenCalledWith(requestId, 'cancel'));
+    expect(await screen.findByRole('button', { name: 'Kết bạn' })).toBeVisible();
   });
 });

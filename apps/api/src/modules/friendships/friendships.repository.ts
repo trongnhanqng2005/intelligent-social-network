@@ -4,6 +4,7 @@ import { Neo4jService } from '../../neo4j/neo4j.service.js';
 import { canonicalizeFriendshipPair, relationshipState } from './friendship-pair.js';
 import type { FriendshipPairState } from './friendship-pair.js';
 import type {
+  FriendSuggestionItem,
   FriendshipListItem,
   FriendshipMutationResult,
   FriendshipPage,
@@ -264,6 +265,82 @@ export class FriendshipsRepository {
         friendsSince: String(record.get('friendsSince')),
         member: readMember(record),
       }));
+    });
+  }
+
+  async listSuggestions(input: {
+    viewerId: string;
+    limit: number;
+  }): Promise<FriendSuggestionItem[]> {
+    const eligibleCandidatePredicate = `
+      candidate.id <> viewer.id
+      AND NOT EXISTS { MATCH (viewer)-[:FRIEND_WITH]-(candidate) }
+      AND NOT EXISTS {
+        MATCH (pair:FriendshipPair {
+          pairKey: CASE WHEN viewer.id < candidate.id
+                        THEN viewer.id + ':' + candidate.id
+                        ELSE candidate.id + ':' + viewer.id END
+        })
+        WHERE pair.requestStatus = 'PENDING'
+      }
+    `;
+    return this.neo4j.executeRead(async (transaction) => {
+      const twoHopResult = await transaction.run(
+        `MATCH (viewer:User {id: $viewerId})
+         MATCH (viewer)-[:FRIEND_WITH]-(mutual:User)-[:FRIEND_WITH]-(candidate:User)
+         WHERE ${eligibleCandidatePredicate}
+         WITH viewer, candidate, collect(DISTINCT mutual) AS mutuals
+         UNWIND mutuals AS m
+         WITH candidate, size(mutuals) AS mutualCount,
+              COUNT { (m)-[:FRIEND_WITH]-(:User) } AS deg
+         WITH candidate, mutualCount,
+              sum(CASE WHEN deg > 1 THEN 1.0 / log(toFloat(deg)) ELSE 1.0 END) AS adamicAdar
+         RETURN candidate.id AS memberId, candidate.displayName AS displayName,
+                candidate.bio AS bio, candidate.location AS location,
+                mutualCount, adamicAdar AS score
+         ORDER BY score DESC, mutualCount DESC, memberId ASC
+         LIMIT $limit`,
+        { viewerId: input.viewerId, limit: int(input.limit) },
+      );
+
+      const suggestions: FriendSuggestionItem[] = twoHopResult.records.map((record) => {
+        const mutualFriendsCount = asNumber(record.get('mutualCount'));
+        const rawScore = Number(record.get('score') ?? 0);
+        return {
+          member: readMember(record),
+          mutualFriendsCount,
+          score: Number.isFinite(rawScore) ? Number(rawScore.toFixed(4)) : mutualFriendsCount,
+          reason: `${mutualFriendsCount} bạn chung`,
+        };
+      });
+
+      const remaining = input.limit - suggestions.length;
+      if (remaining <= 0) return suggestions;
+
+      const excludeIds = suggestions.map((item) => item.member.id);
+      const fallbackResult = await transaction.run(
+        `MATCH (viewer:User {id: $viewerId})
+         MATCH (candidate:User)
+         WHERE ${eligibleCandidatePredicate}
+           AND NOT candidate.id IN $excludeIds
+         WITH candidate, COUNT { (candidate)-[:FRIEND_WITH]-(:User) } AS degree
+         RETURN candidate.id AS memberId, candidate.displayName AS displayName,
+                candidate.bio AS bio, candidate.location AS location,
+                degree
+         ORDER BY degree DESC, memberId ASC
+         LIMIT $remaining`,
+        { viewerId: input.viewerId, excludeIds, remaining: int(remaining) },
+      );
+
+      for (const record of fallbackResult.records) {
+        suggestions.push({
+          member: readMember(record),
+          mutualFriendsCount: 0,
+          score: 0,
+          reason: 'Gợi ý kết nối cộng đồng',
+        });
+      }
+      return suggestions;
     });
   }
 

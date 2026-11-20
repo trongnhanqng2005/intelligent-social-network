@@ -157,4 +157,41 @@ describe('FriendshipsRepository', () => {
     await expect(repository.unfriend('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', friendshipId)).resolves.toBeUndefined();
     expect(transaction.run).toHaveBeenCalledTimes(3);
   });
+
+  it('computes 2-hop mutual suggestions and fills remaining slots with community fallback', async () => {
+    const candidateTwoHop = '33333333-3333-4333-8333-333333333333';
+    const candidateFallback = '44444444-4444-4444-8444-444444444444';
+    transaction.run
+      .mockResolvedValueOnce({
+        records: [record({
+          memberId: candidateTwoHop, displayName: 'Chi Lê', bio: 'Hello', location: 'Đà Nẵng',
+          mutualCount: 2, score: 1.442695,
+        })],
+      } as never)
+      .mockResolvedValueOnce({
+        records: [record({
+          memberId: candidateFallback, displayName: 'Dũng Phạm', bio: null, location: null,
+          degree: 3,
+        })],
+      } as never);
+
+    const items = await repository.listSuggestions({ viewerId: senderId, limit: 4 });
+    expect(items).toEqual([
+      {
+        member: { id: candidateTwoHop, displayName: 'Chi Lê', bio: 'Hello', location: 'Đà Nẵng' },
+        mutualFriendsCount: 2,
+        score: 1.4427,
+        reason: '2 bạn chung',
+      },
+      {
+        member: { id: candidateFallback, displayName: 'Dũng Phạm', bio: null, location: null },
+        mutualFriendsCount: 0,
+        score: 0,
+        reason: 'Gợi ý kết nối cộng đồng',
+      },
+    ]);
+    expect(transaction.run).toHaveBeenCalledTimes(2);
+    expect(String(transaction.run.mock.calls[0]?.[0])).toContain('adamicAdar');
+    expect(String(transaction.run.mock.calls[1]?.[0])).toContain('NOT candidate.id IN $excludeIds');
+  });
 });

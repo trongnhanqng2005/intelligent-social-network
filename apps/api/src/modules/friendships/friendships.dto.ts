@@ -53,3 +53,12 @@ export class FriendshipsQueryDto {
   @IsString()
   cursor?: string;
 }
+
+export class FriendSuggestionsQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  limit?: number;
+}

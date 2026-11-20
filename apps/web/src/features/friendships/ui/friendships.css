@@ -28,6 +28,12 @@
 .friendship-empty { padding: 1.4rem; border: 1px dashed var(--color-border); border-radius: var(--radius-card); color: var(--color-muted); text-align: center; }
 .friendship-empty h2 { margin: 0 0 .4rem; color: var(--color-ink); font-size: 1.1rem; }
 .friendship-empty p { margin: 0 0 1rem; }
+.friendship-suggestions { margin-top: 2.25rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); }
+.friendship-suggestions__header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem 1rem; margin-bottom: 1rem; }
+.friendship-suggestions__header h2 { margin: 0 0 .25rem; font-size: 1.3rem; }
+.friendship-suggestions__header p { margin: 0; color: var(--color-muted); font-size: .92rem; }
+.friendship-card h3 { margin: 0; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.4; }
+.friendship-card h3 a { color: var(--color-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 
 @media (max-width: 520px) {
   .friendship-subnav { gap: .3rem; }

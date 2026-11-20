@@ -6,6 +6,7 @@ import { Button } from '../../../shared/ui/button';
 import { FriendshipApiError, listFriendships, unfriend, type FriendshipListItem, type FriendshipPage } from '../api/friendships-api';
 import { ProfileAvatar } from '../../profile/ui/profile-avatar';
 import { useAuth } from '../../auth/model/auth-context';
+import { FriendSuggestions } from './friend-suggestions';
 import './friendships.css';
 
 export function FriendsPage() {
@@ -157,6 +158,7 @@ export function FriendsPage() {
           </Button>
         </nav>
       </>}
+      <FriendSuggestions returnTo={returnTo} refreshSignal={reloadKey} />
     </section>
   );
 }

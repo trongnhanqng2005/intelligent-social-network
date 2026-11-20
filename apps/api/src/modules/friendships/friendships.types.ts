@@ -40,3 +40,10 @@ export type RepositoryMutationOutcome =
   | { kind: 'conflict'; reason: 'same-pending' | 'incoming-pending' | 'already-friends' | 'state' | 'self' };
 
 export type FriendshipRequestAction = 'accept' | 'reject' | 'cancel';
+
+export interface FriendSuggestionItem {
+  member: PublicProfile;
+  mutualFriendsCount: number;
+  score: number;
+  reason: string;
+}

@@ -26,6 +26,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     actOnRequest: jest.Mock;
     listRequests: jest.Mock;
     listFriends: jest.Mock;
+    listSuggestions: jest.Mock;
     getRelationship: jest.Mock;
     unfriend: jest.Mock;
   };
@@ -69,6 +70,7 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
       })),
       listRequests: jest.fn().mockResolvedValue([]),
       listFriends: jest.fn().mockResolvedValue([]),
+      listSuggestions: jest.fn().mockResolvedValue([]),
       getRelationship: jest.fn().mockResolvedValue({ kind: 'found', relationship: {
         memberId: '22222222-2222-4222-8222-222222222222', state: 'none',
         requestId: null, friendshipId: null, friendsSince: null,
