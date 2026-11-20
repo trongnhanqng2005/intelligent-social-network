@@ -1072,6 +1072,7 @@ paths:
         '403': { description: Administrator and CSRF authorization required. }
         '404': { description: Alert absent from current snapshot. }
         '409': { description: Snapshot changed. }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:

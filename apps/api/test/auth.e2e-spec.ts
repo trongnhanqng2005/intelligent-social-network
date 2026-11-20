@@ -280,7 +280,18 @@ describe('Authentication HTTP contract (in-memory persistence double)', () => {
     alice.role = 'ADMIN';
     await browser.get('/auth/session').expect(200)
       .expect(({ body }) => expect(body.user.role).toBe('ADMIN'));
+    const alert = { snapshotId: 'a'.repeat(64), actorId: 'synthetic-test-actor-001' };
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).send(alert).expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('CSRF_FAILED'));
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).set('X-CSRF-Token', restoredCsrf.body.csrfToken)
+      .type('text').send(JSON.stringify(alert)).expect(415);
     alice.role = 'USER';
+    await browser.put('/ml-demo/anomalies/review')
+      .set('Origin', origin).set('X-CSRF-Token', restoredCsrf.body.csrfToken)
+      .send(alert).expect(403)
+      .expect(({ body }) => expect(body.error.code).toBe('FORBIDDEN'));
 
     await browser.post('/auth/logout')
       .set('Origin', origin)

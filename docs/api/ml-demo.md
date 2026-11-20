@@ -12,4 +12,23 @@ The loader accepts only bounded schema-version-1 synthetic bundles and rejects m
 
 Configure `ML_DEMO_BUNDLE_PATH` to a private bundle produced by `scripts/prepare-ml-demo.py`. Keep the bundle outside the repository. `ML_DEMO_ALERT_REVIEWER_IDS` is no longer used; access is determined by the application administrator role.
 
-Run the API and web app normally, then open `/nghien-cuu`. Verify admin access, non-admin denial, session/CSRF behavior, review idempotency, and stale snapshot rejection. Do not point this feature at real account data.
+Use the existing approved synthetic bundle when available. To rebuild it from the approved Parquet and metrics files, run the converter from the repository root with the pinned Python dependencies.
+
+```powershell
+$venv = 'C:\path\to\friend-rec-venv'
+$artifacts = 'C:\path\to\ml-artifacts'
+$out = Join-Path $env:LOCALAPPDATA 'Weylume\private\ml-demo-v1.json'
+python -m venv $venv
+& "$venv\Scripts\python.exe" -m pip install -r friend_recommendation\requirements.txt
+New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
+& "$venv\Scripts\python.exe" scripts\prepare-ml-demo.py `
+  --recommendations "$artifacts\recommendations.parquet" `
+  --scores "$artifacts\scores.parquet" `
+  --alerts "$artifacts\alerts.parquet" `
+  --metrics "$artifacts\metrics.json" `
+  --output $out
+```
+
+The verified demo bundle contains 480 recommendations, 64 evaluated actors, and 39 alerts. Compare source artifact hashes with the verified copies before rebuilding.
+
+After V8 and the role grant are authorized and verified, start the API and web app normally. On `/ban-be/goi-y`, check that a regular member can open a profile and send an invitation. As the approved ADMIN, open `/quan-tri` and enter the research workspace. Mark a synthetic alert reviewed and confirm the timestamp after restarting. Use the same session after revoking the role to verify the API denies admin access.

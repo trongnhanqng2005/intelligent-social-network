@@ -77,7 +77,8 @@ export function configureAuthHttp(app: NestExpressApplication, security: AuthSec
     }
     const postsJsonWrite = (request.method === 'POST' && request.path === '/posts') ||
       (request.method === 'PATCH' && /^\/posts\/[^/]+$/u.test(request.path));
-    if (postsJsonWrite && !request.is('application/json')) {
+    const alertReviewWrite = request.method === 'PUT' && request.path === '/ml-demo/anomalies/review';
+    if ((postsJsonWrite || alertReviewWrite) && !request.is('application/json')) {
       response.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).json({
         error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Chỉ chấp nhận dữ liệu JSON.' },
       });
